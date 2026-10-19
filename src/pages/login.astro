@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
 import { getSession } from "../lib/auth";
 
 export const prerender = false;
@@ -28,9 +29,12 @@ const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
   showFooter={false}
 >
   <section class="hero-gradient min-h-screen flex items-center justify-center py-16 px-5">
+    <div class="absolute top-5 right-5">
+      <ThemeToggle />
+    </div>
     <div class="w-full max-w-md space-y-8">
       <div class="text-center space-y-3">
-        <a href="/" class="inline-flex items-center gap-2 text-brand-700 font-semibold">
+        <a href="/" class="inline-flex items-center gap-2 text-brand-700 font-semibold dark:text-brand-200">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -46,10 +50,10 @@ const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
           </svg>
           Zurück zur Website
         </a>
-        <h1 class="font-display text-3xl font-extrabold text-ink-900">
+        <h1 class="font-display text-3xl font-extrabold text-ink-900 dark:text-ink-50">
           Admin-Login
         </h1>
-        <p class="text-ink-600 text-sm">
+        <p class="text-ink-600 text-sm dark:text-ink-300">
           Zugang für Zeus-Service-Administrator:innen.
         </p>
       </div>
@@ -57,11 +61,11 @@ const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
       <form
         method="POST"
         action="/api/auth/login"
-        class="rounded-3xl border border-ink-200 bg-white p-8 shadow-[var(--shadow-soft)] space-y-5"
+        class="rounded-3xl border border-ink-200 bg-white p-8 shadow-[var(--shadow-soft)] space-y-5 dark:border-white/10 dark:bg-ink-900"
       >
         {
           errorMessage && (
-            <p class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <p class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-200">
               {errorMessage}
             </p>
           )
@@ -97,9 +101,11 @@ const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
           Anmelden
         </button>
 
-        <p class="text-xs text-ink-500 text-center">
+        <p class="text-xs text-ink-500 text-center dark:text-ink-400">
           Noch kein Zugang? Setzen Sie zuerst
-          <code class="rounded bg-ink-100 px-1 py-0.5">ADMIN_PASSWORD_HASH</code>
+          <code class="rounded bg-ink-100 px-1 py-0.5 dark:bg-white/10 dark:text-ink-100">
+            ADMIN_PASSWORD_HASH
+          </code>
           als Wrangler-Secret (siehe README).
         </p>
       </form>
