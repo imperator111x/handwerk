@@ -22,6 +22,14 @@ export async function POST(ctx: APIContext): Promise<Response> {
     return json({ ok: false, error: "Ungültige Anfrage." }, 400);
   }
 
+  const turnstileToken = formData.get("cf-turnstile-response");
+  if (!(await verifyTurnstile(ctx, turnstileToken))) {
+    return json(
+      { ok: false, error: "Bitte bestätigen Sie die Sicherheitsprüfung." },
+      403,
+    );
+  }
+
   const parsed = parseContact(formData);
   if (!parsed.ok) {
     return json({ ok: false, error: parsed.error }, 400);
@@ -90,6 +98,60 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
 export function GET(): Response {
   return json({ ok: false, error: "Methode nicht erlaubt." }, 405);
+}
+
+async function verifyTurnstile(
+  ctx: APIContext,
+  token: FormDataEntryValue | null,
+): Promise<boolean> {
+  const env = ctx.locals.runtime?.env;
+  const expectedHostnames = new Set(
+    (env?.TURNSTILE_HOSTNAMES ?? "")
+      .split(",")
+      .map((hostname) => hostname.trim())
+      .filter(Boolean),
+  );
+  if (
+    typeof token !== "string" ||
+    token.length === 0 ||
+    token.length > 2048 ||
+    !env?.TURNSTILE_SECRET ||
+    expectedHostnames.size === 0
+  ) {
+    return false;
+  }
+
+  const remoteIp = ctx.request.headers.get("cf-connecting-ip") ?? "";
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: AbortSignal.timeout(10_000),
+        body: new URLSearchParams({
+          secret: env.TURNSTILE_SECRET,
+          response: token,
+          remoteip: remoteIp,
+        }),
+      },
+    );
+    if (!response.ok) return false;
+    const result = (await response.json()) as {
+      success?: boolean;
+      action?: string;
+      hostname?: string;
+    };
+    return (
+      result.success === true &&
+      result.action === "contact" &&
+      typeof result.hostname === "string" &&
+      expectedHostnames.has(result.hostname)
+    );
+  } catch (err) {
+    console.error("turnstile_verify_failed", err);
+    return false;
+  }
 }
 
 function json(data: unknown, status = 200): Response {

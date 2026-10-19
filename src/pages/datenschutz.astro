@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import ObfuscatedEmail from "../components/ObfuscatedEmail.astro";
 import { siteConfig } from "../config/site";
 ---
 
@@ -15,7 +16,7 @@ import { siteConfig } from "../config/site";
       <p class="text-ink-700 dark:text-ink-200">
         Verantwortlich für die Datenverarbeitung auf dieser Website ist:
         Zeus-Service, {siteConfig.contact.address.zip}
-        {siteConfig.contact.address.city}, E-Mail: {siteConfig.contact.email}.
+        {siteConfig.contact.address.city}, E-Mail: <ObfuscatedEmail class="underline" />.
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 mt-6 dark:text-ink-50">
@@ -40,6 +41,12 @@ import { siteConfig } from "../config/site";
         Grundlage von Art. 6 Abs. 1 lit. b DSGVO (Durchführung
         vorvertraglicher Maßnahmen) sowie Art. 6 Abs. 1 lit. f DSGVO
         (berechtigtes Interesse).
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Das Formular ist mit Cloudflare Turnstile geschützt. Dabei prüft
+        Cloudflare, ob die Anfrage von einem Menschen stammt. Die
+        E-Mail-Adresse auf dieser Website wird erst im Browser eingesetzt,
+        damit sie nicht im Seitenquelltext steht.
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 mt-6 dark:text-ink-50">

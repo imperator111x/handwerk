@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+import ObfuscatedEmail from "../components/ObfuscatedEmail.astro";
 import { siteConfig } from "../config/site";
 ---
 
@@ -28,9 +29,7 @@ import { siteConfig } from "../config/site";
           {siteConfig.contact.phone}
         </a><br />
         E-Mail:
-        <a href={siteConfig.contact.emailHref} class="text-brand-700 underline dark:text-brand-200">
-          {siteConfig.contact.email}
-        </a>
+        <ObfuscatedEmail class="text-brand-700 underline dark:text-brand-200" />
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 mt-10 dark:text-ink-50">

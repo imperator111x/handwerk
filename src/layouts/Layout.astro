@@ -38,7 +38,6 @@ const jsonLd = {
   description: siteConfig.description,
   url: siteConfig.url,
   telephone: siteConfig.contact.phone,
-  email: siteConfig.contact.email,
   address: {
     "@type": "PostalAddress",
     postalCode: siteConfig.contact.address.zip,
@@ -165,5 +164,24 @@ const jsonLd = {
       <slot />
     </main>
     {showFooter && <Footer />}
+    <script is:inline>
+      (() => {
+        const key = "zs-mail";
+        const decode = (encoded) =>
+          encoded
+            .split(".")
+            .map((part, index) =>
+              String.fromCharCode(Number(part) ^ key.charCodeAt(index % key.length)),
+            )
+            .join("");
+        document.querySelectorAll("[data-obfuscated-email]").forEach((node) => {
+          const email = decode(node.getAttribute("data-obfuscated-email") || "");
+          if (!email.includes("@")) return;
+          node.setAttribute("href", "mailto:" + email);
+          const label = node.querySelector("[data-obfuscated-email-label]");
+          if (label) label.textContent = email;
+        });
+      })();
+    </script>
   </body>
 </html>

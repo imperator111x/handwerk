@@ -1,5 +1,5 @@
 ---
-import { siteConfig } from "../config/site";
+import ObfuscatedEmail from "./ObfuscatedEmail.astro";
 ---
 
 <section id="referenzen" class="section bg-ink-50 dark:bg-ink-900/50">
@@ -46,9 +46,9 @@ import { siteConfig } from "../config/site";
       </div>
       <div class="flex flex-wrap items-center justify-center gap-3">
         <a href="#kontakt" class="btn-primary">Jetzt anfragen</a>
-        <a href={siteConfig.contact.emailHref} class="btn-secondary">
+        <ObfuscatedEmail showAddress={false} class="btn-secondary">
           Bewertung einreichen
-        </a>
+        </ObfuscatedEmail>
       </div>
     </div>
   </div>

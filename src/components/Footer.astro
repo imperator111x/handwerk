@@ -1,5 +1,6 @@
 ---
 import Logo from "./Logo.astro";
+import ObfuscatedEmail from "./ObfuscatedEmail.astro";
 import { siteConfig } from "../config/site";
 const year = new Date().getFullYear();
 ---
@@ -16,12 +17,12 @@ const year = new Date().getFullYear();
         <a href={siteConfig.contact.phoneHref} class="btn-primary">
           {siteConfig.contact.phone}
         </a>
-        <a
-          href={siteConfig.contact.emailHref}
+        <ObfuscatedEmail
+          showAddress={false}
           class="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
         >
           E-Mail schreiben
-        </a>
+        </ObfuscatedEmail>
       </div>
     </div>
 
@@ -69,9 +70,7 @@ const year = new Date().getFullYear();
           </a>
         </li>
         <li>
-          <a href={siteConfig.contact.emailHref} class="hover:text-white">
-            {siteConfig.contact.email}
-          </a>
+          <ObfuscatedEmail class="hover:text-white" />
         </li>
         <li>
           {siteConfig.contact.address.zip} {siteConfig.contact.address.city}

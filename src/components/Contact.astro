@@ -1,5 +1,8 @@
 ---
 import { siteConfig } from "../config/site";
+import ObfuscatedEmail from "./ObfuscatedEmail.astro";
+
+const turnstileSitekey = Astro.locals.runtime?.env?.TURNSTILE_SITEKEY ?? "";
 ---
 
 <section id="kontakt" class="section bg-white dark:bg-ink-950">
@@ -70,12 +73,7 @@ import { siteConfig } from "../config/site";
               <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
                 E-Mail
               </p>
-              <a
-                href={siteConfig.contact.emailHref}
-                class="text-ink-900 font-semibold hover:text-brand-700 dark:text-ink-50 dark:hover:text-brand-200"
-              >
-                {siteConfig.contact.email}
-              </a>
+              <ObfuscatedEmail class="text-ink-900 font-semibold hover:text-brand-700 dark:text-ink-50 dark:hover:text-brand-200" />
             </div>
           </li>
           <li class="flex items-start gap-4">
@@ -208,6 +206,15 @@ import { siteConfig } from "../config/site";
             <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
           </div>
 
+          {
+            turnstileSitekey && (
+              <div
+                id="contact-turnstile"
+                data-sitekey={turnstileSitekey}
+              />
+            )
+          }
+
           <label class="flex items-start gap-3 text-sm text-ink-700 dark:text-ink-200">
             <input
               type="checkbox"
@@ -267,6 +274,29 @@ import { siteConfig } from "../config/site";
   const form = document.getElementById("contact-form");
   const status = document.getElementById("contact-status");
   const submit = document.getElementById("contact-submit");
+  const turnstileContainer = document.getElementById("contact-turnstile");
+  let contactWidgetId;
+
+  function renderContactTurnstile() {
+    if (!turnstileContainer || !window.turnstile || contactWidgetId) return;
+    contactWidgetId = window.turnstile.render(turnstileContainer, {
+      sitekey: turnstileContainer.dataset.sitekey,
+      action: "contact",
+      theme: "auto",
+    });
+  }
+
+  if (turnstileContainer) {
+    if (window.turnstile) {
+      renderContactTurnstile();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.addEventListener("load", renderContactTurnstile, { once: true });
+      document.head.appendChild(script);
+    }
+  }
 
   function setStatus(message, type) {
     if (!status) return;
@@ -314,6 +344,9 @@ import { siteConfig } from "../config/site";
           "error",
         );
       } finally {
+        if (contactWidgetId !== undefined && window.turnstile) {
+          window.turnstile.reset(contactWidgetId);
+        }
         if (submit) submit.removeAttribute("disabled");
       }
     });

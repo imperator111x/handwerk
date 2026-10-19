@@ -50,7 +50,9 @@
     "CONTACT_FROM_EMAIL": "website@zeus-service.de",
     // Signierte Antwortadressen: r+<id>.<sig>@zeus-service.de
     // Eingehende Post kommt über Email Routing auf der Apex an.
-    "REPLY_DOMAIN": "zeus-service.de"
+    "REPLY_DOMAIN": "zeus-service.de",
+    "TURNSTILE_SITEKEY": "0x4AAAAAAFbQmcogsMf7jRJx",
+    "TURNSTILE_HOSTNAMES": "zeus-service.de,www.zeus-service.de,zeus-service-web.imperator111x.workers.dev"
   },
 
   "d1_databases": [
