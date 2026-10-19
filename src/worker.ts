@@ -1,0 +1,94 @@
+import { App } from "astro/app";
+import type { SSRManifest } from "astro";
+import { handle } from "@astrojs/cloudflare/handler";
+import PostalMime from "postal-mime";
+import { ingestInboundEmail } from "./lib/inbound-mail";
+
+interface InboundMessage {
+  readonly from: string;
+  readonly to: string;
+  readonly headers: Headers;
+  readonly raw: ReadableStream<Uint8Array>;
+  readonly rawSize: number;
+  setReject(reason: string): void;
+}
+
+const MAX_INBOUND_BYTES = 2_000_000;
+
+export function createExports(manifest: SSRManifest) {
+  const app = new App(manifest);
+  return {
+    default: {
+      async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+        const url = new URL(request.url);
+        if (url.hostname === "www.zeus-service.de") {
+          url.hostname = "zeus-service.de";
+          return Response.redirect(url.toString(), 301);
+        }
+        return handle(
+          manifest,
+          app,
+          request as unknown as Parameters<typeof handle>[2],
+          env as unknown as Parameters<typeof handle>[3],
+          ctx,
+        );
+      },
+      async email(message: InboundMessage, env: Env) {
+        await receiveEmail(message, env);
+      },
+    },
+  };
+}
+
+async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
+  if (!env.DB) {
+    message.setReject("Postfach vorübergehend nicht erreichbar.");
+    return;
+  }
+  if (message.rawSize > MAX_INBOUND_BYTES) {
+    message.setReject("Die Nachricht ist zu groß.");
+    return;
+  }
+
+  let parsed;
+  try {
+    const raw = await new Response(message.raw).arrayBuffer();
+    parsed = await PostalMime.parse(raw);
+  } catch (err) {
+    console.error("inbound_parse_failed", err);
+    message.setReject("Nachricht konnte nicht gelesen werden.");
+    return;
+  }
+
+  const fromMailbox = parsed.from && "address" in parsed.from ? parsed.from : null;
+  const headerRecipients = [
+    message.headers.get("delivered-to"),
+    message.headers.get("x-original-to"),
+    message.headers.get("to"),
+    message.headers.get("cc"),
+    parsed.deliveredTo,
+    ...(parsed.to ?? []).flatMap((address) =>
+      "address" in address && address.address ? [address.address] : [],
+    ),
+  ];
+
+  const result = await ingestInboundEmail(env.DB, env.SESSION_SECRET ?? "", {
+    envelopeFrom: message.from,
+    recipients: [message.to, ...headerRecipients],
+    subject: parsed.subject ?? message.headers.get("subject"),
+    messageId: parsed.messageId ?? message.headers.get("message-id"),
+    inReplyTo: parsed.inReplyTo ?? message.headers.get("in-reply-to"),
+    references: parsed.references ?? message.headers.get("references"),
+    text: parsed.text ?? null,
+    html: typeof parsed.html === "string" ? parsed.html : null,
+    fromName: fromMailbox?.name || null,
+    autoSubmitted: message.headers.get("auto-submitted"),
+  });
+
+  if (result.action === "reject") {
+    message.setReject(result.reason);
+    return;
+  }
+  const detail = "requestId" in result ? result.requestId : result.reason;
+  console.log("inbound_email", result.action, detail);
+}

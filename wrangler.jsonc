@@ -17,6 +17,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "zeus-service-web",
   "main": "./dist/_worker.js/index.js",
+  "workers_dev": true,
+  "preview_urls": true,
   "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
 
@@ -37,11 +39,17 @@
     }
   },
 
+  "routes": [
+    { "pattern": "zeus-service.de", "custom_domain": true },
+    { "pattern": "www.zeus-service.de", "custom_domain": true }
+  ],
+
   "vars": {
     "SITE_NAME": "Zeus-Service",
     "SITE_URL": "https://zeus-service.de",
     "ADMIN_USERNAME": "admin",
-    "CONTACT_FROM_EMAIL": "website@zeus-service.de"
+    "CONTACT_FROM_EMAIL": "website@zeus-service.de",
+    "REPLY_DOMAIN": "zeus-service.de"
   },
 
   "d1_databases": [

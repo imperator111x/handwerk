@@ -152,6 +152,11 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                       <span class="rounded-full bg-ink-100 px-2.5 py-0.5 text-xs text-ink-700 dark:bg-white/10 dark:text-ink-200">
                         {topicLabels[entry.topic] ?? entry.topic}
                       </span>
+                      {entry.last_reply_direction === "inbound" && (
+                        <span class="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
+                          Kunde hat geantwortet
+                        </span>
+                      )}
                     </div>
                     <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
                       #{entry.id} · eingegangen {formatDate(entry.created_at)}

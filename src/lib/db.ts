@@ -98,32 +98,84 @@ export async function insertContactRequest(
   return Number(result.meta.last_row_id ?? 0);
 }
 
+export interface ContactRequestListItem extends ContactRequestRow {
+  inbound_count: number;
+  last_reply_direction: "inbound" | "outbound" | null;
+}
+
+const CONTACT_LIST_SELECT = `
+  SELECT c.*,
+    (
+      SELECT COUNT(*) FROM contact_replies r
+      WHERE r.request_id = c.id AND r.direction = 'inbound'
+    ) AS inbound_count,
+    (
+      SELECT r.direction FROM contact_replies r
+      WHERE r.request_id = c.id
+      ORDER BY r.created_at DESC, r.id DESC
+      LIMIT 1
+    ) AS last_reply_direction
+  FROM contact_requests c
+`;
+
 export async function listContactRequests(
   db: D1Database,
   options: { status?: ContactStatus | "all"; limit?: number } = {},
-): Promise<ContactRequestRow[]> {
+): Promise<ContactRequestListItem[]> {
   const limit = Math.min(options.limit ?? 100, 500);
-  if (options.status && options.status !== "all") {
-    const { results } = await db
-      .prepare(
-        `SELECT * FROM contact_requests
-         WHERE status = ?
-         ORDER BY created_at DESC
-         LIMIT ?`,
-      )
-      .bind(options.status, limit)
-      .all<ContactRequestRow>();
-    return results ?? [];
-  }
-  const { results } = await db
+  const query =
+    options.status && options.status !== "all"
+      ? `${CONTACT_LIST_SELECT} WHERE c.status = ? ORDER BY c.created_at DESC LIMIT ?`
+      : `${CONTACT_LIST_SELECT} ORDER BY c.created_at DESC LIMIT ?`;
+  const statement = db.prepare(query);
+  const bound =
+    options.status && options.status !== "all"
+      ? statement.bind(options.status, limit)
+      : statement.bind(limit);
+  const { results } = await bound.all<ContactRequestListItem>();
+  return (results ?? []).map(normalizeListItem);
+}
+
+function normalizeListItem(row: ContactRequestListItem): ContactRequestListItem {
+  const direction = row.last_reply_direction;
+  return {
+    ...row,
+    inbound_count: Number(row.inbound_count ?? 0),
+    last_reply_direction:
+      direction === "inbound" || direction === "outbound" ? direction : null,
+  };
+}
+
+export async function countRequestsAwaitingReply(db: D1Database): Promise<number> {
+  const row = await db
     .prepare(
-      `SELECT * FROM contact_requests
-       ORDER BY created_at DESC
-       LIMIT ?`,
+      `SELECT COUNT(*) AS cnt FROM contact_requests c
+       WHERE (
+         SELECT r.direction FROM contact_replies r
+         WHERE r.request_id = c.id
+         ORDER BY r.created_at DESC, r.id DESC
+         LIMIT 1
+       ) = 'inbound'`,
     )
-    .bind(limit)
-    .all<ContactRequestRow>();
-  return results ?? [];
+    .first<{ cnt: number }>();
+  return Number(row?.cnt ?? 0);
+}
+
+export async function findOpenRequestBySender(
+  db: D1Database,
+  email: string,
+): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `SELECT id FROM contact_requests
+       WHERE lower(email) = ?
+         AND status != 'archived'
+       ORDER BY COALESCE(updated_at, created_at) DESC
+       LIMIT 1`,
+    )
+    .bind(email.trim().toLowerCase())
+    .first<{ id: number }>();
+  return row?.id ?? null;
 }
 
 export async function countContactRequestsByStatus(
@@ -285,6 +337,9 @@ export interface ContactReplyRow {
   email_status: string | null;
   email_error: string | null;
   created_at: number;
+  direction: "inbound" | "outbound";
+  from_email: string | null;
+  message_id: string | null;
 }
 
 export interface ReplyInsert {
@@ -296,6 +351,9 @@ export interface ReplyInsert {
   email_sent_at?: number | null;
   email_status?: string | null;
   email_error?: string | null;
+  direction?: "inbound" | "outbound";
+  from_email?: string | null;
+  message_id?: string | null;
 }
 
 export async function insertReply(
@@ -305,8 +363,8 @@ export async function insertReply(
   const result = await db
     .prepare(
       `INSERT INTO contact_replies
-         (request_id, user_id, author_name, subject, body, email_sent_at, email_status, email_error)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (request_id, user_id, author_name, subject, body, email_sent_at, email_status, email_error, direction, from_email, message_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       data.request_id,
@@ -317,9 +375,92 @@ export async function insertReply(
       data.email_sent_at ?? null,
       data.email_status ?? null,
       data.email_error ?? null,
+      data.direction ?? "outbound",
+      data.from_email ?? null,
+      data.message_id ?? null,
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
+}
+
+export async function insertInboundReply(
+  db: D1Database,
+  data: {
+    request_id: number;
+    author_name: string;
+    from_email: string;
+    subject: string;
+    body: string;
+    message_id: string | null;
+  },
+): Promise<{ id: number; duplicate: boolean }> {
+  if (data.message_id) {
+    const existing = await db
+      .prepare(`SELECT id, request_id FROM contact_replies WHERE message_id = ? LIMIT 1`)
+      .bind(data.message_id)
+      .first<{ id: number; request_id: number }>();
+    if (existing) return { id: existing.id, duplicate: true };
+  }
+
+  try {
+    const id = await insertReply(db, {
+      request_id: data.request_id,
+      user_id: null,
+      author_name: data.author_name,
+      subject: data.subject,
+      body: data.body,
+      email_sent_at: Math.floor(Date.now() / 1000),
+      email_status: "received",
+      direction: "inbound",
+      from_email: data.from_email,
+      message_id: data.message_id,
+    });
+    return { id, duplicate: false };
+  } catch (err) {
+    if (data.message_id && String(err).toLowerCase().includes("unique")) {
+      const existing = await db
+        .prepare(`SELECT id FROM contact_replies WHERE message_id = ? LIMIT 1`)
+        .bind(data.message_id)
+        .first<{ id: number }>();
+      if (existing) return { id: existing.id, duplicate: true };
+    }
+    throw err;
+  }
+}
+
+export async function findRequestIdByMessageIds(
+  db: D1Database,
+  messageIds: string[],
+): Promise<number | null> {
+  const ids = [...new Set(messageIds.map((id) => id.trim()).filter(Boolean))].slice(0, 20);
+  if (ids.length === 0) return null;
+  const placeholders = ids.map(() => "?").join(", ");
+  const row = await db
+    .prepare(
+      `SELECT request_id FROM contact_replies
+       WHERE message_id IN (${placeholders})
+       ORDER BY created_at DESC
+       LIMIT 1`,
+    )
+    .bind(...ids)
+    .first<{ request_id: number }>();
+  return row?.request_id ?? null;
+}
+
+export async function latestInboundMessageId(
+  db: D1Database,
+  requestId: number,
+): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT message_id FROM contact_replies
+       WHERE request_id = ? AND direction = 'inbound' AND message_id IS NOT NULL
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+    )
+    .bind(requestId)
+    .first<{ message_id: string }>();
+  return row?.message_id ?? null;
 }
 
 export async function listReplies(

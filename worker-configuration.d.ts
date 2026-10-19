@@ -13,6 +13,7 @@ interface Env {
   SITE_URL: string;
   ADMIN_USERNAME: string;
   CONTACT_FROM_EMAIL: string;
+  REPLY_DOMAIN: string;
 
   // Secrets (per `wrangler secret put ...` zu setzen)
   ADMIN_PASSWORD_HASH?: string;

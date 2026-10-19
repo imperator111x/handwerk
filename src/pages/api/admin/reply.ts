@@ -4,6 +4,7 @@ import {
   getContactRequest,
   getDb,
   insertReply,
+  latestInboundMessageId,
   updateContactStatus,
 } from "../../../lib/db";
 import {
@@ -12,6 +13,11 @@ import {
   renderReplyEmailText,
   sendEmail,
 } from "../../../lib/email";
+import {
+  buildReplyAddress,
+  DEFAULT_REPLY_DOMAIN,
+  normalizeMessageId,
+} from "../../../lib/reply-address";
 
 export const prerender = false;
 
@@ -63,11 +69,26 @@ export async function POST(ctx: APIContext): Promise<Response> {
   let emailSentAt: number | null = null;
   let emailStatus: string | null = null;
   let emailError: string | null = null;
+  let sentMessageId: string | null = null;
 
   const authorName = session.username;
   const siteName = env?.SITE_NAME ?? "Zeus-Service";
   const siteUrl = env?.SITE_URL ?? "https://zeus-service.de";
   const fromEmail = env?.CONTACT_FROM_EMAIL ?? "website@zeus-service.de";
+
+  const replyDomain = env?.REPLY_DOMAIN || DEFAULT_REPLY_DOMAIN;
+  const replyAddress =
+    env?.SESSION_SECRET
+      ? await buildReplyAddress(env.SESSION_SECRET, requestId, replyDomain)
+      : null;
+  const replyTo = replyAddress ?? fromEmail;
+  const priorMessageId = await latestInboundMessageId(db, requestId);
+  const headers = priorMessageId
+    ? {
+        "In-Reply-To": `<${priorMessageId}>`,
+        References: `<${priorMessageId}>`,
+      }
+    : undefined;
 
   const emailInput = {
     siteName,
@@ -78,6 +99,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     authorName,
     fromEmail,
     phone: request.phone ?? null,
+    replyToEmail: replyTo,
   };
 
   if (env) {
@@ -86,15 +108,17 @@ export async function POST(ctx: APIContext): Promise<Response> {
       fromName: siteName,
       to: request.email,
       toName: request.name,
-      replyTo: fromEmail,
+      replyTo,
       subject,
       html: renderReplyEmailHtml(emailInput),
       text: renderReplyEmailText(emailInput),
       attachments: [getInlineLogoAttachment()],
+      headers,
     });
 
     if (result.ok) {
       emailSentAt = Math.floor(Date.now() / 1000);
+      sentMessageId = normalizeMessageId(result.messageId);
       emailStatus = result.messageId
         ? `sent:${result.via}:${result.messageId}`
         : `sent:${result.via}`;
@@ -119,6 +143,9 @@ export async function POST(ctx: APIContext): Promise<Response> {
       email_sent_at: emailSentAt,
       email_status: emailStatus,
       email_error: emailError,
+      direction: "outbound",
+      from_email: fromEmail,
+      message_id: sentMessageId,
     });
   } catch (err) {
     console.error("reply_persist_failed", err);

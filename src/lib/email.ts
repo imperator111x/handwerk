@@ -24,6 +24,7 @@ export interface ReplyEmailInput {
   authorName: string;
   fromEmail: string;
   phone?: string | null;
+  replyToEmail?: string | null;
 }
 
 export interface EmailAttachment {
@@ -71,7 +72,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const safeSubject = escapeHtml(input.subject);
   const safeRecipient = escapeHtml(input.recipientName);
   const safeAuthor = escapeHtml(input.authorName);
-  const safeFrom = escapeHtml(input.fromEmail);
+  const safeFrom = escapeHtml(input.replyToEmail || input.fromEmail);
   const safeSite = escapeHtml(input.siteName);
   const safeSiteUrl = escapeHtml(input.siteUrl);
   const displayUrl = input.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
@@ -185,6 +186,7 @@ export interface SendInput {
   html: string;
   text: string;
   attachments?: EmailAttachment[];
+  headers?: Record<string, string>;
 }
 
 export interface SendResult {
@@ -214,6 +216,7 @@ export async function sendViaCloudflare(
       html: input.html,
       text: input.text,
       attachments: input.attachments,
+      headers: input.headers,
     });
     return {
       ok: true,
@@ -246,6 +249,7 @@ export async function sendViaResend(
       html: input.html,
       text: input.text,
     };
+    if (input.headers) payload.headers = input.headers;
     if (input.attachments?.length) {
       payload.attachments = input.attachments.map((att) => ({
         filename: att.filename,

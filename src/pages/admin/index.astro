@@ -1,7 +1,7 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
-import { countContactRequestsByStatus, getDb } from "../../lib/db";
+import { countContactRequestsByStatus, countRequestsAwaitingReply, getDb } from "../../lib/db";
 
 export const prerender = false;
 
@@ -18,6 +18,7 @@ const db = getDb(Astro);
 const stats = db
   ? await countContactRequestsByStatus(db).catch(() => null)
   : null;
+const awaitingReply = db ? await countRequestsAwaitingReply(db).catch(() => 0) : 0;
 const totalStats = stats
   ? stats.new + stats.in_progress + stats.done + stats.archived
   : 0;
@@ -67,6 +68,15 @@ const cards = [
   {
     stats && (
       <section>
+        {awaitingReply > 0 && (
+          <a
+            href="/admin/anfragen"
+            class="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-5 py-4 text-sm font-semibold text-brand-800 dark:border-brand-400/30 dark:bg-brand-500/10 dark:text-brand-100"
+          >
+            <span>{awaitingReply === 1 ? "1 Kunde hat geantwortet" : `${awaitingReply} Kunden haben geantwortet`}</span>
+            <span>Verlauf öffnen</span>
+          </a>
+        )}
         <h3 class="font-display text-xl font-bold text-ink-900 mb-4 dark:text-ink-50">
           Anfragen
         </h3>
