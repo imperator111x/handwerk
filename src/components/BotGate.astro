@@ -1,0 +1,110 @@
+---
+const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
+---
+
+<section class="grid min-h-screen place-items-center bg-white px-6 py-16 dark:bg-ink-950">
+  <div class="max-w-md text-center">
+    <p id="bot-gate-wait" class="text-sm font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
+      Sicherheitsprüfung
+    </p>
+    <h1 id="bot-gate-title" class="mt-3 font-display text-3xl font-bold text-ink-900 dark:text-ink-50">
+      Einen Moment
+    </h1>
+    <p id="bot-gate-text" class="mt-3 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
+      Die Website wird gerade geprüft.
+    </p>
+    <button id="bot-gate-retry" type="button" class="btn-primary mt-6 hidden">
+      Erneut versuchen
+    </button>
+    {sitekey && <div id="page-turnstile" data-sitekey={sitekey} class="sr-only" aria-hidden="true"></div>}
+  </div>
+</section>
+
+<script is:inline>
+  (() => {
+    const box = document.getElementById("page-turnstile");
+    const title = document.getElementById("bot-gate-title");
+    const text = document.getElementById("bot-gate-text");
+    const retry = document.getElementById("bot-gate-retry");
+    if (!box || !title || !text) return;
+    const sitekey = box.getAttribute("data-sitekey");
+    let widgetId;
+    let failures = 0;
+    let settled = false;
+
+    const deny = () => {
+      if (settled) return;
+      settled = true;
+      title.textContent = "Sie können diese Website nicht besuchen.";
+      text.textContent = "Die Sicherheitsprüfung wurde nicht bestanden.";
+      retry?.classList.remove("hidden");
+    };
+
+    const send = async (token) => {
+      const record = (() => {
+        try {
+          return localStorage.getItem("zs-cookie-notice") === "stats";
+        } catch {
+          return false;
+        }
+      })();
+      try {
+        const response = await fetch("/api/besuch", {
+          method: "POST",
+          headers: { "content-type": "application/json", accept: "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            token,
+            path: location.pathname,
+            referrer: document.referrer || "",
+            utm: (new URLSearchParams(location.search).get("utm_source") || "").slice(0, 40),
+            record,
+          }),
+        });
+        if (response.ok) {
+          settled = true;
+          location.reload();
+          return;
+        }
+      } catch {
+        /* Die Meldung folgt unten. */
+      }
+      deny();
+    };
+
+    const render = () => {
+      if (!window.turnstile || !sitekey || widgetId !== undefined) return;
+      widgetId = window.turnstile.render(box, {
+        sitekey,
+        action: "page_load",
+        callback: send,
+        "error-callback": () => {
+          failures += 1;
+          if (failures < 2) return true;
+          deny();
+          return false;
+        },
+      });
+    };
+
+    retry?.addEventListener("click", () => {
+      settled = false;
+      failures = 0;
+      title.textContent = "Einen Moment";
+      text.textContent = "Die Website wird gerade geprüft.";
+      retry.classList.add("hidden");
+      if (widgetId !== undefined && window.turnstile) window.turnstile.reset(widgetId);
+    });
+
+    window.setTimeout(() => {
+      if (!settled) deny();
+    }, 15000);
+
+    if (!sitekey) {
+      deny();
+      return;
+    }
+    if (window.turnstile) render();
+    else (window.__turnstileQueue = window.__turnstileQueue || []).push(render);
+  })();
+</script>

@@ -5,6 +5,8 @@ import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import CookieNotice from "../components/CookieNotice.astro";
 import PageGuard from "../components/PageGuard.astro";
+import BotGate from "../components/BotGate.astro";
+import { humanPassValid } from "../lib/human-pass";
 
 interface Props {
   title?: string;
@@ -32,6 +34,7 @@ const fullTitle = title
 
 const canonicalUrl =
   canonical ?? new URL(Astro.url.pathname, siteConfig.url).toString();
+const humanAllowed = await humanPassValid(Astro.cookies.get("zs_human")?.value, Astro.locals.runtime?.env);
 
 const jsonLd = {
   "@context": "https://schema.org",
@@ -180,13 +183,21 @@ const jsonLd = {
     ></script>
   </head>
   <body class="min-h-screen flex flex-col">
-    {showHeader && <Header />}
-    <main class="flex-1">
-      <slot />
-    </main>
-    {showFooter && <Footer />}
-    <CookieNotice />
-    <PageGuard />
+    {
+      humanAllowed ? (
+        <>
+          {showHeader && <Header />}
+          <main class="flex-1">
+            <slot />
+          </main>
+          {showFooter && <Footer />}
+          <CookieNotice />
+          <PageGuard />
+        </>
+      ) : (
+        <BotGate />
+      )
+    }
     <script is:inline>
       (() => {
         const key = "zs-mail";

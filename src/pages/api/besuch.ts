@@ -1,5 +1,6 @@
 import type { APIContext } from "astro";
 import { getDb } from "../../lib/db";
+import { createHumanPass, HUMAN_COOKIE, HUMAN_MAX_AGE } from "../../lib/human-pass";
 import { verifyTurnstile } from "../../lib/turnstile";
 import { deviceLabel, recordVisit, safeVisitPath, visitorKey, visitSource } from "../../lib/visits";
 
@@ -28,6 +29,16 @@ export async function POST(ctx: APIContext): Promise<Response> {
     env?.TURNSTILE_PAGE_SECRET,
   );
   if (!passed) return new Response(null, { status: 403 });
+
+  const pass = await createHumanPass(env);
+  if (!pass) return new Response(null, { status: 403 });
+  ctx.cookies.set(HUMAN_COOKIE, pass, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: HUMAN_MAX_AGE,
+  });
 
   if (body.record === true) {
     const path = typeof body.path === "string" ? safeVisitPath(body.path) : null;
