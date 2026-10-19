@@ -56,7 +56,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     .join("\n");
   const body = [
     "bitte wählen Sie einen passenden Termin für Ihren Einsatz.",
-    "Über den Link tragen Sie Vorname, Nachname und Straße ein. Die Buchung wird Ihrer Anfrage zugeordnet.",
+    "Über den Link tragen Sie Vorname, Nachname und Straße ein. Die Buchung wird Ihrer Anfrage zugeordnet. Denselben Link können Sie später zum Stornieren nutzen.",
     "",
     "Aktuell frei:",
     preview,

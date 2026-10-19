@@ -1,4 +1,5 @@
-import { getContactRequest, updateContactStatus } from "./db";
+import { getContactRequest, insertReply, updateContactStatus } from "./db";
+import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 
 const BERLIN = "Europe/Berlin";
 
@@ -335,12 +336,101 @@ export async function bookSlot(
   return "booked";
 }
 
-export async function cancelBooking(db: D1Database, bookingId: number): Promise<boolean> {
+export async function cancelBooking(
+  db: D1Database,
+  bookingId: number,
+): Promise<AppointmentBooking | null> {
+  const booking = await db
+    .prepare(
+      `SELECT b.*, s.starts_at, s.ends_at, s.note
+       FROM appointment_bookings b
+       JOIN appointment_slots s ON s.id = b.slot_id
+       WHERE b.id = ?
+       LIMIT 1`,
+    )
+    .bind(bookingId)
+    .first<AppointmentBooking>();
+  if (!booking) return null;
   const result = await db
     .prepare(`DELETE FROM appointment_bookings WHERE id = ?`)
     .bind(bookingId)
     .run();
-  return Number(result.meta.changes ?? 0) > 0;
+  if (Number(result.meta.changes ?? 0) < 1) return null;
+  return booking;
+}
+
+export async function announceCancellation(
+  db: D1Database,
+  env: Env | undefined,
+  booking: AppointmentBooking,
+  side: "customer" | "admin",
+  authorName: string,
+): Promise<void> {
+  const request = await getContactRequest(db, booking.request_id);
+  const when = formatSlot(booking.starts_at, booking.ends_at);
+  const byCustomer = side === "customer";
+  const subject = "Termin storniert";
+  const body = byCustomer
+    ? `der Termin am ${when} wurde storniert. Über denselben Link können Sie einen neuen Termin wählen.`
+    : `der Termin am ${when} wurde von uns storniert. Über denselben Link können Sie einen neuen Termin wählen.`;
+  const siteName = env?.SITE_NAME ?? "Zeus-Service";
+  const siteUrl = env?.SITE_URL ?? "https://zeus-service.de";
+  const fromEmail = env?.CONTACT_FROM_EMAIL ?? "website@zeus-service.de";
+
+  let emailSentAt: number | null = null;
+  let emailStatus = byCustomer ? "received" : "skipped:no_env";
+  try {
+  if (env && request?.email) {
+    const result = await sendEmail(env, {
+      from: fromEmail,
+      fromName: siteName,
+      to: request.email,
+      toName: request.name,
+      replyTo: fromEmail,
+      subject: `${subject} – ${siteName}`,
+      html: renderReplyEmailHtml({
+        siteName,
+        siteUrl,
+        recipientName: request.name,
+        subject,
+        bodyText: body,
+        authorName,
+        fromEmail,
+      }),
+      text: renderReplyEmailText({
+        siteName,
+        siteUrl,
+        recipientName: request.name,
+        subject,
+        bodyText: body,
+        authorName,
+        fromEmail,
+      }),
+    });
+    if (result.ok && !byCustomer) {
+      emailSentAt = Math.floor(Date.now() / 1000);
+      emailStatus = `sent:${result.via}`;
+    } else if (!result.ok && !byCustomer) {
+      emailStatus = result.via === "none" ? "skipped:no_transport" : `failed:${result.via}`;
+    }
+  }
+
+  await insertReply(db, {
+    request_id: booking.request_id,
+    user_id: null,
+    author_name: byCustomer ? `${booking.first_name} ${booking.last_name}` : authorName,
+    subject,
+    body: byCustomer
+      ? `Der Kunde hat den Termin storniert: ${when}, ${formatAddress(booking)}.`
+      : `Der Termin wurde storniert: ${when}, ${formatAddress(booking)}.`,
+    email_sent_at: emailSentAt,
+    email_status: emailStatus,
+    direction: byCustomer ? "inbound" : "outbound",
+    from_email: byCustomer ? request?.email ?? null : fromEmail,
+  });
+  } catch (err) {
+    console.error("appointment_cancel_notice_failed", err);
+  }
 }
 
 interface PhotonFeature {

@@ -1,6 +1,7 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import {
+  announceCancellation,
   berlinLocalToUnix,
   cancelBooking,
   createSlot,
@@ -20,6 +21,7 @@ function safeRedirect(target: string | null): string {
 export async function POST(ctx: APIContext): Promise<Response> {
   const sessionOrRedirect = await requireSession(ctx);
   if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+  const session = sessionOrRedirect;
 
   const db = getDb(ctx);
   const form = await ctx.request.formData();
@@ -55,8 +57,17 @@ export async function POST(ctx: APIContext): Promise<Response> {
     }
     if (action === "cancel") {
       const id = Number.parseInt(String(form.get("id") ?? ""), 10);
-      const removed = Number.isFinite(id) && (await cancelBooking(db, id));
-      return ctx.redirect(`${redirectTo}?termin=${removed ? "cancelled" : "missing"}`, 303);
+      const booking = Number.isFinite(id) ? await cancelBooking(db, id) : null;
+      if (booking) {
+        await announceCancellation(
+          db,
+          ctx.locals.runtime?.env,
+          booking,
+          "admin",
+          session.username,
+        );
+      }
+      return ctx.redirect(`${redirectTo}?termin=${booking ? "cancelled" : "missing"}`, 303);
     }
   } catch (err) {
     console.error("appointment_admin_failed", err);

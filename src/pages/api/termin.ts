@@ -1,5 +1,12 @@
 import type { APIContext } from "astro";
-import { bookSlot, getInviteByToken, isInviteToken } from "../../lib/appointments";
+import {
+  announceCancellation,
+  bookSlot,
+  cancelBooking,
+  getBookingForRequest,
+  getInviteByToken,
+  isInviteToken,
+} from "../../lib/appointments";
 import { getDb } from "../../lib/db";
 
 export const prerender = false;
@@ -20,6 +27,19 @@ export async function POST(ctx: APIContext): Promise<Response> {
   if (!db) return redirect(token, "db");
   const invite = await getInviteByToken(db, token);
   if (!invite) return redirect(token, "invalid");
+
+  if (String(form.get("action") ?? "") === "cancel") {
+    const existing = await getBookingForRequest(db, invite.request_id);
+    if (!existing) return redirect(token, "missing");
+    const booking = await cancelBooking(db, existing.id);
+    if (!booking) return redirect(token, "missing");
+    try {
+      await announceCancellation(db, ctx.locals.runtime?.env, booking, "customer", "Zeus-Service");
+    } catch (err) {
+      console.error("appointment_cancel_notice_failed", err);
+    }
+    return redirect(token, "cancelled");
+  }
 
   const slotId = Number.parseInt(String(form.get("slot_id") ?? ""), 10);
   const firstName = String(form.get("first_name") ?? "").trim().slice(0, 80);

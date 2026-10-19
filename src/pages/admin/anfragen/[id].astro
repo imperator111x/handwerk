@@ -97,6 +97,7 @@ const terminFlags: Record<string, string> = {
   failed: "Der Terminlink konnte nicht per E-Mail verschickt werden.",
   no_slots: "Es gibt noch keine freien Termine. Tragen Sie zuerst welche unter Termine ein.",
   booked: "Für diese Anfrage ist bereits ein Termin gebucht.",
+  cancelled: "Der Termin wurde storniert. Die Zeit ist wieder frei, der Kunde kann neu buchen.",
 };
 
 const redirectPath = Astro.url.pathname;
@@ -209,6 +210,14 @@ const redirectPath = Astro.url.pathname;
         <p class="font-semibold text-ink-900 dark:text-ink-50">{formatSlot(booking.starts_at, booking.ends_at)}</p>
         <p class="mt-1">{booking.first_name} {booking.last_name}</p>
         <p>{formatAddress(booking)}</p>
+        <form method="POST" action="/api/admin/termine" class="mt-4">
+          <input type="hidden" name="action" value="cancel" />
+          <input type="hidden" name="id" value={booking.id} />
+          <input type="hidden" name="redirect" value={redirectPath} />
+          <button type="submit" class="rounded-full border border-rose-200 px-4 py-2 text-sm font-semibold text-rose-700 dark:border-rose-400/30 dark:text-rose-200">
+            Termin stornieren
+          </button>
+        </form>
       </div>
     ) : (
       <form method="POST" action="/api/admin/termin-link" class="mt-4 space-y-3">
