@@ -1,0 +1,93 @@
+---
+import MailEditor from "../../../components/MailEditor.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { getDb, listMailboxes } from "../../../lib/db";
+import { mailboxAddress } from "../../../lib/mailbox";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const db = getDb(Astro);
+const domain = Astro.locals.runtime?.env?.REPLY_DOMAIN || "zeus-service.de";
+const mailboxes = db ? await listMailboxes(db) : [];
+const preset = Number.parseInt(Astro.url.searchParams.get("from") ?? "", 10);
+const selected = mailboxes.some((box) => box.id === preset) ? preset : mailboxes[0]?.id;
+
+const flag = Astro.url.searchParams.get("mail");
+const flags: Record<string, string> = {
+  bad_from: "Bitte eine eigene Absenderadresse wählen.",
+  bad_to: "Bitte eine gültige Empfängeradresse eintragen.",
+  bad_subject: "Der Betreff muss zwischen 3 und 200 Zeichen haben.",
+  bad_body: "Die Nachricht ist zu kurz oder zu lang.",
+  bad_file: "Eine Datei ist zu groß oder nicht erlaubt. Je Datei und zusammen höchstens 3 MB.",
+  db_error: "Die Mail konnte nicht gespeichert werden.",
+};
+---
+
+<AdminLayout title="Neue Mail" session={session}>
+  <nav class="text-sm">
+    <a href="/admin/postfach" class="text-ink-500 hover:text-brand-700 dark:text-ink-400">← Zurück zum Postfach</a>
+  </nav>
+
+  {flag && flags[flag] && (
+    <p class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+      {flags[flag]}
+    </p>
+  )}
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Mail schreiben</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Der Empfänger kann beliebig sein. Die Antwort kommt an die gewählte Absenderadresse zurück.
+    </p>
+
+    {mailboxes.length === 0 ? (
+      <p class="mt-4 text-sm text-amber-700 dark:text-amber-200">
+        Zuerst unter <a class="underline" href="/admin/postfach">Postfach</a> eine Adresse anlegen.
+      </p>
+    ) : (
+      <form id="reply-form" method="POST" action="/api/admin/postfach" enctype="multipart/form-data" class="mt-5 grid gap-4">
+        <input type="hidden" name="action" value="send" />
+        <input type="hidden" name="redirect" value="/admin/postfach/neu" />
+        <input type="hidden" name="body_html" id="reply-body-html" />
+        <input type="file" id="reply-images" name="images" class="hidden" multiple />
+        <input type="file" id="reply-documents" name="documents" class="hidden" multiple />
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="label" for="mailbox_id">Von</label>
+            <select class="input" id="mailbox_id" name="mailbox_id" required>
+              {mailboxes.map((box) => (
+                <option value={box.id} selected={box.id === selected}>
+                  {(box.display_name || box.local_part) + " · " + mailboxAddress(box.local_part, domain)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label class="label" for="recipient_name">Name des Empfängers</label>
+            <input class="input" id="recipient_name" name="recipient_name" maxlength="120" placeholder="optional" />
+          </div>
+        </div>
+
+        <div>
+          <label class="label" for="to">An</label>
+          <input class="input" id="to" name="to" type="email" required maxlength="200" placeholder="name@example.com" />
+        </div>
+
+        <div>
+          <label class="label" for="reply_subject">Betreff</label>
+          <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" />
+        </div>
+
+        <MailEditor />
+
+        <button type="submit" class="btn-primary w-fit">Mail senden</button>
+      </form>
+    )}
+  </section>
+</AdminLayout>

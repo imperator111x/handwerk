@@ -9,12 +9,19 @@
 
 import {
   findLatestRequestIdBySender,
+  findMailboxByLocalPart,
+  findMailMessageByMessageId,
+  findMailThreadIdByMessageIds,
   findRequestIdByMessageIds,
   getContactRequest,
+  getMailThread,
   insertContactRequest,
   insertInboundReply,
+  insertMailMessage,
   updateContactStatus,
+  upsertMailThread,
 } from "./db";
+import { MAIL_DOMAIN, matchMailboxLocalPart } from "./mailbox";
 import {
   collectAddresses,
   extractMessageIds,
@@ -40,6 +47,8 @@ export type IngestResult =
   | { action: "stored"; requestId: number; replyId: number }
   | { action: "created"; requestId: number }
   | { action: "duplicate"; requestId: number }
+  | { action: "mailbox"; threadId: number; messageRowId: number }
+  | { action: "mailbox_duplicate"; threadId: number }
   | { action: "ignore"; reason: string }
   | { action: "reject"; reason: string };
 
@@ -49,6 +58,7 @@ export async function ingestInboundEmail(
   db: D1Database,
   secret: string,
   email: ParsedInbound,
+  domain = MAIL_DOMAIN,
 ): Promise<IngestResult> {
   const from = email.envelopeFrom.trim().toLowerCase();
   if (!from || !from.includes("@")) {
@@ -58,7 +68,12 @@ export async function ingestInboundEmail(
     return { action: "ignore", reason: "automatische Nachricht" };
   }
 
-  const requestId = await resolveRequestId(db, secret, email);
+  let requestId = await resolveRequestId(db, secret, email);
+  if (!requestId) {
+    const mailboxResult = await storeMailboxMail(db, email, from, domain);
+    if (mailboxResult) return mailboxResult;
+    requestId = await findLatestRequestIdBySender(db, from);
+  }
   if (!requestId) {
     const createdId = await insertContactRequest(db, {
       name: cleanName(email.fromName) || from.split("@")[0] || "Kunde",
@@ -128,7 +143,71 @@ async function resolveRequestId(
     if (threaded) return threaded;
   }
 
-  return findLatestRequestIdBySender(db, email.envelopeFrom);
+  return null;
+}
+
+async function storeMailboxMail(
+  db: D1Database,
+  email: ParsedInbound,
+  from: string,
+  domain: string,
+): Promise<IngestResult | null> {
+  const referenced = [
+    ...extractMessageIds(email.inReplyTo),
+    ...extractMessageIds(email.references),
+  ];
+  const linkedThreadId =
+    referenced.length > 0 ? await findMailThreadIdByMessageIds(db, referenced) : null;
+  const local = matchMailboxLocalPart(email.recipients, domain);
+  const mailbox = local ? await findMailboxByLocalPart(db, local) : null;
+  if (!linkedThreadId && !mailbox) return null;
+
+  const linked = linkedThreadId ? await getMailThread(db, linkedThreadId) : null;
+  const mailboxId = linked?.mailbox_id ?? mailbox?.id;
+  if (!mailboxId) return null;
+
+  const messageId = normalizeMessageId(email.messageId);
+  if (messageId) {
+    const existing = await findMailMessageByMessageId(db, messageId);
+    if (existing) return { action: "mailbox_duplicate", threadId: existing.thread_id };
+  }
+
+  const peerName = cleanName(email.fromName);
+  const subject = clip(email.subject?.trim() || "Nachricht", 200);
+  const threadId = linked
+    ? linked.id
+    : await upsertMailThread(db, {
+        mailboxId,
+        peerEmail: from,
+        peerName,
+        subject,
+      });
+  if (!threadId) {
+    return { action: "reject", reason: "Nachricht konnte gerade nicht gespeichert werden." };
+  }
+
+  const ownAddress = mailbox
+    ? `${mailbox.local_part}@${domain.replace(/^@/, "")}`
+    : linked
+      ? `${linked.local_part}@${domain.replace(/^@/, "")}`
+      : from;
+  try {
+    const id = await insertMailMessage(db, {
+      thread_id: threadId,
+      direction: "inbound",
+      from_email: from,
+      to_email: ownAddress,
+      subject,
+      body: clip(extractCustomerText(email.text ?? "", email.html ?? "")) || "(Keine Textnachricht)",
+      message_id: messageId,
+      email_status: "received",
+      author_name: peerName || from.split("@")[0] || "Absender",
+    });
+    return { action: "mailbox", threadId, messageRowId: id };
+  } catch (err) {
+    console.error("mailbox_persist_failed", err);
+    return { action: "reject", reason: "Nachricht konnte gerade nicht gespeichert werden." };
+  }
 }
 
 function isAutomated(from: string, autoSubmitted: string | null, subject: string): boolean {

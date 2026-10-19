@@ -505,6 +505,251 @@ export async function latestInboundMessageId(
   return row?.message_id ?? null;
 }
 
+export interface MailboxRow {
+  id: number;
+  local_part: string;
+  display_name: string;
+  created_at: number;
+}
+
+export interface MailThreadRow {
+  id: number;
+  mailbox_id: number;
+  peer_email: string;
+  peer_name: string;
+  subject: string;
+  updated_at: number;
+  local_part: string;
+  display_name: string;
+}
+
+export interface MailMessageRow {
+  id: number;
+  thread_id: number;
+  direction: "inbound" | "outbound";
+  from_email: string;
+  to_email: string;
+  subject: string;
+  body: string;
+  message_id: string | null;
+  email_sent_at: number | null;
+  email_status: string | null;
+  email_error: string | null;
+  user_id: number | null;
+  author_name: string;
+  created_at: number;
+}
+
+export async function listMailboxes(db: D1Database): Promise<MailboxRow[]> {
+  const { results } = await db
+    .prepare(`SELECT id, local_part, display_name, created_at FROM mailboxes ORDER BY local_part ASC`)
+    .all<MailboxRow>();
+  return results ?? [];
+}
+
+export async function countMailboxes(db: D1Database): Promise<number> {
+  const row = await db.prepare(`SELECT COUNT(*) AS n FROM mailboxes`).first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+export async function findMailboxById(
+  db: D1Database,
+  id: number,
+): Promise<MailboxRow | null> {
+  const row = await db
+    .prepare(`SELECT id, local_part, display_name, created_at FROM mailboxes WHERE id = ? LIMIT 1`)
+    .bind(id)
+    .first<MailboxRow>();
+  return row ?? null;
+}
+
+export async function findMailboxByLocalPart(
+  db: D1Database,
+  localPart: string,
+): Promise<MailboxRow | null> {
+  const row = await db
+    .prepare(
+      `SELECT id, local_part, display_name, created_at FROM mailboxes WHERE local_part = ? LIMIT 1`,
+    )
+    .bind(localPart)
+    .first<MailboxRow>();
+  return row ?? null;
+}
+
+export async function createMailbox(
+  db: D1Database,
+  localPart: string,
+  displayName: string,
+): Promise<number> {
+  const result = await db
+    .prepare(`INSERT INTO mailboxes (local_part, display_name) VALUES (?, ?)`)
+    .bind(localPart, displayName)
+    .run();
+  return Number(result.meta.last_row_id ?? 0);
+}
+
+export async function listMailThreads(db: D1Database): Promise<MailThreadRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at,
+              m.local_part, m.display_name
+         FROM mail_threads t
+         JOIN mailboxes m ON m.id = t.mailbox_id
+        ORDER BY t.updated_at DESC
+        LIMIT 200`,
+    )
+    .all<MailThreadRow>();
+  return results ?? [];
+}
+
+export async function getMailThread(
+  db: D1Database,
+  threadId: number,
+): Promise<MailThreadRow | null> {
+  const row = await db
+    .prepare(
+      `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at,
+              m.local_part, m.display_name
+         FROM mail_threads t
+         JOIN mailboxes m ON m.id = t.mailbox_id
+        WHERE t.id = ?
+        LIMIT 1`,
+    )
+    .bind(threadId)
+    .first<MailThreadRow>();
+  return row ?? null;
+}
+
+export async function upsertMailThread(
+  db: D1Database,
+  data: { mailboxId: number; peerEmail: string; peerName: string; subject: string },
+): Promise<number> {
+  const row = await db
+    .prepare(
+      `INSERT INTO mail_threads (mailbox_id, peer_email, peer_name, subject, updated_at)
+       VALUES (?, ?, ?, ?, unixepoch())
+       ON CONFLICT(mailbox_id, peer_email) DO UPDATE SET
+         updated_at = unixepoch(),
+         peer_name = CASE
+           WHEN excluded.peer_name != '' THEN excluded.peer_name
+           ELSE mail_threads.peer_name
+         END,
+         subject = CASE
+           WHEN excluded.subject != '' THEN excluded.subject
+           ELSE mail_threads.subject
+         END
+       RETURNING id`,
+    )
+    .bind(data.mailboxId, data.peerEmail, data.peerName, data.subject)
+    .first<{ id: number }>();
+  return Number(row?.id ?? 0);
+}
+
+export async function listMailMessages(
+  db: D1Database,
+  threadId: number,
+): Promise<MailMessageRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT * FROM mail_messages WHERE thread_id = ? ORDER BY created_at ASC, id ASC`,
+    )
+    .bind(threadId)
+    .all<MailMessageRow>();
+  return results ?? [];
+}
+
+export async function findMailThreadIdByMessageIds(
+  db: D1Database,
+  messageIds: string[],
+): Promise<number | null> {
+  const ids = [...new Set(messageIds.map((id) => id.trim()).filter(Boolean))].slice(0, 20);
+  if (ids.length === 0) return null;
+  const placeholders = ids.map(() => "?").join(", ");
+  const row = await db
+    .prepare(
+      `SELECT thread_id FROM mail_messages
+        WHERE message_id IN (${placeholders})
+        ORDER BY created_at DESC
+        LIMIT 1`,
+    )
+    .bind(...ids)
+    .first<{ thread_id: number }>();
+  return row?.thread_id ?? null;
+}
+
+export async function findMailMessageByMessageId(
+  db: D1Database,
+  messageId: string,
+): Promise<{ id: number; thread_id: number } | null> {
+  const row = await db
+    .prepare(`SELECT id, thread_id FROM mail_messages WHERE message_id = ? LIMIT 1`)
+    .bind(messageId)
+    .first<{ id: number; thread_id: number }>();
+  return row ?? null;
+}
+
+export async function latestInboundMailMessageId(
+  db: D1Database,
+  threadId: number,
+): Promise<string | null> {
+  const row = await db
+    .prepare(
+      `SELECT message_id FROM mail_messages
+        WHERE thread_id = ? AND direction = 'inbound' AND message_id IS NOT NULL
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1`,
+    )
+    .bind(threadId)
+    .first<{ message_id: string }>();
+  return row?.message_id ?? null;
+}
+
+export async function insertMailMessage(
+  db: D1Database,
+  data: {
+    thread_id: number;
+    direction: "inbound" | "outbound";
+    from_email: string;
+    to_email: string;
+    subject: string;
+    body: string;
+    message_id?: string | null;
+    email_sent_at?: number | null;
+    email_status?: string | null;
+    email_error?: string | null;
+    user_id?: number | null;
+    author_name: string;
+  },
+): Promise<number> {
+  const result = await db
+    .prepare(
+      `INSERT INTO mail_messages
+         (thread_id, direction, from_email, to_email, subject, body, message_id,
+          email_sent_at, email_status, email_error, user_id, author_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(
+      data.thread_id,
+      data.direction,
+      data.from_email,
+      data.to_email,
+      data.subject,
+      data.body,
+      data.message_id ?? null,
+      data.email_sent_at ?? null,
+      data.email_status ?? null,
+      data.email_error ?? null,
+      data.user_id ?? null,
+      data.author_name,
+    )
+    .run();
+  await db
+    .prepare(`UPDATE mail_threads SET updated_at = unixepoch(), subject = ? WHERE id = ?`)
+    .bind(data.subject, data.thread_id)
+    .run();
+  return Number(result.meta.last_row_id ?? 0);
+}
+
 export async function listReplies(
   db: D1Database,
   requestId: number,

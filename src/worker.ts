@@ -85,12 +85,13 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
     html: typeof parsed.html === "string" ? parsed.html : null,
     fromName: fromMailbox?.name || null,
     autoSubmitted: message.headers.get("auto-submitted"),
-  });
+  }, env.REPLY_DOMAIN || "zeus-service.de");
 
   if (result.action === "reject") {
     message.setReject(result.reason);
     return;
   }
-  const detail = "requestId" in result ? result.requestId : result.reason;
+  const detail =
+    "threadId" in result ? result.threadId : "requestId" in result ? result.requestId : result.reason;
   console.log("inbound_email", result.action, detail);
 }

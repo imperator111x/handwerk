@@ -26,6 +26,11 @@ export interface ReplyEmailInput {
   replyToEmail?: string | null;
   ctaUrl?: string | null;
   ctaLabel?: string | null;
+  /** Ohne Angabe bleibt die Überschrift der Anfrage-Antwort. */
+  eyebrow?: string | null;
+  /** `undefined` setzt „Hallo Name“, `null` lässt die Zeile weg. */
+  greeting?: string | null;
+  footerNote?: string | null;
 }
 
 export interface EmailAttachment {
@@ -61,12 +66,21 @@ function textToHtmlParagraphs(text: string): string {
 
 export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const safeSubject = escapeHtml(input.subject);
-  const safeRecipient = escapeHtml(input.recipientName);
   const safeAuthor = escapeHtml(input.authorName);
   const safeFrom = escapeHtml(input.replyToEmail || input.fromEmail);
   const safeSite = escapeHtml(input.siteName);
   const safeSiteUrl = escapeHtml(input.siteUrl);
   const displayUrl = input.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const eyebrow = escapeHtml(input.eyebrow?.trim() || "Antwort auf Ihre Anfrage");
+  const greetingText =
+    input.greeting === undefined ? `Hallo ${input.recipientName},` : (input.greeting ?? "");
+  const greetingHtml = greetingText
+    ? `<p class="email-text" style="margin:0 0 16px 0;color:#1e293b;font-size:16px;line-height:1.6;">${escapeHtml(greetingText)}</p>`
+    : "";
+  const footerNote = escapeHtml(
+    input.footerNote?.trim() ||
+      "Diese E-Mail wurde als Antwort auf Ihre Anfrage über unser Kontaktformular versendet.",
+  );
   const safePhone = input.phone ? escapeHtml(input.phone) : "";
   const telHref = input.phone ? input.phone.replace(/\s+/g, "") : "";
   const richHtml = input.bodyHtml ? sanitizeMailHtml(input.bodyHtml) : "";
@@ -127,9 +141,9 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
             </tr>
             <tr>
               <td class="email-copy" bgcolor="#ffffff" style="padding:28px 28px 8px 28px;background-color:#ffffff;">
-                <p class="email-muted" style="margin:0 0 8px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">Antwort auf Ihre Anfrage</p>
+                <p class="email-muted" style="margin:0 0 8px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${eyebrow}</p>
                 <h1 class="email-text" style="margin:0 0 22px 0;color:#0f172a;font-size:22px;line-height:1.35;font-weight:800;">${safeSubject}</h1>
-                <p class="email-text" style="margin:0 0 16px 0;color:#1e293b;font-size:16px;line-height:1.6;">Hallo ${safeRecipient},</p>
+                ${greetingHtml}
                 ${bodyHtml}
                 ${ctaHtml}
                 <p class="email-text" style="margin:22px 0 4px 0;color:#1e293b;font-size:16px;line-height:1.6;">Mit freundlichen Grüßen</p>
@@ -159,7 +173,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
                 <p class="email-rule" style="border:none;border-top:1px solid #e2e8f0;margin:0 0 14px 0;line-height:0;font-size:0;">&nbsp;</p>
                 <p class="email-muted" style="margin:0;color:#64748b;font-size:13px;line-height:1.55;">
                   ${safeSite} · <a class="email-link" href="${safeSiteUrl}" style="color:#64748b;text-decoration:underline;">${displayUrl}</a><br />
-                  Diese E-Mail wurde als Antwort auf Ihre Anfrage über unser Kontaktformular versendet.
+                  ${footerNote}
                 </p>
               </td>
             </tr>
@@ -173,11 +187,13 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
 
 export function renderReplyEmailText(input: ReplyEmailInput): string {
   const contactEmail = input.replyToEmail || input.fromEmail;
+  const greetingText =
+    input.greeting === undefined ? `Hallo ${input.recipientName},` : (input.greeting ?? "");
   const lines = [
-    `Hallo ${input.recipientName},`,
-    "",
+    ...(greetingText ? [greetingText, ""] : []),
     input.bodyHtml ? htmlToPlainText(input.bodyHtml) : input.bodyText.trim(),
     "",
+    ...(input.footerNote?.trim() ? [input.footerNote.trim(), ""] : []),
     ...(input.ctaUrl ? ["Termin wählen:", input.ctaUrl, ""] : []),
     "Mit freundlichen Grüßen",
     input.authorName,

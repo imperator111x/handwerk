@@ -8,19 +8,12 @@ import {
   signatureNameForUser,
   updateContactStatus,
 } from "../../../lib/db";
+import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
 import {
   renderReplyEmailHtml,
   renderReplyEmailText,
   sendEmail,
-  type EmailAttachment,
 } from "../../../lib/email";
-import { htmlToPlainText, replaceEditorImages, sanitizeMailHtml } from "../../../lib/mail-html";
-import {
-  MAX_FILES,
-  MAX_TOTAL_BYTES,
-  readFormUploads,
-  type PreparedUpload,
-} from "../../../lib/mail-files";
 import {
   buildReplyAddress,
   DEFAULT_REPLY_DOMAIN,
@@ -52,8 +45,6 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   const form = await ctx.request.formData();
   const requestId = Number.parseInt(String(form.get("request_id") ?? ""), 10);
-  const subject = String(form.get("subject") ?? "").trim();
-  const bodyHtmlRaw = String(form.get("body_html") ?? form.get("body") ?? "");
   const alsoMarkDone = form.get("mark_done") === "on";
   const redirectBase = safeRedirect(
     String(form.get("redirect") ?? ""),
@@ -63,45 +54,11 @@ export async function POST(ctx: APIContext): Promise<Response> {
   if (!Number.isFinite(requestId) || requestId <= 0) {
     return ctx.redirect(`${redirectBase}?reply=bad_id`, 303);
   }
-  if (subject.length < 3 || subject.length > 200) {
-    return ctx.redirect(`${redirectBase}?reply=bad_subject`, 303);
+  const prepared = await prepareRichMail(form);
+  if (!prepared.ok) {
+    return ctx.redirect(`${redirectBase}?reply=${prepared.code}`, 303);
   }
-  if (bodyHtmlRaw.length > 60_000) {
-    return ctx.redirect(`${redirectBase}?reply=bad_body`, 303);
-  }
-
-  const images = await readFormUploads(form.getAll("images"), "image");
-  const documents = await readFormUploads(form.getAll("documents"), "document");
-  if (!images || !documents) {
-    return ctx.redirect(`${redirectBase}?reply=bad_file`, 303);
-  }
-  const uploads = [...images, ...documents];
-  const totalBytes = uploads.reduce((sum, file) => sum + file.bytes.byteLength, 0);
-  if (uploads.length > MAX_FILES || totalBytes > MAX_TOTAL_BYTES) {
-    return ctx.redirect(`${redirectBase}?reply=bad_file`, 303);
-  }
-
-  const imageMap = new Map<string, { cid: string; filename: string }>();
-  for (const file of images) {
-    if (!file.uploadId) continue;
-    imageMap.set(file.uploadId, {
-      cid: `img-${file.uploadId}`,
-      filename: file.filename,
-    });
-  }
-  const attachmentNotes = documents
-    .map((file) => `<p>Anhang: ${escapeHtml(file.filename)}</p>`)
-    .join("");
-  const emailBodyHtml = sanitizeMailHtml(
-    `${replaceEditorImages(bodyHtmlRaw, imageMap, "email")}${attachmentNotes}`,
-  );
-  const storedBodyHtml = sanitizeMailHtml(
-    `${replaceEditorImages(bodyHtmlRaw, imageMap, "store")}${attachmentNotes}`,
-  );
-  const plainBody = htmlToPlainText(emailBodyHtml);
-  if (plainBody.length < 5 && uploads.length === 0) {
-    return ctx.redirect(`${redirectBase}?reply=bad_body`, 303);
-  }
+  const { subject, emailBodyHtml, storedBodyHtml, plainBody, uploads } = prepared.mail;
 
   const request = await getContactRequest(db, requestId);
   if (!request) {
@@ -162,7 +119,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       html: renderReplyEmailHtml(emailInput),
       text: renderReplyEmailText(emailInput),
       headers,
-      attachments: mailAttachments(uploads, imageMap),
+      attachments: mailAttachments(uploads),
     });
 
     if (result.ok) {
@@ -221,34 +178,3 @@ export async function POST(ctx: APIContext): Promise<Response> {
   return ctx.redirect(`${redirectBase}?reply=${flag}`, 303);
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function mailAttachments(
-  uploads: PreparedUpload[],
-  imageMap: Map<string, { cid: string; filename: string }>,
-): EmailAttachment[] {
-  return uploads.map((file) => {
-    const inline = file.kind === "image" && file.uploadId ? imageMap.get(file.uploadId) : undefined;
-    if (inline) {
-      return {
-        filename: file.filename,
-        type: file.type,
-        disposition: "inline" as const,
-        contentId: inline.cid,
-        content: file.bytes,
-      };
-    }
-    return {
-      filename: file.filename,
-      type: file.type,
-      disposition: "attachment" as const,
-      content: file.bytes,
-    };
-  });
-}
