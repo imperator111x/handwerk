@@ -71,12 +71,56 @@ const jsonLd = {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
     <meta name="theme-color" content="#2563eb" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="canonical" href={canonicalUrl} />
+
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var mql = window.matchMedia("(prefers-color-scheme: dark)");
+          var isDark =
+            stored === "dark" || ((!stored || stored === "system") && mql.matches);
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add("dark");
+            root.setAttribute("data-theme", "dark");
+            root.style.colorScheme = "dark";
+          } else {
+            root.classList.remove("dark");
+            root.setAttribute("data-theme", "light");
+            root.style.colorScheme = "light";
+          }
+
+          window.__setTheme = function (choice) {
+            if (choice === "system") {
+              localStorage.removeItem("theme");
+            } else {
+              localStorage.setItem("theme", choice);
+            }
+            var dark =
+              choice === "dark" ||
+              (choice === "system" && mql.matches);
+            root.classList.toggle("dark", dark);
+            root.setAttribute("data-theme", dark ? "dark" : "light");
+            root.style.colorScheme = dark ? "dark" : "light";
+            document
+              .querySelector('meta[name="theme-color"]')
+              ?.setAttribute("content", dark ? "#060a16" : "#2563eb");
+            window.dispatchEvent(new CustomEvent("themechange"));
+          };
+
+          mql.addEventListener("change", function () {
+            if (!localStorage.getItem("theme")) {
+              window.__setTheme("system");
+            }
+          });
+        } catch (_err) {}
+      })();
+    </script>
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />

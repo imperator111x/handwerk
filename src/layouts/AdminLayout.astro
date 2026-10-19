@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import ThemeToggle from "../components/ThemeToggle.astro";
 import type { SessionData } from "../lib/auth";
 
 interface Props {
@@ -36,14 +37,49 @@ const pathname = Astro.url.pathname;
     <meta name="robots" content="noindex,nofollow" />
     <title>{title} · Admin · Zeus-Service</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var mql = window.matchMedia("(prefers-color-scheme: dark)");
+          var isDark =
+            stored === "dark" || ((!stored || stored === "system") && mql.matches);
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add("dark");
+            root.setAttribute("data-theme", "dark");
+            root.style.colorScheme = "dark";
+          } else {
+            root.setAttribute("data-theme", "light");
+            root.style.colorScheme = "light";
+          }
+          window.__setTheme = function (choice) {
+            if (choice === "system") {
+              localStorage.removeItem("theme");
+            } else {
+              localStorage.setItem("theme", choice);
+            }
+            var dark = choice === "dark" || (choice === "system" && mql.matches);
+            root.classList.toggle("dark", dark);
+            root.setAttribute("data-theme", dark ? "dark" : "light");
+            root.style.colorScheme = dark ? "dark" : "light";
+            window.dispatchEvent(new CustomEvent("themechange"));
+          };
+          mql.addEventListener("change", function () {
+            if (!localStorage.getItem("theme")) window.__setTheme("system");
+          });
+        } catch (_err) {}
+      })();
+    </script>
   </head>
-  <body class="bg-ink-100 text-ink-900 min-h-screen">
+  <body class="bg-ink-100 text-ink-900 min-h-screen dark:bg-ink-950 dark:text-ink-100">
     <div class="flex min-h-screen">
       <aside
-        class="hidden lg:flex w-64 flex-col border-r border-ink-200 bg-white"
+        class="hidden lg:flex w-64 flex-col border-r border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900"
       >
-        <div class="px-6 py-6 border-b border-ink-200">
-          <a href="/" class="flex items-center gap-2 text-ink-900 font-bold">
+        <div class="px-6 py-6 border-b border-ink-200 dark:border-white/10">
+          <a href="/" class="flex items-center gap-2 text-ink-900 font-bold dark:text-ink-50">
             <span
               class="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white inline-flex items-center justify-center"
               aria-hidden="true"
@@ -63,7 +99,7 @@ const pathname = Astro.url.pathname;
             </span>
             Zeus-Service
           </a>
-          <p class="text-xs uppercase tracking-widest text-brand-600 mt-1">
+          <p class="text-xs uppercase tracking-widest text-brand-600 mt-1 dark:text-brand-300">
             Admin-Panel
           </p>
         </div>
@@ -76,8 +112,8 @@ const pathname = Astro.url.pathname;
                   href={item.href}
                   class={`flex items-center gap-3 rounded-xl px-3 py-2 font-medium transition ${
                     active
-                      ? "bg-brand-50 text-brand-700"
-                      : "text-ink-700 hover:bg-ink-100"
+                      ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                      : "text-ink-700 hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/10"
                   }`}
                 >
                   <svg
@@ -98,15 +134,15 @@ const pathname = Astro.url.pathname;
             })
           }
         </nav>
-        <div class="p-4 border-t border-ink-200 text-sm">
-          <p class="font-semibold text-ink-900">
+        <div class="p-4 border-t border-ink-200 text-sm dark:border-white/10">
+          <p class="font-semibold text-ink-900 dark:text-ink-50">
             {session.username}
           </p>
-          <p class="text-xs text-ink-500 mb-3">angemeldet</p>
+          <p class="text-xs text-ink-500 mb-3 dark:text-ink-400">angemeldet</p>
           <form action="/api/auth/logout" method="POST">
             <button
               type="submit"
-              class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-100 dark:hover:bg-white/10"
             >
               Abmelden
             </button>
@@ -116,23 +152,26 @@ const pathname = Astro.url.pathname;
 
       <div class="flex-1 flex flex-col min-w-0">
         <header
-          class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-ink-200"
+          class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-ink-200 dark:bg-ink-950/80 dark:border-white/10"
         >
           <div class="flex items-center justify-between px-6 py-4">
             <div>
-              <h1 class="font-display text-xl font-bold text-ink-900">
+              <h1 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">
                 {title}
               </h1>
             </div>
-            <div class="lg:hidden">
-              <form action="/api/auth/logout" method="POST">
-                <button
-                  type="submit"
-                  class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-medium text-ink-700"
-                >
-                  Abmelden
-                </button>
-              </form>
+            <div class="flex items-center gap-3">
+              <ThemeToggle />
+              <div class="lg:hidden">
+                <form action="/api/auth/logout" method="POST">
+                  <button
+                    type="submit"
+                    class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-medium text-ink-700 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                  >
+                    Abmelden
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
         </header>

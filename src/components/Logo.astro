@@ -5,8 +5,12 @@ interface Props {
 }
 
 const { class: className = "", variant = "dark" } = Astro.props;
-const textColor = variant === "light" ? "text-white" : "text-ink-900";
-const subColor = variant === "light" ? "text-brand-200" : "text-brand-600";
+const textColor =
+  variant === "light" ? "text-white" : "text-ink-900 dark:text-ink-50";
+const subColor =
+  variant === "light"
+    ? "text-brand-200"
+    : "text-brand-600 dark:text-brand-300";
 ---
 
 <a

@@ -1,11 +1,12 @@
 ---
 import Logo from "./Logo.astro";
+import ThemeToggle from "./ThemeToggle.astro";
 import { siteConfig } from "../config/site";
 ---
 
 <header
   id="site-header"
-  class="sticky top-0 z-50 border-b border-transparent bg-white/80 backdrop-blur-md transition-all"
+  class="sticky top-0 z-50 border-b border-transparent bg-white/80 backdrop-blur-md transition-all dark:bg-ink-950/70"
 >
   <div class="container-page flex h-18 items-center justify-between py-4">
     <Logo />
@@ -15,7 +16,7 @@ import { siteConfig } from "../config/site";
         siteConfig.nav.map((item) => (
           <a
             href={item.href}
-            class="rounded-full px-4 py-2 text-sm font-medium text-ink-700 transition hover:bg-ink-100 hover:text-brand-700"
+            class="rounded-full px-4 py-2 text-sm font-medium text-ink-700 transition hover:bg-ink-100 hover:text-brand-700 dark:text-ink-200 dark:hover:bg-white/10 dark:hover:text-brand-200"
           >
             {item.label}
           </a>
@@ -26,7 +27,7 @@ import { siteConfig } from "../config/site";
     <div class="flex items-center gap-3">
       <a
         href={siteConfig.contact.phoneHref}
-        class="hidden sm:inline-flex items-center gap-2 text-sm font-semibold text-ink-800 hover:text-brand-700"
+        class="hidden sm:inline-flex items-center gap-2 text-sm font-semibold text-ink-800 hover:text-brand-700 dark:text-ink-100 dark:hover:text-brand-200"
       >
         <svg
           viewBox="0 0 24 24"
@@ -35,20 +36,21 @@ import { siteConfig } from "../config/site";
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          class="h-4 w-4 text-brand-600"
+          class="h-4 w-4 text-brand-600 dark:text-brand-300"
           aria-hidden="true"
         >
           <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
         </svg>
         {siteConfig.contact.phone}
       </a>
+      <ThemeToggle class="hidden sm:inline-flex" />
       <a href="#kontakt" class="btn-primary hidden md:inline-flex">
         Jetzt anfragen
       </a>
       <button
         type="button"
         id="nav-toggle"
-        class="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink-200 text-ink-800 hover:bg-ink-100"
+        class="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink-200 text-ink-800 hover:bg-ink-100 dark:border-white/10 dark:text-ink-100 dark:hover:bg-white/10"
         aria-expanded="false"
         aria-controls="mobile-menu"
         aria-label="Menü öffnen"
@@ -73,20 +75,26 @@ import { siteConfig } from "../config/site";
 
   <div
     id="mobile-menu"
-    class="lg:hidden hidden border-t border-ink-200 bg-white"
+    class="lg:hidden hidden border-t border-ink-200 bg-white dark:border-white/10 dark:bg-ink-950"
   >
     <nav class="container-page flex flex-col gap-1 py-4" aria-label="Mobile Navigation">
       {
         siteConfig.nav.map((item) => (
           <a
             href={item.href}
-            class="rounded-xl px-4 py-3 text-base font-medium text-ink-800 hover:bg-ink-100"
+            class="rounded-xl px-4 py-3 text-base font-medium text-ink-800 hover:bg-ink-100 dark:text-ink-100 dark:hover:bg-white/10"
             data-close-menu
           >
             {item.label}
           </a>
         ))
       }
+      <div class="flex items-center justify-between gap-3 px-4 py-3">
+        <span class="text-sm font-medium text-ink-600 dark:text-ink-300">
+          Farbdesign
+        </span>
+        <ThemeToggle compact />
+      </div>
       <a
         href="#kontakt"
         class="btn-primary mt-2 w-full justify-center"
@@ -103,9 +111,9 @@ import { siteConfig } from "../config/site";
   if (header) {
     const setScrolled = () => {
       if (window.scrollY > 8) {
-        header.classList.add("border-ink-200", "shadow-sm");
+        header.classList.add("border-ink-200", "shadow-sm", "dark:border-white/10");
       } else {
-        header.classList.remove("border-ink-200", "shadow-sm");
+        header.classList.remove("border-ink-200", "shadow-sm", "dark:border-white/10");
       }
     };
     setScrolled();
