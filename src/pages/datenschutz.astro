@@ -12,7 +12,8 @@ import { siteConfig } from "../config/site";
       <p class="text-ink-700 dark:text-ink-200">
         Diese Erklärung beschreibt, welche Daten beim Besuch von
         zeus-service.de, beim Kontakt und bei einer Terminbuchung verarbeitet
-        werden. Es gibt keine Analyse- und keine Werbe-Cookies.
+        werden. Werbe-Cookies gibt es nicht. Eine Besucherzählung läuft nur
+        nach Ihrer Zustimmung.
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
@@ -59,13 +60,19 @@ import { siteConfig } from "../config/site";
         Rechtsgrundlage ist § 25 Abs. 2 TDDDG sowie Art. 6 Abs. 1 lit. f DSGVO.
       </p>
       <p class="text-ink-700 dark:text-ink-200">
+        Beim Laden jeder öffentlichen Seite läuft zusätzlich ein unsichtbarer
+        Bot-Check von Cloudflare Turnstile. Dafür lädt der Browser ein Skript
+        von challenges.cloudflare.com. Der Check zeigt kein Rätsel und speichert
+        bei uns kein Profil. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
         Wenn Sie im Schalter für das Farbdesign eine feste helle oder dunkle
         Variante wählen, merkt sich der Browser das lokal unter dem Schlüssel
         <span class="font-medium">theme</span>. Die Systemeinstellung wird nicht
-        gespeichert. Dass Sie den Cookie-Hinweis geschlossen haben, steht lokal
-        unter <span class="font-medium">zs-cookie-notice</span>. Beides verlässt
+        gespeichert. Ihre Auswahl im Cookie-Hinweis steht lokal unter
+        <span class="font-medium">zs-cookie-notice</span>. Beides verlässt
         Ihren Browser nicht. Über „Cookie-Hinweis“ in der Fußzeile können Sie
-        den Hinweis wieder öffnen.
+        die Auswahl ändern.
       </p>
       <p class="text-ink-700 dark:text-ink-200">
         Nach der Anmeldung im internen Bereich setzt die Website das Cookie
@@ -76,7 +83,22 @@ import { siteConfig } from "../config/site";
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
-        4. Schriftarten
+        4. Besucherzählung
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Wenn Sie im Hinweis „Statistik erlauben“ wählen, speichern wir nach
+        bestandenem Bot-Check den aufgerufenen Pfad, die Herkunft und das Land
+        des Anschlusses. Die Herkunft ist zum Beispiel Google, ein anderer
+        Webauftritt oder ein direkter Aufruf. Gespeichert wird keine IP-Adresse
+        und kein Name. Die Zählung bleibt in unserer eigenen Datenbank und wird
+        nicht an Werbenetzwerke gegeben. Rechtsgrundlage ist Art. 6 Abs. 1
+        lit. a DSGVO. „Nur nötige“ speichert den Aufruf nicht. Ihre Wahl steht
+        lokal unter <span class="font-medium">zs-cookie-notice</span> und lässt
+        sich über „Cookie-Hinweis“ in der Fußzeile ändern.
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        5. Schriftarten
       </h2>
       <p class="text-ink-700 dark:text-ink-200">
         Schriftarten werden von Google Fonts (Google Ireland Limited, Gordon
@@ -86,7 +108,7 @@ import { siteConfig } from "../config/site";
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
-        5. Kontaktformular und E-Mail
+        6. Kontaktformular und E-Mail
       </h2>
       <p class="text-ink-700 dark:text-ink-200">
         Wenn Sie das Formular absenden, speichern wir Name, E-Mail-Adresse,
@@ -110,7 +132,7 @@ import { siteConfig } from "../config/site";
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
-        6. Terminbuchung
+        7. Terminbuchung
       </h2>
       <p class="text-ink-700 dark:text-ink-200">
         Über den Link in unserer E-Mail können Sie eine freie Zeit wählen.
@@ -125,7 +147,7 @@ import { siteConfig } from "../config/site";
       </p>
 
       <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
-        7. Ihre Rechte
+        8. Ihre Rechte
       </h2>
       <p class="text-ink-700 dark:text-ink-200">
         Sie können Auskunft, Berichtigung, Löschung, Einschränkung der

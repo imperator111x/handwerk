@@ -53,6 +53,7 @@
     // Eingehende Post kommt über Email Routing auf der Apex an.
     "REPLY_DOMAIN": "zeus-service.de",
     "TURNSTILE_SITEKEY": "0x4AAAAAAFbQmcogsMf7jRJx",
+    "TURNSTILE_PAGE_SITEKEY": "0x4AAAAAAFbUcfcsc327engw",
     "TURNSTILE_HOSTNAMES": "zeus-service.de,www.zeus-service.de,zeus-service-web.imperator111x.workers.dev"
   },
 

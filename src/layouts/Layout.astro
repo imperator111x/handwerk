@@ -4,6 +4,7 @@ import { siteConfig } from "../config/site";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import CookieNotice from "../components/CookieNotice.astro";
+import PageGuard from "../components/PageGuard.astro";
 
 interface Props {
   title?: string;
@@ -158,6 +159,25 @@ const jsonLd = {
       type="application/ld+json"
       set:html={JSON.stringify(jsonLd)}
     />
+    <script is:inline>
+      window.__turnstileQueue = window.__turnstileQueue || [];
+      window.onTurnstileLoad = function () {
+        var queued = window.__turnstileQueue || [];
+        window.__turnstileQueue = {
+          push: function (fn) {
+            fn();
+          },
+        };
+        queued.forEach(function (fn) {
+          fn();
+        });
+      };
+    </script>
+    <script
+      id="cf-turnstile-api"
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad"
+      async
+    ></script>
   </head>
   <body class="min-h-screen flex flex-col">
     {showHeader && <Header />}
@@ -166,6 +186,7 @@ const jsonLd = {
     </main>
     {showFooter && <Footer />}
     <CookieNotice />
+    <PageGuard />
     <script is:inline>
       (() => {
         const key = "zs-mail";

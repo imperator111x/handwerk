@@ -1,0 +1,65 @@
+---
+const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
+---
+
+{
+  sitekey && (
+    <div id="page-turnstile" data-sitekey={sitekey} class="sr-only" aria-hidden="true"></div>
+  )
+}
+
+<script is:inline>
+  (() => {
+    const box = document.getElementById("page-turnstile");
+    if (!box) return;
+    const sitekey = box.getAttribute("data-sitekey");
+    if (!sitekey) return;
+    let widgetId;
+    let recordNext = false;
+
+    const statsAllowed = () => {
+      try {
+        return localStorage.getItem("zs-cookie-notice") === "stats";
+      } catch {
+        return false;
+      }
+    };
+
+    const send = (token) => {
+      const record = recordNext || statsAllowed();
+      recordNext = false;
+      const utm = new URLSearchParams(location.search).get("utm_source") || "";
+      fetch("/api/besuch", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          token,
+          path: location.pathname,
+          referrer: document.referrer || "",
+          utm: utm.slice(0, 40),
+          record,
+        }),
+      }).catch(() => {});
+    };
+
+    const render = () => {
+      if (!window.turnstile || widgetId !== undefined) return;
+      widgetId = window.turnstile.render(box, {
+        sitekey,
+        size: "invisible",
+        action: "page_load",
+        callback: send,
+        "error-callback": () => true,
+      });
+    };
+
+    window.addEventListener("cookie-stats", () => {
+      recordNext = true;
+      if (widgetId !== undefined && window.turnstile) window.turnstile.reset(widgetId);
+    });
+
+    if (window.turnstile) render();
+    else (window.__turnstileQueue = window.__turnstileQueue || []).push(render);
+  })();
+</script>

@@ -287,15 +287,8 @@ const turnstileSitekey = Astro.locals.runtime?.env?.TURNSTILE_SITEKEY ?? "";
   }
 
   if (turnstileContainer) {
-    if (window.turnstile) {
-      renderContactTurnstile();
-    } else {
-      const script = document.createElement("script");
-      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-      script.async = true;
-      script.addEventListener("load", renderContactTurnstile, { once: true });
-      document.head.appendChild(script);
-    }
+    if (window.turnstile) renderContactTurnstile();
+    else (window.__turnstileQueue = window.__turnstileQueue || []).push(renderContactTurnstile);
   }
 
   function setStatus(message, type) {

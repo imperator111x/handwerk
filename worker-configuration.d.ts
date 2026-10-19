@@ -19,6 +19,7 @@ interface Env {
   CONTACT_FROM_EMAIL: string;
   REPLY_DOMAIN: string;
   TURNSTILE_SITEKEY: string;
+  TURNSTILE_PAGE_SITEKEY: string;
   TURNSTILE_HOSTNAMES: string;
 
   // Secrets (per `wrangler secret put ...` zu setzen)
@@ -27,6 +28,7 @@ interface Env {
   CONTACT_TO_EMAIL?: string;
   RESEND_API_KEY?: string;
   TURNSTILE_SECRET?: string;
+  TURNSTILE_PAGE_SECRET?: string;
 
   // Static Assets Fetcher (automatisch durch `assets.binding` erzeugt)
   ASSETS: Fetcher;
