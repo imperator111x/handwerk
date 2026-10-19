@@ -29,6 +29,14 @@ const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
       const record = recordNext || statsAllowed();
       recordNext = false;
       const utm = new URLSearchParams(location.search).get("utm_source") || "";
+      let referrer = document.referrer || "";
+      try {
+        const saved = sessionStorage.getItem("zs-visit-referrer");
+        if (saved === null) sessionStorage.setItem("zs-visit-referrer", referrer);
+        else referrer = saved;
+      } catch {
+        /* Ohne Sitzungsspeicher zählt nur die gerade sichtbare Herkunft. */
+      }
       fetch("/api/besuch", {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
@@ -36,7 +44,7 @@ const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
         body: JSON.stringify({
           token,
           path: location.pathname,
-          referrer: document.referrer || "",
+          referrer,
           utm: utm.slice(0, 40),
           record,
         }),
