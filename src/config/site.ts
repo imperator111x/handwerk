@@ -26,11 +26,11 @@ export const siteConfig = {
     // Hier später z. B. LinkedIn, Google Business, Instagram ergänzen
   },
   nav: [
-    { label: "Leistungen", href: "#leistungen" },
-    { label: "Über uns", href: "#ueber-uns" },
-    { label: "Ablauf", href: "#ablauf" },
-    { label: "Referenzen", href: "#referenzen" },
-    { label: "Kontakt", href: "#kontakt" },
+    { label: "Leistungen", href: "/#leistungen" },
+    { label: "Über uns", href: "/#ueber-uns" },
+    { label: "Ablauf", href: "/#ablauf" },
+    { label: "Referenzen", href: "/#referenzen" },
+    { label: "Kontakt", href: "/#kontakt" },
   ],
 } as const;
 
