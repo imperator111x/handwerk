@@ -9,7 +9,7 @@ import {
 import {
   renderReplyEmailHtml,
   renderReplyEmailText,
-  sendViaResend,
+  sendEmail,
 } from "../../../lib/email";
 
 export const prerender = false;
@@ -63,27 +63,28 @@ export async function POST(ctx: APIContext): Promise<Response> {
   let emailStatus: string | null = null;
   let emailError: string | null = null;
 
-  if (env?.RESEND_API_KEY) {
-    const authorName = session.username;
-    const siteName = env.SITE_NAME ?? "Zeus-Service";
-    const siteUrl = env.SITE_URL ?? "https://zeus-service.de";
-    const fromEmail = env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de";
+  const authorName = session.username;
+  const siteName = env?.SITE_NAME ?? "Zeus-Service";
+  const siteUrl = env?.SITE_URL ?? "https://zeus-service.de";
+  const fromEmail = env?.CONTACT_FROM_EMAIL ?? "website@zeus-service.de";
 
-    const emailInput = {
-      siteName,
-      siteUrl,
-      recipientName: request.name,
-      subject,
-      bodyText: body,
-      authorName,
-      fromEmail,
-      phone: request.phone ?? null,
-    };
+  const emailInput = {
+    siteName,
+    siteUrl,
+    recipientName: request.name,
+    subject,
+    bodyText: body,
+    authorName,
+    fromEmail,
+    phone: request.phone ?? null,
+  };
 
-    const result = await sendViaResend({
-      apiKey: env.RESEND_API_KEY,
-      from: `${siteName} <${fromEmail}>`,
+  if (env) {
+    const result = await sendEmail(env, {
+      from: fromEmail,
+      fromName: siteName,
       to: request.email,
+      toName: request.name,
       replyTo: fromEmail,
       subject,
       html: renderReplyEmailHtml(emailInput),
@@ -92,14 +93,18 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
     if (result.ok) {
       emailSentAt = Math.floor(Date.now() / 1000);
-      emailStatus = result.id ? `sent:${result.id}` : "sent";
+      emailStatus = result.messageId
+        ? `sent:${result.via}:${result.messageId}`
+        : `sent:${result.via}`;
+    } else if (result.via === "none") {
+      emailStatus = "skipped:no_transport";
     } else {
-      emailStatus = `failed:${result.status}`;
+      emailStatus = `failed:${result.via}`;
       emailError = result.error ?? "unbekannter Fehler";
-      console.error("resend_reply_failed", emailStatus, emailError);
+      console.error("reply_send_failed", result.via, emailError);
     }
   } else {
-    emailStatus = "skipped:no_resend_key";
+    emailStatus = "skipped:no_env";
   }
 
   try {

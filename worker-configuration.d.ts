@@ -27,4 +27,37 @@ interface Env {
   // in wrangler.jsonc aktivieren)
   DB?: D1Database;
   SESSIONS?: KVNamespace;
+
+  // Cloudflare Email Sending (nach `wrangler email sending enable zeus-service.de`
+  // oder Dashboard-Onboarding + Binding in wrangler.jsonc)
+  EMAIL?: SendEmail;
+}
+
+interface SendEmailAddress {
+  email: string;
+  name?: string;
+}
+
+interface SendEmailMessageBuilder {
+  to: string | SendEmailAddress | (string | SendEmailAddress)[];
+  from: string | SendEmailAddress;
+  subject: string;
+  html?: string;
+  text?: string;
+  cc?: string | SendEmailAddress | (string | SendEmailAddress)[];
+  bcc?: string | SendEmailAddress | (string | SendEmailAddress)[];
+  replyTo?: string | SendEmailAddress;
+  headers?: Record<string, string>;
+}
+
+interface SendEmailResult {
+  messageId: string;
+}
+
+/**
+ * Shape des `env.EMAIL`-Bindings (Cloudflare Email Sending).
+ * Siehe https://developers.cloudflare.com/email-service/api/send-emails/workers-api/
+ */
+interface SendEmail {
+  send(message: SendEmailMessageBuilder): Promise<SendEmailResult>;
 }

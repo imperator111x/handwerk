@@ -134,35 +134,77 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
   return lines.join("\n");
 }
 
-export interface ResendSendInput {
-  apiKey: string;
+export interface SendInput {
   from: string;
+  fromName?: string;
   to: string;
+  toName?: string;
   replyTo?: string;
   subject: string;
   html: string;
   text: string;
 }
 
-export interface ResendSendResult {
+export interface SendResult {
   ok: boolean;
-  status: number;
-  id?: string;
+  via: "cloudflare" | "resend" | "none";
+  messageId?: string;
   error?: string;
 }
 
+/**
+ * Cloudflare-Email-Sending-Binding (`env.EMAIL` → `send_email` in wrangler.jsonc).
+ * Setzt eine im Account onboardete Domain voraus (SPF/DKIM werden automatisch
+ * durch das Dashboard-Onboarding gesetzt).
+ */
+export async function sendViaCloudflare(
+  binding: SendEmail,
+  input: SendInput,
+): Promise<SendResult> {
+  try {
+    const result = await binding.send({
+      from: input.fromName
+        ? { email: input.from, name: input.fromName }
+        : input.from,
+      to: input.toName
+        ? { email: input.to, name: input.toName }
+        : input.to,
+      replyTo: input.replyTo ?? input.from,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    return {
+      ok: true,
+      via: "cloudflare",
+      messageId: result.messageId,
+    };
+  } catch (err) {
+    const e = err as { code?: string; message?: string };
+    return {
+      ok: false,
+      via: "cloudflare",
+      error: `${e.code ?? "unknown"}: ${e.message ?? String(err)}`.slice(0, 500),
+    };
+  }
+}
+
+/**
+ * Resend-HTTP-Fallback. Nur wenn `env.RESEND_API_KEY` gesetzt ist.
+ */
 export async function sendViaResend(
-  input: ResendSendInput,
-): Promise<ResendSendResult> {
+  apiKey: string,
+  input: SendInput,
+): Promise<SendResult> {
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${input.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: input.from,
+        from: input.fromName ? `${input.fromName} <${input.from}>` : input.from,
         to: [input.to],
         reply_to: input.replyTo ?? input.from,
         subject: input.subject,
@@ -175,18 +217,35 @@ export async function sendViaResend(
       const bodyText = await response.text();
       return {
         ok: false,
-        status: response.status,
-        error: bodyText.slice(0, 500),
+        via: "resend",
+        error: `${response.status}: ${bodyText.slice(0, 400)}`,
       };
     }
 
     const body = (await response.json()) as { id?: string };
-    return { ok: true, status: response.status, id: body.id };
+    return { ok: true, via: "resend", messageId: body.id };
   } catch (err) {
     return {
       ok: false,
-      status: 0,
+      via: "resend",
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * High-Level Send: nutzt Cloudflare Email Sending wenn verfuegbar,
+ * sonst Resend, sonst „none".
+ */
+export async function sendEmail(
+  env: Env,
+  input: SendInput,
+): Promise<SendResult> {
+  if (env.EMAIL) {
+    return sendViaCloudflare(env.EMAIL, input);
+  }
+  if (env.RESEND_API_KEY) {
+    return sendViaResend(env.RESEND_API_KEY, input);
+  }
+  return { ok: false, via: "none", error: "Kein E-Mail-Transport konfiguriert." };
 }
