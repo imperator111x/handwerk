@@ -38,6 +38,14 @@ interface SendEmailAddress {
   name?: string;
 }
 
+interface SendEmailAttachment {
+  content: string | ArrayBuffer | ArrayBufferView;
+  filename: string;
+  type: string;
+  disposition: "attachment" | "inline";
+  contentId?: string;
+}
+
 interface SendEmailMessageBuilder {
   to: string | SendEmailAddress | (string | SendEmailAddress)[];
   from: string | SendEmailAddress;
@@ -47,6 +55,7 @@ interface SendEmailMessageBuilder {
   cc?: string | SendEmailAddress | (string | SendEmailAddress)[];
   bcc?: string | SendEmailAddress | (string | SendEmailAddress)[];
   replyTo?: string | SendEmailAddress;
+  attachments?: SendEmailAttachment[];
   headers?: Record<string, string>;
 }
 

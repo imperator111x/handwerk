@@ -74,7 +74,7 @@ const replyFlags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> 
   sent: { kind: "ok", text: "Antwort gespeichert und per E-Mail verschickt." },
   saved_no_email: {
     kind: "warn",
-    text: "Antwort gespeichert. E-Mail nicht verschickt – kein RESEND_API_KEY gesetzt.",
+    text: "Antwort gespeichert. E-Mail nicht verschickt – kein E-Mail-Transport verbunden.",
   },
   saved_email_failed: {
     kind: "err",
