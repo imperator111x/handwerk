@@ -72,15 +72,30 @@ const redirectPath = Astro.url.pathname;
       <div>
         <dt class="font-semibold text-ink-700 dark:text-ink-200">E-Mail-Versand</dt>
         <dd class="text-ink-900 dark:text-ink-50">
-          {env?.RESEND_API_KEY ? "Resend ist konfiguriert" : "Nicht konfiguriert"}
+          {env?.EMAIL
+            ? "Cloudflare Email Sending aktiv"
+            : env?.RESEND_API_KEY
+              ? "Resend-Fallback aktiv"
+              : "Nicht konfiguriert"}
         </dd>
       </div>
     </dl>
-    {!env?.RESEND_API_KEY && (
+    {!env?.EMAIL && !env?.RESEND_API_KEY && (
       <p class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 dark:bg-amber-500/10 dark:border-amber-400/20 dark:text-amber-100">
-        Es ist noch kein <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">RESEND_API_KEY</code> gesetzt.
-        Antworten im Panel werden gespeichert, aber nicht per E-Mail verschickt.
-        Setzen mit <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">npx wrangler secret put RESEND_API_KEY</code>.
+        Es ist noch kein E-Mail-Transport verbunden. Antworten im Panel werden
+        gespeichert, aber nicht per E-Mail verschickt. Empfohlen:
+        <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">zeus-service.de</code>
+        im Cloudflare-Dashboard unter <em>Email&nbsp;→&nbsp;Sending</em>
+        onboarden und das Binding <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">EMAIL</code>
+        wird automatisch bedient. Alternativ Resend per
+        <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">npx wrangler secret put RESEND_API_KEY</code>.
+      </p>
+    )}
+    {env?.EMAIL && (
+      <p class="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-400/20 dark:text-emerald-100">
+        Cloudflare Email Sending ist verbunden. Antworten gehen direkt über das
+        Worker-Binding <code class="rounded bg-emerald-100 px-1 py-0.5 dark:bg-emerald-500/20">EMAIL</code>
+        an die Empfängerinnen und Empfänger.
       </p>
     )}
   </section>

@@ -195,9 +195,11 @@ const redirectPath = Astro.url.pathname;
         </h3>
         <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
           Wird an <strong>{request.email}</strong> gesendet
-          {env?.RESEND_API_KEY
-            ? ` (Resend ist konfiguriert)`
-            : ` (Resend nicht konfiguriert – Antwort wird nur gespeichert)`}.
+          {env?.EMAIL
+            ? ` (Cloudflare Email Sending aktiv)`
+            : env?.RESEND_API_KEY
+              ? ` (Resend-Fallback aktiv)`
+              : ` (kein E-Mail-Transport – Antwort wird nur gespeichert)`}.
         </p>
       </div>
       <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
