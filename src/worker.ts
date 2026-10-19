@@ -29,6 +29,11 @@ export function createExports(manifest: SSRManifest) {
         env: Env,
         ctx: Parameters<typeof handle>[4],
       ) {
+        const url = new URL((request as unknown as Request).url);
+        if (url.hostname === "www.zeus-service.de") {
+          url.hostname = "zeus-service.de";
+          return Response.redirect(url.toString(), 301);
+        }
         return handle(manifest, app, request, env, ctx);
       },
       async email(message: InboundMessage, env: Env) {

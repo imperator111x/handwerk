@@ -2,11 +2,14 @@
  * Ordnet eine eingehende Kundenmail einer Anfrage zu und speichert sie
  * im Verlauf. Die Zuordnung läuft über die signierte Antwortadresse
  * und, falls die fehlt, über In-Reply-To / References.
+ * Mails ohne Zuordnung werden als neue Anfrage angelegt, damit das
+ * Postfach nach dem Wechsel von Lima-City nicht ins Leere läuft.
  */
 
 import {
   findRequestIdByMessageIds,
   getContactRequest,
+  insertContactRequest,
   insertInboundReply,
   updateContactStatus,
 } from "./db";
@@ -33,6 +36,7 @@ export interface ParsedInbound {
 
 export type IngestResult =
   | { action: "stored"; requestId: number; replyId: number }
+  | { action: "created"; requestId: number }
   | { action: "duplicate"; requestId: number }
   | { action: "ignore"; reason: string }
   | { action: "reject"; reason: string };
@@ -54,7 +58,15 @@ export async function ingestInboundEmail(
 
   const requestId = await resolveRequestId(db, secret, email);
   if (!requestId) {
-    return { action: "reject", reason: "Diese Adresse ist keiner Anfrage zugeordnet." };
+    const createdId = await insertContactRequest(db, {
+      name: cleanName(email.fromName) || from.split("@")[0] || "Kunde",
+      email: from,
+      topic: "sonstiges",
+      message:
+        clip(extractCustomerText(email.text ?? "", email.html ?? "")) ||
+        "(Keine Textnachricht)",
+    });
+    return { action: "created", requestId: createdId };
   }
 
   const request = await getContactRequest(db, requestId);

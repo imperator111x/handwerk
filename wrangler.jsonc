@@ -19,6 +19,10 @@
   "main": "./dist/_worker.js/index.js",
   "workers_dev": true,
   "preview_urls": true,
+  "routes": [
+    { "pattern": "zeus-service.de", "custom_domain": true },
+    { "pattern": "www.zeus-service.de", "custom_domain": true }
+  ],
   "compatibility_date": "2026-10-19",
   "compatibility_flags": ["nodejs_compat"],
 
@@ -44,9 +48,9 @@
     "SITE_URL": "https://zeus-service.de",
     "ADMIN_USERNAME": "admin",
     "CONTACT_FROM_EMAIL": "website@zeus-service.de",
-    // Nur die Subdomain. Die Apex zeus-service.de bleibt beim bestehenden
-    // Postfach (MX mail.lima-city.de) und darf hier nicht als Empfänger stehen.
-    "REPLY_DOMAIN": "antwort.zeus-service.de"
+    // Signierte Antwortadressen: r+<id>.<sig>@zeus-service.de
+    // Eingehende Post kommt über Email Routing auf der Apex an.
+    "REPLY_DOMAIN": "zeus-service.de"
   },
 
   "d1_databases": [

@@ -6,7 +6,7 @@
  * Raten einer ID fremde Verläufe beschreiben kann.
  */
 
-export const DEFAULT_REPLY_DOMAIN = "antwort.zeus-service.de";
+export const DEFAULT_REPLY_DOMAIN = "zeus-service.de";
 
 const TOKEN_RE = /^r\+(\d+)\.([a-f0-9]{16})$/i;
 
