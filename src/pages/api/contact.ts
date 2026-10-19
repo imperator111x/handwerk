@@ -1,5 +1,6 @@
 import type { APIContext } from "astro";
 import { parseContact } from "../../lib/validation";
+import { insertContactRequest } from "../../lib/db";
 
 export const prerender = false;
 
@@ -28,18 +29,35 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const payload = parsed.value;
   const env = ctx.locals.runtime?.env;
 
+  const ip =
+    ctx.request.headers.get("cf-connecting-ip") ??
+    ctx.request.headers.get("x-forwarded-for") ??
+    "unknown";
+  const country = ctx.request.headers.get("cf-ipcountry") ?? "unknown";
+  const userAgent = ctx.request.headers.get("user-agent") ?? "unknown";
+
   const log = {
     at: new Date().toISOString(),
-    ip:
-      ctx.request.headers.get("cf-connecting-ip") ??
-      ctx.request.headers.get("x-forwarded-for") ??
-      "unknown",
-    country: ctx.request.headers.get("cf-ipcountry") ?? "unknown",
-    userAgent: ctx.request.headers.get("user-agent") ?? "unknown",
+    ip,
+    country,
+    userAgent,
     ...payload,
   };
-
   console.log("contact_form_submission", JSON.stringify(log));
+
+  let persistedId: number | null = null;
+  if (env?.DB) {
+    try {
+      persistedId = await insertContactRequest(env.DB, {
+        ...payload,
+        ip,
+        country,
+        user_agent: userAgent,
+      });
+    } catch (err) {
+      console.error("contact_persist_failed", err);
+    }
+  }
 
   if (env?.RESEND_API_KEY && env.CONTACT_TO_EMAIL) {
     try {
@@ -68,6 +86,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   return json({
     ok: true,
+    id: persistedId,
     message:
       "Vielen Dank für Ihre Anfrage – wir melden uns in Kürze bei Ihnen.",
   });

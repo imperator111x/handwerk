@@ -16,12 +16,15 @@
  */
 
 import type { APIContext } from "astro";
+import { findUserByUsername, touchUserLogin } from "./db";
 
 export const SESSION_COOKIE = "zs_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8; // 8 Stunden
 
 export interface SessionData {
   username: string;
+  userId?: number;
+  role?: string;
   createdAt: number;
 }
 
@@ -167,14 +170,14 @@ export async function verifyPassword(
 
 export async function createSession(
   ctx: APIContext,
-  username: string,
+  data: Omit<SessionData, "createdAt">,
 ): Promise<string> {
   const env = getEnv(ctx);
   const token = randomToken();
   const store = getStore(env);
   await store.set(
     token,
-    { username, createdAt: Date.now() },
+    { ...data, createdAt: Date.now() },
     SESSION_TTL_SECONDS,
   );
   ctx.cookies.set(SESSION_COOKIE, token, {
@@ -216,23 +219,51 @@ export async function requireSession(
   return session;
 }
 
+/**
+ * Login-Flow:
+ *  1) Falls `env.DB` gebunden ist, zuerst in der `users`-Tabelle nachschlagen.
+ *  2) Als Fallback (z. B. beim ersten Deploy ohne gesetzten DB-User) wird
+ *     die Kombination aus `ADMIN_USERNAME` (Var) + `ADMIN_PASSWORD_HASH`
+ *     (Secret) akzeptiert. So kommt man immer rein, auch bevor die
+ *     users-Tabelle befuellt ist.
+ */
 export async function attemptLogin(
   ctx: APIContext,
   username: string,
   password: string,
 ): Promise<boolean> {
   const env = getEnv(ctx);
+
+  if (env.DB) {
+    try {
+      const user = await findUserByUsername(env.DB, username);
+      if (user) {
+        const ok = await verifyPassword(password, user.password_hash);
+        if (!ok) return false;
+        await touchUserLogin(env.DB, user.id).catch(() => {});
+        await createSession(ctx, {
+          username: user.username,
+          userId: user.id,
+          role: user.role,
+        });
+        return true;
+      }
+    } catch (err) {
+      console.error("db_user_lookup_failed", err);
+    }
+  }
+
   const expectedUser = env.ADMIN_USERNAME ?? "admin";
   const storedHash = env.ADMIN_PASSWORD_HASH;
   if (!storedHash) {
     console.warn(
-      "ADMIN_PASSWORD_HASH ist nicht gesetzt – Login wird abgelehnt.",
+      "Weder DB-User noch ADMIN_PASSWORD_HASH gesetzt – Login verweigert.",
     );
     return false;
   }
   if (username !== expectedUser) return false;
   const ok = await verifyPassword(password, storedHash);
   if (!ok) return false;
-  await createSession(ctx, username);
+  await createSession(ctx, { username, role: "admin" });
   return true;
 }
