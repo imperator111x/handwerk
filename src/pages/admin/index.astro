@@ -1,6 +1,7 @@
 ---
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
+import { countContactRequestsByStatus, getDb } from "../../lib/db";
 
 export const prerender = false;
 
@@ -12,6 +13,14 @@ const env = Astro.locals.runtime?.env;
 const dbReady = Boolean(env?.DB);
 const kvReady = Boolean(env?.SESSIONS);
 const mailReady = Boolean(env?.RESEND_API_KEY && env?.CONTACT_TO_EMAIL);
+
+const db = getDb(Astro);
+const stats = db
+  ? await countContactRequestsByStatus(db).catch(() => null)
+  : null;
+const totalStats = stats
+  ? stats.new + stats.in_progress + stats.done + stats.archived
+  : 0;
 
 const cards = [
   {
@@ -51,11 +60,68 @@ const cards = [
     </h2>
     <p class="text-ink-600 mt-2 max-w-2xl dark:text-ink-300">
       Hier läuft das Admin-Panel von Zeus-Service. Von hier aus steuerst du
-      später Anfragen, Leistungen und Einstellungen. Der Login- und
-      Session-Layer ist einsatzbereit, Datenbank-Modelle folgen in den
-      nächsten Iterationen.
+      Anfragen, Leistungen und Einstellungen.
     </p>
   </section>
+
+  {
+    stats && (
+      <section>
+        <h3 class="font-display text-xl font-bold text-ink-900 mb-4 dark:text-ink-50">
+          Anfragen
+        </h3>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <a
+            href="/admin/anfragen?status=new"
+            class="group rounded-2xl border border-ink-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900"
+          >
+            <p class="text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
+              Neu
+            </p>
+            <p class="mt-2 text-3xl font-extrabold text-ink-900 dark:text-ink-50">
+              {stats.new}
+            </p>
+            <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
+              offene Anfragen
+            </p>
+          </a>
+          <a
+            href="/admin/anfragen?status=in_progress"
+            class="group rounded-2xl border border-ink-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900"
+          >
+            <p class="text-xs font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-300">
+              In Bearbeitung
+            </p>
+            <p class="mt-2 text-3xl font-extrabold text-ink-900 dark:text-ink-50">
+              {stats.in_progress}
+            </p>
+          </a>
+          <a
+            href="/admin/anfragen?status=done"
+            class="group rounded-2xl border border-ink-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900"
+          >
+            <p class="text-xs font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-300">
+              Erledigt
+            </p>
+            <p class="mt-2 text-3xl font-extrabold text-ink-900 dark:text-ink-50">
+              {stats.done}
+            </p>
+          </a>
+          <a
+            href="/admin/anfragen"
+            class="group rounded-2xl border border-ink-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900"
+          >
+            <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
+              Insgesamt
+            </p>
+            <p class="mt-2 text-3xl font-extrabold text-ink-900 dark:text-ink-50">
+              {totalStats}
+            </p>
+          </a>
+        </div>
+      </section>
+    )
+  }
 
   <section>
     <h3 class="font-display text-xl font-bold text-ink-900 mb-4 dark:text-ink-50">
