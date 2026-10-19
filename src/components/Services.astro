@@ -12,7 +12,7 @@ const services = [
     description:
       "Regelmäßige Reinigung von Treppenhäusern, Außenanlagen und Gemeinschaftsflächen – zuverlässig nach Plan oder auf Abruf.",
     icon: "sparkles",
-    items: ["Treppenhausreinigung", "Außenflächen", "Grundreinigung", "Winterdienst"],
+    items: ["Treppenhausreinigung", "Außenflächen", "Grundreinigung", "Glas & Rahmen"],
   },
   {
     title: "Wartung",
@@ -25,20 +25,6 @@ const services = [
       "Kleinelektrik",
       "Technik-Checks",
     ],
-  },
-  {
-    title: "Gartenpflege",
-    description:
-      "Rasen mähen, Hecken schneiden, Laub entfernen – wir halten Ihre Grünflächen das ganze Jahr über in Form.",
-    icon: "leaf",
-    items: ["Rasen & Hecken", "Laub & Pflege", "Beetanlagen", "Baumschnitt klein"],
-  },
-  {
-    title: "Winterdienst",
-    description:
-      "Räum- und Streudienst für Gehwege, Zufahrten und Parkplätze – pünktlich, verlässlich und entsprechend der gesetzlichen Vorgaben.",
-    icon: "snow",
-    items: ["Schneeräumung", "Streudienst", "Dokumentation", "Haftungssicher"],
   },
   {
     title: "Objektbetreuung",
@@ -76,10 +62,10 @@ const iconPaths: Record<string, string> = {
       </p>
     </div>
 
-    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
       {
         services.map((s) => (
-          <article class="card group">
+          <article class="card group h-full flex flex-col">
             <div class="flex items-center justify-between mb-5">
               <span
                 class="h-12 w-12 inline-flex items-center justify-center rounded-2xl bg-brand-50 text-brand-600 group-hover:bg-brand-600 group-hover:text-white transition-colors dark:bg-brand-500/15 dark:text-brand-300 dark:group-hover:bg-brand-500 dark:group-hover:text-ink-950"
