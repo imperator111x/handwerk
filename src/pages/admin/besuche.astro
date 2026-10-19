@@ -26,9 +26,9 @@ const cards = stats
   <section class="rounded-3xl border border-ink-200 bg-white p-6 sm:p-8 dark:border-white/10 dark:bg-ink-900">
     <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Besuche</h2>
     <p class="mt-2 max-w-2xl text-sm text-ink-600 dark:text-ink-300">
-      Gezählt wird ein Aufruf, nachdem der unsichtbare Bot-Check bestanden ist
-      und die Person Statistik erlaubt hat. Die Herkunft ist die Seite, von der
-      sie kam.
+      Jedes Gerät zählt pro Tag einmal, nachdem der Bot-Check bestanden ist und
+      Statistik erlaubt wurde. Die Herkunft ist zum Beispiel Google oder ein
+      direkter Aufruf.
     </p>
 
     {
@@ -57,11 +57,7 @@ const cards = stats
         <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
           <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Herkunft, 30 Tage</h3>
           {stats.sources.length === 0 ? (
-            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">
-              {stats.month > 0
-                ? "Bisher nur Aufrufe ohne externe Herkunft."
-                : "Noch keine Aufrufe."}
-            </p>
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Besuche.</p>
           ) : (
             <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
               {stats.sources.map((row) => (
@@ -83,6 +79,49 @@ const cards = stats
                 <li class="flex items-center justify-between gap-3 py-3 text-sm">
                   <span class="truncate text-ink-800 dark:text-ink-100">{row.path}</span>
                   <span class="font-semibold text-ink-900 dark:text-ink-50">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900 lg:col-span-2">
+          <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Geräte, 30 Tage</h3>
+          {stats.devices.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Besuche.</p>
+          ) : (
+            <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
+              {stats.devices.map((row) => (
+                <li class="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span class="text-ink-800 dark:text-ink-100">{row.device}</span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900 lg:col-span-2">
+          <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Letzte Besuche</h3>
+          {stats.recent.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Besuche.</p>
+          ) : (
+            <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
+              {stats.recent.map((row) => (
+                <li class="grid gap-1 py-3 text-sm sm:grid-cols-[8rem_1fr_auto] sm:items-center">
+                  <span class="text-ink-500 dark:text-ink-400">
+                    {new Intl.DateTimeFormat("de-DE", {
+                      timeZone: "Europe/Berlin",
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(row.created_at * 1000))}
+                  </span>
+                  <span class="text-ink-800 dark:text-ink-100">
+                    {row.device || "Unbekanntes Gerät"}
+                    {row.country ? ` · ${row.country}` : ""}
+                    <span class="block text-ink-500 dark:text-ink-400">{row.path}</span>
+                  </span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{row.source}</span>
                 </li>
               ))}
             </ul>

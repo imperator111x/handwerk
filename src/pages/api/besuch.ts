@@ -1,7 +1,7 @@
 import type { APIContext } from "astro";
 import { getDb } from "../../lib/db";
 import { verifyTurnstile } from "../../lib/turnstile";
-import { recordVisit, safeVisitPath, visitSource } from "../../lib/visits";
+import { deviceLabel, recordVisit, safeVisitPath, visitorKey, visitSource } from "../../lib/visits";
 
 export const prerender = false;
 
@@ -34,6 +34,8 @@ export async function POST(ctx: APIContext): Promise<Response> {
     const db = getDb(ctx);
     if (path && db) {
       try {
+        const device = deviceLabel(ctx.request.headers.get("user-agent") ?? "");
+        const pepper = env?.TURNSTILE_PAGE_SECRET || env?.SESSION_SECRET || "zeus-service-visits";
         await recordVisit(db, {
           path,
           source: visitSource(
@@ -41,6 +43,8 @@ export async function POST(ctx: APIContext): Promise<Response> {
             typeof body.utm === "string" ? body.utm : "",
           ),
           country: countryFrom(ctx.request),
+          device,
+          visitorKey: await visitorKey(remoteIp, device, pepper),
         });
       } catch (err) {
         console.error("visit_record_failed", err);

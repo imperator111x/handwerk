@@ -29,11 +29,13 @@ const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
       const record = recordNext || statsAllowed();
       recordNext = false;
       const utm = new URLSearchParams(location.search).get("utm_source") || "";
-      let referrer = document.referrer || "";
+      const current = document.referrer || "";
+      const ownSite = /zeus-service\.de|imperator111x\.workers\.dev/i.test(current);
+      let referrer = ownSite ? "" : current;
       try {
         const saved = sessionStorage.getItem("zs-visit-referrer");
-        if (saved === null) sessionStorage.setItem("zs-visit-referrer", referrer);
-        else referrer = saved;
+        if (saved) referrer = saved;
+        else if (!ownSite) sessionStorage.setItem("zs-visit-referrer", current);
       } catch {
         /* Ohne Sitzungsspeicher zählt nur die gerade sichtbare Herkunft. */
       }

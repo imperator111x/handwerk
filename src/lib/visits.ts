@@ -13,7 +13,7 @@ export function visitSource(referrer: string, utm: string): string {
   if (!raw) return "Direkt";
   try {
     const host = new URL(raw).hostname.toLowerCase();
-    if (OWN_HOSTS.has(host) || host.endsWith(".zeus-service.de")) return "Eigene Website";
+    if (OWN_HOSTS.has(host) || host.endsWith(".zeus-service.de")) return "Direkt";
     if (host === "google.com" || host.endsWith(".google.com") || host.endsWith(".google.de")) {
       return "Google";
     }
@@ -45,13 +45,60 @@ export function safeVisitPath(value: string): string | null {
   return path;
 }
 
+export function deviceLabel(userAgent: string): string {
+  const ua = userAgent.slice(0, 400);
+  let device = "Unbekanntes Gerät";
+  if (/iPad/i.test(ua)) device = "iPad";
+  else if (/iPhone/i.test(ua)) device = "iPhone";
+  else if (/Android/i.test(ua) && /Mobile/i.test(ua)) device = "Android-Telefon";
+  else if (/Android/i.test(ua)) device = "Android-Tablet";
+  else if (/Windows/i.test(ua)) device = "Windows-PC";
+  else if (/Macintosh|Mac OS/i.test(ua)) device = "Mac";
+  else if (/CrOS/i.test(ua)) device = "Chromebook";
+  else if (/Linux/i.test(ua)) device = "Linux-PC";
+
+  let browser = "";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/OPR\/|Opera/i.test(ua)) browser = "Opera";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Chrome\//i.test(ua)) browser = "Chrome";
+  else if (/Safari\//i.test(ua)) browser = "Safari";
+  return browser ? `${device} · ${browser}` : device;
+}
+
+function berlinDateString(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+export async function visitorKey(ip: string, device: string, pepper: string): Promise<string> {
+  const material = new TextEncoder().encode(`${pepper}|${berlinDateString()}|${ip}|${device}`);
+  const digest = await crypto.subtle.digest("SHA-256", material);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 32);
+}
+
 export async function recordVisit(
   db: D1Database,
-  input: { path: string; source: string; country: string | null },
+  input: { path: string; source: string; country: string | null; device: string; visitorKey: string },
 ): Promise<void> {
   await db
-    .prepare(`INSERT INTO page_views (created_at, path, source, country) VALUES (?, ?, ?, ?)`)
-    .bind(Math.floor(Date.now() / 1000), input.path, input.source, input.country)
+    .prepare(
+      `INSERT INTO page_views (created_at, path, source, country, device, visitor_key)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(visitor_key) DO NOTHING`,
+    )
+    .bind(
+      Math.floor(Date.now() / 1000),
+      input.path,
+      input.source,
+      input.country,
+      input.device,
+      input.visitorKey,
+    )
     .run();
 }
 
@@ -61,6 +108,14 @@ export interface VisitStats {
   month: number;
   pages: Array<{ path: string; count: number }>;
   sources: Array<{ source: string; count: number }>;
+  devices: Array<{ device: string; count: number }>;
+  recent: Array<{
+    created_at: number;
+    path: string;
+    source: string;
+    country: string | null;
+    device: string | null;
+  }>;
 }
 
 function berlinDayStart(): number {
@@ -78,7 +133,7 @@ export async function visitOverview(db: D1Database): Promise<VisitStats> {
   const today = berlinDayStart();
   const week = now - 7 * 24 * 3600;
   const month = now - 30 * 24 * 3600;
-  const [todayRow, weekRow, monthRow, pages, sources] = await Promise.all([
+  const [todayRow, weekRow, monthRow, pages, sources, devices, recent] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS count FROM page_views WHERE created_at >= ?`).bind(today).first<{ count: number }>(),
     db.prepare(`SELECT COUNT(*) AS count FROM page_views WHERE created_at >= ?`).bind(week).first<{ count: number }>(),
     db.prepare(`SELECT COUNT(*) AS count FROM page_views WHERE created_at >= ?`).bind(month).first<{ count: number }>(),
@@ -92,13 +147,38 @@ export async function visitOverview(db: D1Database): Promise<VisitStats> {
       .prepare(
         `SELECT source, COUNT(*) AS count
          FROM page_views
-         WHERE created_at >= ? AND source != 'Eigene Website'
+         WHERE created_at >= ?
          GROUP BY source
          ORDER BY count DESC
          LIMIT 8`,
       )
       .bind(month)
       .all<{ source: string; count: number }>(),
+    db
+      .prepare(
+        `SELECT COALESCE(device, 'Unbekanntes Gerät') AS device, COUNT(*) AS count
+         FROM page_views
+         WHERE created_at >= ?
+         GROUP BY device
+         ORDER BY count DESC
+         LIMIT 8`,
+      )
+      .bind(month)
+      .all<{ device: string; count: number }>(),
+    db
+      .prepare(
+        `SELECT created_at, path, source, country, device
+         FROM page_views
+         ORDER BY created_at DESC
+         LIMIT 12`,
+      )
+      .all<{
+        created_at: number;
+        path: string;
+        source: string;
+        country: string | null;
+        device: string | null;
+      }>(),
   ]);
   return {
     today: Number(todayRow?.count ?? 0),
@@ -106,5 +186,7 @@ export async function visitOverview(db: D1Database): Promise<VisitStats> {
     month: Number(monthRow?.count ?? 0),
     pages: pages.results ?? [],
     sources: sources.results ?? [],
+    devices: devices.results ?? [],
+    recent: recent.results ?? [],
   };
 }

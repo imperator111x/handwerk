@@ -6,27 +6,58 @@
   aria-label="Cookie-Hinweis"
 >
   <div
-    class="mx-auto flex max-w-4xl flex-col gap-4 rounded-3xl border border-ink-200 bg-white p-5 shadow-[var(--shadow-soft)] sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-ink-900"
+    class="mx-auto max-w-xl rounded-3xl border border-ink-200 bg-white p-5 shadow-[var(--shadow-soft)] sm:p-6 dark:border-white/10 dark:bg-ink-900"
   >
-    <p class="text-sm leading-relaxed text-ink-700 dark:text-ink-200">
-      Beim Laden prüft ein unsichtbarer Bot-Check, ob ein Mensch die Seite
-      aufruft. Wenn Sie zustimmen, zählen wir den Aufruf und die Herkunft,
-      zum Beispiel Google oder direkt. Es gibt kein Werbeprofil.
+    <p class="text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
+      Cookies
     </p>
-    <div class="flex shrink-0 flex-wrap items-center gap-3">
-      <a
-        href="/datenschutz#cookies"
-        class="text-sm font-semibold text-brand-700 underline dark:text-brand-200"
-      >
-        Datenschutz
-      </a>
+    <h2 class="mt-1 font-display text-xl font-bold text-ink-900 dark:text-ink-50">
+      Ihre Auswahl
+    </h2>
+    <p class="mt-2 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
+      Technisch nötige Cookies halten die Seite am Laufen. Statistik ist freiwillig
+      und zählt jedes Gerät pro Tag einmal.
+    </p>
+
+    <ul class="mt-4 space-y-2">
+      <li class="rounded-2xl border border-ink-200 px-4 py-3 dark:border-white/10">
+        <label class="flex items-start gap-3">
+          <input class="mt-1" type="checkbox" checked disabled />
+          <span>
+            <span class="block text-sm font-semibold text-ink-900 dark:text-ink-50">Technisch notwendig</span>
+            <span class="mt-0.5 block text-sm text-ink-600 dark:text-ink-300">
+              Auslieferung, unsichtbarer Bot-Check und Ihre Farbwahl. Immer aktiv.
+            </span>
+          </span>
+        </label>
+      </li>
+      <li class="rounded-2xl border border-ink-200 px-4 py-3 dark:border-white/10">
+        <label class="flex items-start gap-3" for="cookie-stats">
+          <input class="mt-1" id="cookie-stats" type="checkbox" />
+          <span>
+            <span class="block text-sm font-semibold text-ink-900 dark:text-ink-50">Statistik</span>
+            <span class="mt-0.5 block text-sm text-ink-600 dark:text-ink-300">
+              Herkunft, aufgerufene Seite und Geräteart. Kein Werbeprofil.
+            </span>
+          </span>
+        </label>
+      </li>
+    </ul>
+
+    <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
       <button type="button" class="btn-secondary" data-cookie-choice="necessary">
-        Nur nötige
+        Nur technische erlauben
       </button>
       <button type="button" class="btn-primary" data-cookie-choice="stats">
-        Statistik erlauben
+        Alle erlauben
       </button>
     </div>
+    <a
+      href="/datenschutz#cookies"
+      class="mt-4 inline-block text-sm font-semibold text-brand-700 underline dark:text-brand-200"
+    >
+      Datenschutz
+    </a>
   </div>
 </div>
 
@@ -34,6 +65,7 @@
   (() => {
     const key = "zs-cookie-notice";
     const notice = document.getElementById("cookie-notice");
+    const statsBox = document.getElementById("cookie-stats");
     if (!notice) return;
 
     const show = () => {
@@ -42,9 +74,13 @@
     const hide = () => {
       notice.hidden = true;
     };
+    const syncBox = (choice) => {
+      if (statsBox instanceof HTMLInputElement) statsBox.checked = choice === "stats";
+    };
 
     try {
       const choice = localStorage.getItem(key);
+      syncBox(choice);
       if (choice !== "stats" && choice !== "necessary") show();
     } catch {
       show();
@@ -53,24 +89,22 @@
     notice.querySelectorAll("[data-cookie-choice]").forEach((button) => {
       button.addEventListener("click", () => {
         const choice = button.getAttribute("data-cookie-choice") === "stats" ? "stats" : "necessary";
+        syncBox(choice);
         try {
           localStorage.setItem(key, choice);
         } catch {
           /* Der Hinweis bleibt sonst beim nächsten Besuch sichtbar. */
         }
         hide();
-        if (choice === "stats") {
-          window.dispatchEvent(new CustomEvent("cookie-stats"));
-        }
+        if (choice === "stats") window.dispatchEvent(new CustomEvent("cookie-stats"));
       });
     });
 
     document.addEventListener("click", (event) => {
       const target = event.target;
-      if (!(target instanceof Element) || !target.closest("[data-open-cookie-notice]")) {
-        return;
-      }
+      if (!(target instanceof Element) || !target.closest("[data-open-cookie-notice]")) return;
       try {
+        syncBox(localStorage.getItem(key));
         localStorage.removeItem(key);
       } catch {
         /* Anzeigen gelingt auch ohne Speicher. */
