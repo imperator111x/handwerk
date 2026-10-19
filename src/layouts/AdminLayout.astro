@@ -18,6 +18,7 @@ const nav = [
   { href: "/admin/postfach", label: "Postfach", icon: "mail" },
   { href: "/admin/termine", label: "Termine", icon: "calendar" },
   { href: "/admin/leistungen", label: "Leistungen", icon: "list" },
+  { href: "/admin/arbeiten", label: "Arbeiten", icon: "image" },
   { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog" },
 ];
 
@@ -30,6 +31,7 @@ const icons: Record<string, string> = {
   calendar:
     "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
+  image: "M4 6h16v12H4z M8 11l2.5 3 2-2.5L16 15 M9 9h.01",
   cog:
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
 };
@@ -212,6 +214,87 @@ const pathname = Astro.url.pathname;
           <slot />
         </main>
         <script is:inline>
+          (function () {
+            if (!("serviceWorker" in navigator)) return;
+            navigator.serviceWorker.register("/admin-sw.js").then(function (registration) {
+              if (!("Notification" in window) || Notification.permission !== "granted") return;
+              return registration.pushManager.getSubscription().then(function (existing) {
+                if (!existing) return;
+                return fetch("/api/admin/push", {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify(existing),
+                });
+              });
+            }).catch(function () {});
+
+            var button = document.getElementById("push-enable");
+            var status = document.getElementById("push-status");
+            if (!(button instanceof HTMLButtonElement) || !status) return;
+            button.addEventListener("click", function () {
+              enablePush(status);
+            });
+
+            function enablePush(target) {
+              if (!("Notification" in window) || !("PushManager" in window)) {
+                target.textContent = "Dieser Browser kann keine Mitteilungen empfangen.";
+                return;
+              }
+              var standalone =
+                window.navigator.standalone === true ||
+                window.matchMedia("(display-mode: standalone)").matches;
+              var ios = /iPhone|iPad|iPod/.test(navigator.userAgent || "");
+              if (ios && !standalone) {
+                target.textContent = "Auf dem iPhone zuerst über Teilen auf den Home-Bildschirm legen und die App von dort öffnen.";
+                return;
+              }
+              Notification.requestPermission().then(function (permission) {
+                if (permission !== "granted") {
+                  target.textContent = "Mitteilungen sind aus. In den iPhone-Einstellungen kann die App sie wieder erlauben.";
+                  return;
+                }
+                fetch("/api/admin/push", { credentials: "same-origin" })
+                  .then(function (response) { return response.json(); })
+                  .then(function (data) {
+                    if (!data.publicKey) {
+                      target.textContent = "Mitteilungen sind auf dem Server noch nicht eingerichtet.";
+                      return;
+                    }
+                    return navigator.serviceWorker.ready.then(function (registration) {
+                      return registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+                      });
+                    });
+                  })
+                  .then(function (subscription) {
+                    if (!subscription) return;
+                    return fetch("/api/admin/push", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify(subscription),
+                    });
+                  })
+                  .then(function (response) {
+                    if (response && response.ok) target.textContent = "Mitteilungen sind an. Neue Anfragen und Mails kommen auf dieses Gerät.";
+                  })
+                  .catch(function () {
+                    target.textContent = "Die Mitteilung konnte nicht eingerichtet werden.";
+                  });
+              });
+            }
+
+            function urlBase64ToUint8Array(value) {
+              var padding = "=".repeat((4 - (value.length % 4)) % 4);
+              var base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+              var raw = atob(base64);
+              var output = new Uint8Array(raw.length);
+              for (var i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+              return output;
+            }
+          })();
           (function () {
             var box = document.getElementById("ios-install");
             var dismiss = document.getElementById("ios-install-dismiss");

@@ -11,6 +11,7 @@ import {
   type ContactStatus,
 } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
+import { berlinTodayIso, formatEuro, listQuotes } from "../../../lib/offers";
 
 export const prerender = false;
 
@@ -33,6 +34,10 @@ if (!request) {
 }
 
 const replies: ContactReplyRow[] = db ? await listReplies(db, id) : [];
+const quotes = db ? await listQuotes(db, id) : [];
+const offerUntil = new Date(Date.parse(`${berlinTodayIso()}T00:00:00Z`) + 14 * 86_400_000)
+  .toISOString()
+  .slice(0, 10);
 const booking = db ? await getBookingForRequest(db, id) : null;
 const openSlotCount = db && !booking ? (await listOpenSlots(db)).length : 0;
 
@@ -103,6 +108,15 @@ const replyFlags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> 
   db_error: { kind: "err", text: "Fehler beim Speichern der Antwort." },
 };
 const replyFlagMsg = replyFlag ? replyFlags[replyFlag] : null;
+const angebotFlag = Astro.url.searchParams.get("angebot");
+const angebotFlags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
+  sent: { kind: "ok", text: "Das Festpreis-Angebot ist verschickt." },
+  saved: { kind: "warn", text: "Das Angebot ist gespeichert, aber nicht per E-Mail verschickt." },
+  failed: { kind: "err", text: "Das Angebot ist gespeichert, der Versand ist aber fehlgeschlagen." },
+  bad: { kind: "err", text: "Titel, Text, Preis oder Gültigkeit prüfen." },
+  db: { kind: "err", text: "Das Angebot konnte nicht gespeichert werden." },
+};
+const angebotMessage = angebotFlag ? angebotFlags[angebotFlag] : null;
 const terminFlag = Astro.url.searchParams.get("termin");
 const terminFlags: Record<string, string> = {
   sent: "Der Terminlink wurde per E-Mail verschickt.",
@@ -209,6 +223,55 @@ const redirectPath = Astro.url.pathname;
           </form>
         ))}
     </footer>
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Festpreis-Angebot</h3>
+    {angebotMessage && (
+      <p
+        class:list={[
+          "mt-3 rounded-xl border px-4 py-3 text-sm",
+          angebotMessage.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : angebotMessage.kind === "warn"
+              ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+              : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {angebotMessage.text}
+      </p>
+    )}
+    {quotes.length > 0 && (
+      <ul class="mt-4 space-y-3">
+        {quotes.map((quote) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <p class="font-semibold text-ink-900 dark:text-ink-50">{quote.title} · {formatEuro(quote.price_cents)}</p>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">Gültig bis {quote.valid_until.split("-").reverse().join(".")}</p>
+            <p class="mt-2 whitespace-pre-line text-ink-800 dark:text-ink-100">{quote.body}</p>
+          </li>
+        ))}
+      </ul>
+    )}
+    <form method="POST" action="/api/admin/angebot" class="mt-4 grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="request_id" value={request.id} />
+      <div class="sm:col-span-2">
+        <label class="label" for="offer-title">Leistung</label>
+        <input class="input" id="offer-title" name="title" required minlength="3" maxlength="120" value={topicLabels[request.topic] ?? request.topic} />
+      </div>
+      <div>
+        <label class="label" for="offer-price">Festpreis in Euro</label>
+        <input class="input" id="offer-price" name="price" required inputmode="decimal" placeholder="149,00" />
+      </div>
+      <div>
+        <label class="label" for="offer-until">Gültig bis</label>
+        <input class="input" id="offer-until" name="valid_until" type="date" required value={offerUntil} />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="label" for="offer-body">Leistungsumfang</label>
+        <textarea class="input" id="offer-body" name="body" required minlength="10" maxlength="4000" rows="5" placeholder="Was ist enthalten, was nicht."></textarea>
+      </div>
+      <button type="submit" class="btn-primary sm:col-span-2 sm:w-fit">Angebot per E-Mail senden</button>
+    </form>
   </section>
 
   <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">

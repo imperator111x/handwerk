@@ -3,6 +3,7 @@ import { verifyTurnstile } from "../../lib/turnstile";
 import { parseContact } from "../../lib/validation";
 import { insertContactRequest } from "../../lib/db";
 import { sendEmail } from "../../lib/email";
+import { notifyStaff } from "../../lib/notify";
 
 export const prerender = false;
 
@@ -76,6 +77,24 @@ export async function POST(ctx: APIContext): Promise<Response> {
     } catch (err) {
       console.error("contact_persist_failed", err);
     }
+  }
+
+  if (env && persistedId) {
+    const topics: Record<string, string> = {
+      reparatur: "Reparatur",
+      reinigung: "Reinigung",
+      wartung: "Wartung",
+      objektbetreuung: "Objektbetreuung",
+      sonstiges: "Sonstiges",
+    };
+    const job = notifyStaff(env, {
+      title: "Neue Anfrage",
+      body: `${payload.name} · ${topics[payload.topic] ?? payload.topic}`,
+      url: `/admin/anfragen/${persistedId}`,
+    });
+    const runtimeCtx = ctx.locals.runtime?.ctx;
+    if (runtimeCtx) runtimeCtx.waitUntil(job);
+    else await job;
   }
 
   if (env && env.CONTACT_TO_EMAIL) {

@@ -54,7 +54,8 @@
     "REPLY_DOMAIN": "zeus-service.de",
     "TURNSTILE_SITEKEY": "0x4AAAAAAFbQmcogsMf7jRJx",
     "TURNSTILE_PAGE_SITEKEY": "0x4AAAAAAFbUcfcsc327engw",
-    "TURNSTILE_HOSTNAMES": "zeus-service.de,www.zeus-service.de,zeus-service-web.imperator111x.workers.dev"
+    "TURNSTILE_HOSTNAMES": "zeus-service.de,www.zeus-service.de,zeus-service-web.imperator111x.workers.dev",
+    "VAPID_PUBLIC_KEY": "BJARykY_MvAoxehtBX-EZx64PoL9nzU0AccYvLx1_KPU-8ALxl-b7bNE-BPL6r1QIyPiC92JWTpbWiFNAx5K0bw"
   },
 
   "d1_databases": [

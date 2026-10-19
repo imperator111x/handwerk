@@ -2,7 +2,7 @@
 import MailEditor from "../../../components/MailEditor.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
-import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads } from "../../../lib/db";
+import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { canOpenMailbox, mailboxAddress, mailboxOwnerLabel } from "../../../lib/mailbox";
 
@@ -25,6 +25,7 @@ const openId = Number.parseInt(Astro.url.searchParams.get("offen") ?? "", 10);
 const thread = db && Number.isFinite(openId) ? await getMailThread(db, openId) : null;
 const openThread = thread && thread.mailbox_id === mailbox.id ? thread : null;
 const messages = db && openThread ? await listMailMessages(db, openThread.id) : [];
+if (db && openThread) await markThreadInboundSeen(db, openThread.id);
 
 const flag = Astro.url.searchParams.get("mail");
 const flags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {

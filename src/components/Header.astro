@@ -2,6 +2,17 @@
 import Logo from "./Logo.astro";
 import ThemeToggle from "./ThemeToggle.astro";
 import { siteConfig } from "../config/site";
+import { countWorkPhotos } from "../lib/photos";
+
+const db = Astro.locals.runtime?.env?.DB;
+const showWork = db ? (await countWorkPhotos(db).catch(() => 0)) > 0 : false;
+const nav = showWork
+  ? [
+      ...siteConfig.nav.slice(0, -1),
+      { label: "Arbeiten", href: "/#arbeiten" },
+      siteConfig.nav[siteConfig.nav.length - 1],
+    ]
+  : siteConfig.nav;
 ---
 
 <header
@@ -13,7 +24,7 @@ import { siteConfig } from "../config/site";
 
     <nav aria-label="Hauptnavigation" class="hidden lg:flex items-center gap-1">
       {
-        siteConfig.nav.map((item) => (
+        nav.map((item) => (
           <a
             href={item.href}
             class="rounded-full px-4 py-2 text-sm font-medium text-ink-700 transition hover:bg-ink-100 hover:text-brand-700 dark:text-ink-200 dark:hover:bg-white/10 dark:hover:text-brand-200"
@@ -79,7 +90,7 @@ import { siteConfig } from "../config/site";
   >
     <nav class="container-page flex flex-col gap-1 py-4" aria-label="Mobile Navigation">
       {
-        siteConfig.nav.map((item) => (
+        nav.map((item) => (
           <a
             href={item.href}
             class="rounded-xl px-4 py-3 text-base font-medium text-ink-800 hover:bg-ink-100 dark:text-ink-100 dark:hover:bg-white/10"

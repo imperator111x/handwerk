@@ -3,6 +3,7 @@ import type { SSRManifest } from "astro";
 import { handle } from "@astrojs/cloudflare/handler";
 import PostalMime from "postal-mime";
 import { ingestInboundEmail } from "./lib/inbound-mail";
+import { notifyStaff } from "./lib/notify";
 
 interface InboundMessage {
   readonly from: string;
@@ -33,6 +34,13 @@ export function createExports(manifest: SSRManifest) {
         if (url.hostname === "www.zeus-service.de") {
           url.hostname = "zeus-service.de";
           return Response.redirect(url.toString(), 301);
+        }
+        if (url.pathname === "/admin-sw.js") {
+          const asset = await env.ASSETS.fetch(new Request(new URL("/admin-sw.js", url.origin)));
+          const headers = new Headers(asset.headers);
+          headers.set("content-type", "application/javascript; charset=utf-8");
+          headers.set("cache-control", "no-cache");
+          return new Response(asset.body, { status: asset.status, headers });
         }
         return handle(manifest, app, request, env, ctx);
       },
@@ -74,6 +82,8 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
     ...(parsed.cc ?? []).flatMap(mailboxAddress),
   ];
 
+  const fromLabel = fromMailbox?.name || message.from;
+  const subject = (parsed.subject ?? message.headers.get("subject") ?? "Ohne Betreff").slice(0, 120);
   const result = await ingestInboundEmail(env.DB, env.SESSION_SECRET ?? "", {
     envelopeFrom: message.from,
     recipients: [message.to, ...headerRecipients],
@@ -94,4 +104,17 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
   const detail =
     "threadId" in result ? result.threadId : "requestId" in result ? result.requestId : result.reason;
   console.log("inbound_email", result.action, detail);
+  if (result.action === "mailbox") {
+    await notifyStaff(env, {
+      title: "Neue Mail",
+      body: `${fromLabel}: ${subject}`,
+      url: `/admin/postfach`,
+    });
+  } else if (result.action === "stored" || result.action === "created") {
+    await notifyStaff(env, {
+      title: result.action === "created" ? "Neue Anfrage" : "Kunde hat geantwortet",
+      body: `${fromLabel}: ${subject}`,
+      url: `/admin/anfragen/${result.requestId}`,
+    });
+  }
 }

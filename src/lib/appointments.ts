@@ -164,6 +164,22 @@ export async function listUpcomingSlots(
   return results ?? [];
 }
 
+export async function nextBookedSlot(
+  db: D1Database,
+  now = Math.floor(Date.now() / 1000),
+): Promise<AppointmentSlot | null> {
+  const row = await db
+    .prepare(
+      `${SLOT_SELECT}
+       WHERE b.id IS NOT NULL AND s.ends_at >= ?
+       ORDER BY s.starts_at ASC
+       LIMIT 1`,
+    )
+    .bind(now)
+    .first<AppointmentSlot>();
+  return row ?? null;
+}
+
 export async function listOpenSlots(
   db: D1Database,
   now = Math.floor(Date.now() / 1000),

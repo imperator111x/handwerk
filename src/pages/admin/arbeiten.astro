@@ -1,0 +1,144 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireSession } from "../../lib/auth";
+import { getDb } from "../../lib/db";
+import { listWorkPhotos, MAX_WORK_PHOTOS } from "../../lib/photos";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const db = getDb(Astro);
+const photos = db ? await listWorkPhotos(db) : [];
+const flag = Astro.url.searchParams.get("foto");
+const messages: Record<string, { kind: "ok" | "err"; text: string }> = {
+  saved: { kind: "ok", text: "Das Foto ist auf der Website." },
+  deleted: { kind: "ok", text: "Das Foto ist entfernt." },
+  bad_title: { kind: "err", text: "Der Titel braucht 2 bis 80 Zeichen." },
+  bad_caption: { kind: "err", text: "Die Bildunterschrift ist zu lang." },
+  bad_file: { kind: "err", text: "Bitte ein Foto auswählen. Es wird vor dem Hochladen verkleinert." },
+  large: { kind: "err", text: "Das Foto ist nach dem Verkleinern noch zu groß." },
+  full: { kind: "err", text: `Es sind schon ${MAX_WORK_PHOTOS} Fotos online. Bitte zuerst eines entfernen.` },
+  missing: { kind: "err", text: "Das Foto wurde nicht gefunden." },
+  db: { kind: "err", text: "Die Datenbank ist gerade nicht erreichbar." },
+};
+const message = flag ? messages[flag] : null;
+---
+
+<AdminLayout title="Arbeiten" session={session}>
+  {message && (
+    <p
+      class:list={[
+        "rounded-2xl border px-4 py-3 text-sm",
+        message.kind === "ok"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+          : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+      ]}
+    >
+      {message.text}
+    </p>
+  )}
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Foto hinzufügen</h2>
+    <p class="mt-2 max-w-2xl text-sm text-ink-600 dark:text-ink-300">
+      Das Bild erscheint im Bereich Arbeiten auf der Website. Es wird vor dem Speichern auf eine handliche Größe gebracht.
+    </p>
+    <form id="photo-form" method="POST" action="/api/admin/arbeiten" enctype="multipart/form-data" class="mt-5 grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="action" value="upload" />
+      <div>
+        <label class="label" for="title">Titel</label>
+        <input class="input" id="title" name="title" required minlength="2" maxlength="80" placeholder="Rollladen im Wohnzimmer" />
+      </div>
+      <div>
+        <label class="label" for="caption">Bildunterschrift</label>
+        <input class="input" id="caption" name="caption" maxlength="240" placeholder="Eingestellt in Norderstedt" />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="label" for="image">Foto</label>
+        <input class="input" id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required />
+      </div>
+      <button type="submit" class="btn-primary sm:col-span-2 sm:w-fit">Auf die Website stellen</button>
+    </form>
+  </section>
+
+  <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {photos.map((photo) => (
+      <article class="overflow-hidden rounded-3xl border border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900">
+        <img src={`/media/arbeit/${photo.id}`} alt={photo.title} class="aspect-[4/3] w-full object-cover" />
+        <div class="space-y-3 p-4">
+          <div>
+            <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">{photo.title}</h3>
+            {photo.caption && <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">{photo.caption}</p>}
+          </div>
+          <form method="POST" action="/api/admin/arbeiten">
+            <input type="hidden" name="action" value="delete" />
+            <input type="hidden" name="id" value={photo.id} />
+            <button type="submit" class="text-sm font-semibold text-rose-700 dark:text-rose-200">Entfernen</button>
+          </form>
+        </div>
+      </article>
+    ))}
+    {photos.length === 0 && (
+      <p class="rounded-3xl border border-dashed border-ink-200 px-5 py-8 text-sm text-ink-500 dark:border-white/10 dark:text-ink-400 sm:col-span-2 lg:col-span-3">
+        Noch kein Foto. Sobald eines hier steht, sehen es Besucher auf der Startseite.
+      </p>
+    )}
+  </section>
+</AdminLayout>
+
+<script>
+  const form = document.getElementById("photo-form");
+  const input = document.getElementById("image");
+  if (form instanceof HTMLFormElement && input instanceof HTMLInputElement) {
+    form.addEventListener("submit", async (event) => {
+      const file = input.files?.[0];
+      if (!file || file.type === "image/jpeg" && file.size <= 450_000) return;
+      event.preventDefault();
+      try {
+        const blob = await resizePhoto(file);
+        const data = new FormData(form);
+        data.set("image", new File([blob], "arbeit.jpg", { type: "image/jpeg" }));
+        const response = await fetch(form.action, { method: "POST", body: data });
+        window.location.href = response.url || "/admin/arbeiten";
+      } catch (_err) {
+        window.alert("Das Foto konnte nicht verarbeitet werden.");
+      }
+    });
+  }
+
+  function resizePhoto(file: File): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const url = URL.createObjectURL(file);
+      image.onload = () => {
+        const max = 1400;
+        const scale = Math.min(1, max / Math.max(image.width, image.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) {
+          reject(new Error("canvas"));
+          return;
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(url);
+            if (blob) resolve(blob);
+            else reject(new Error("blob"));
+          },
+          "image/jpeg",
+          0.72,
+        );
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("image"));
+      };
+      image.src = url;
+    });
+  }
+</script>

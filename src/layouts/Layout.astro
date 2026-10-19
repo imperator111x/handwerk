@@ -6,6 +6,7 @@ import Footer from "../components/Footer.astro";
 import CookieNotice from "../components/CookieNotice.astro";
 import PageGuard from "../components/PageGuard.astro";
 import BotGate from "../components/BotGate.astro";
+import CallButton from "../components/CallButton.astro";
 import { humanPassValid } from "../lib/human-pass";
 
 interface Props {
@@ -190,10 +191,11 @@ const jsonLd = {
       humanAllowed ? (
         <>
           {showHeader && <Header />}
-          <main class="flex-1">
+          <main class:list={["flex-1", showHeader && "max-sm:pb-24"]}>
             <slot />
           </main>
           {showFooter && <Footer />}
+          {showHeader && <CallButton />}
           <CookieNotice />
           <PageGuard />
         </>

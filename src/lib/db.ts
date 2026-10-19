@@ -826,6 +826,28 @@ export async function latestInboundMailMessageId(
   return row?.message_id ?? null;
 }
 
+export async function countUnreadMailThreads(db: D1Database): Promise<number> {
+  const row = await db
+    .prepare(
+      `SELECT COUNT(DISTINCT thread_id) AS n
+         FROM mail_messages
+        WHERE direction = 'inbound' AND seen_at IS NULL`,
+    )
+    .first<{ n: number }>();
+  return Number(row?.n ?? 0);
+}
+
+export async function markThreadInboundSeen(db: D1Database, threadId: number): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE mail_messages
+          SET seen_at = unixepoch()
+        WHERE thread_id = ? AND direction = 'inbound' AND seen_at IS NULL`,
+    )
+    .bind(threadId)
+    .run();
+}
+
 export async function insertMailMessage(
   db: D1Database,
   data: {

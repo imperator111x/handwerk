@@ -21,6 +21,7 @@ interface Env {
   TURNSTILE_SITEKEY: string;
   TURNSTILE_PAGE_SITEKEY: string;
   TURNSTILE_HOSTNAMES: string;
+  VAPID_PUBLIC_KEY?: string;
 
   // Secrets (per `wrangler secret put ...` zu setzen)
   ADMIN_PASSWORD_HASH?: string;
@@ -29,6 +30,7 @@ interface Env {
   RESEND_API_KEY?: string;
   TURNSTILE_SECRET?: string;
   TURNSTILE_PAGE_SECRET?: string;
+  VAPID_PRIVATE_JWK?: string;
 
   // Static Assets Fetcher (automatisch durch `assets.binding` erzeugt)
   ASSETS: Fetcher;

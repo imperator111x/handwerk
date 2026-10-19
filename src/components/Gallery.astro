@@ -1,0 +1,47 @@
+---
+interface Photo {
+  id: number;
+  title: string;
+  caption: string;
+}
+
+interface Props {
+  photos: Photo[];
+}
+
+const { photos } = Astro.props;
+---
+
+{
+  photos.length > 0 && (
+    <section id="arbeiten" class="section scroll-mt-24 bg-white dark:bg-ink-950">
+      <div class="container-page">
+        <div class="max-w-2xl mb-12">
+          <p class="section-eyebrow">Arbeiten</p>
+          <h2 class="section-title mt-3">Ein Blick auf erledigte Einsätze</h2>
+          <p class="mt-4 text-lg text-ink-600 dark:text-ink-300">
+            Fotos aus Montage, Reparatur und Pflege in Hamburg und Norderstedt.
+          </p>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {photos.map((photo) => (
+            <a href={`/media/arbeit/${photo.id}`} class="group overflow-hidden rounded-3xl border border-ink-200 bg-ink-50 dark:border-white/10 dark:bg-ink-900">
+              <img
+                src={`/media/arbeit/${photo.id}`}
+                alt={photo.title}
+                width="800"
+                height="600"
+                loading="lazy"
+                class="aspect-[4/3] w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+              />
+              <div class="p-4">
+                <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">{photo.title}</h3>
+                {photo.caption && <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">{photo.caption}</p>}
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
