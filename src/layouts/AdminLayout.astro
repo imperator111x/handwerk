@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import ThemeToggle from "../components/ThemeToggle.astro";
+import Logo from "../components/Logo.astro";
 import type { SessionData } from "../lib/auth";
 
 interface Props {
@@ -36,7 +37,9 @@ const pathname = Astro.url.pathname;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
     <title>{title} · Admin · Zeus-Service</title>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
 
     <script is:inline>
       (function () {
@@ -79,27 +82,8 @@ const pathname = Astro.url.pathname;
         class="hidden lg:flex w-64 flex-col border-r border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900"
       >
         <div class="px-6 py-6 border-b border-ink-200 dark:border-white/10">
-          <a href="/" class="flex items-center gap-2 text-ink-900 font-bold dark:text-ink-50">
-            <span
-              class="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white inline-flex items-center justify-center"
-              aria-hidden="true"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="h-4 w-4"
-              >
-                <path d="M4 20h16" />
-                <path d="M6 20V9l6-4 6 4v11" />
-              </svg>
-            </span>
-            Zeus-Service
-          </a>
-          <p class="text-xs uppercase tracking-widest text-brand-600 mt-1 dark:text-brand-300">
+          <Logo height={36} />
+          <p class="text-xs uppercase tracking-widest text-brand-600 mt-2 dark:text-brand-300">
             Admin-Panel
           </p>
         </div>

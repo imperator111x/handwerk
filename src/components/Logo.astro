@@ -1,47 +1,70 @@
 ---
 interface Props {
   class?: string;
-  variant?: "light" | "dark";
+  /**
+   * - "auto": wechselt automatisch zwischen heller und dunkler Logo-Variante
+   *   anhand des aktiven Themes (Standard).
+   * - "light": weißes Logo – nur für dunkle Hintergründe (z. B. Footer).
+   * - "dark": dunkles Logo – nur für helle Hintergründe.
+   */
+  variant?: "auto" | "light" | "dark";
+  /** Höhe in Pixel (das Logo skaliert proportional, Original 250×80) */
+  height?: number;
 }
 
-const { class: className = "", variant = "dark" } = Astro.props;
-const textColor =
-  variant === "light" ? "text-white" : "text-ink-900 dark:text-ink-50";
-const subColor =
-  variant === "light"
-    ? "text-brand-200"
-    : "text-brand-600 dark:text-brand-300";
+const { class: className = "", variant = "auto", height = 40 } = Astro.props;
+const width = Math.round((height / 80) * 250);
+
+const alt = "Zeus-Service – Ihr Hausmeisterservice";
 ---
 
 <a
   href="/"
-  class={`inline-flex items-center gap-2.5 group ${className}`}
+  class={`inline-flex items-center group ${className}`}
   aria-label="Zeus-Service Startseite"
 >
-  <span
-    class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-[var(--shadow-glow)] transition-transform group-hover:scale-105"
-  >
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      class="h-5 w-5"
-      aria-hidden="true"
-    >
-      <path d="M4 20h16" />
-      <path d="M6 20V9l6-4 6 4v11" />
-      <path d="M10 20v-6h4v6" />
-    </svg>
-  </span>
-  <span class="flex flex-col leading-tight">
-    <span class={`font-display font-bold text-lg tracking-tight ${textColor}`}>
-      Zeus-Service
-    </span>
-    <span class={`text-[11px] font-medium uppercase tracking-[0.18em] ${subColor}`}>
-      Hausmeisterservice
-    </span>
-  </span>
+  {
+    variant === "auto" ? (
+      <>
+        <img
+          src="/logo-dark.png"
+          alt={alt}
+          width={width}
+          height={height}
+          class="block dark:hidden transition-transform group-hover:scale-[1.03]"
+          loading="eager"
+          decoding="async"
+        />
+        <img
+          src="/logo-light.png"
+          alt={alt}
+          width={width}
+          height={height}
+          class="hidden dark:block transition-transform group-hover:scale-[1.03]"
+          loading="eager"
+          decoding="async"
+        />
+      </>
+    ) : variant === "light" ? (
+      <img
+        src="/logo-light.png"
+        alt={alt}
+        width={width}
+        height={height}
+        class="transition-transform group-hover:scale-[1.03]"
+        loading="eager"
+        decoding="async"
+      />
+    ) : (
+      <img
+        src="/logo-dark.png"
+        alt={alt}
+        width={width}
+        height={height}
+        class="transition-transform group-hover:scale-[1.03]"
+        loading="eager"
+        decoding="async"
+      />
+    )
+  }
 </a>
