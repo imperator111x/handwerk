@@ -137,7 +137,12 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                   <div>
                     <div class="flex flex-wrap items-center gap-2">
                       <h3 class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">
-                        {entry.name}
+                        <a
+                          href={`/admin/anfragen/${entry.id}`}
+                          class="hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
+                        >
+                          {entry.name}
+                        </a>
                       </h3>
                       <span
                         class={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusChipClasses[entry.status]}`}
@@ -176,6 +181,19 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                 <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">
                   {entry.message}
                 </p>
+
+                <div class="mt-4">
+                  <a
+                    href={`/admin/anfragen/${entry.id}`}
+                    class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
+                  >
+                    Oeffnen & antworten
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </a>
+                </div>
 
                 <footer class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-ink-200/70 pt-4 dark:border-white/10">
                   <form
