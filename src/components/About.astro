@@ -1,0 +1,87 @@
+---
+const highlights = [
+  {
+    title: "Ausgebildeter Handwerker",
+    body: "Abgeschlossene Handwerksausbildung und jahrelange Praxiserfahrung – das garantiert sauberes Arbeiten und ehrliche Beratung.",
+  },
+  {
+    title: "Flexible Erreichbarkeit",
+    body: "Kurze Reaktionszeiten, auch außerhalb der klassischen Bürozeiten. In dringenden Fällen melden wir uns am selben Tag.",
+  },
+  {
+    title: "Faire, transparente Preise",
+    body: "Keine versteckten Kosten. Sie erhalten vorab ein klares Angebot mit allen Positionen – schriftlich und verständlich.",
+  },
+  {
+    title: "Alles aus einer Hand",
+    body: "Vom Lampenwechsel bis zur Objektbetreuung: ein Ansprechpartner für alle Hausmeister-Themen rund um Ihre Immobilie.",
+  },
+];
+---
+
+<section id="ueber-uns" class="section bg-ink-50">
+  <div class="container-page grid lg:grid-cols-12 gap-12 items-start">
+    <div class="lg:col-span-5">
+      <p class="section-eyebrow">Über uns</p>
+      <h2 class="section-title mt-3">
+        Handwerk mit Herz – Service aus Hamburg & Norderstedt
+      </h2>
+      <p class="mt-5 text-lg text-ink-700 leading-relaxed">
+        Als junges Unternehmen mit fundiertem handwerklichen Fachwissen sind
+        wir Ihr zuverlässiger Partner, wenn es um Hausmeister-Dienstleistungen
+        geht. Qualität, Zuverlässigkeit und Kundenzufriedenheit stehen bei
+        uns an erster Stelle.
+      </p>
+      <p class="mt-4 text-base text-ink-600 leading-relaxed">
+        Ob Privathaushalt, Wohnanlage oder Gewerbeobjekt – wir bieten
+        maßgeschneiderte Lösungen für Ihre Bedürfnisse. Dabei legen wir
+        besonderen Wert auf saubere Arbeit, pünktliche Termine und
+        verständliche Kommunikation.
+      </p>
+
+      <div class="mt-8 flex flex-wrap gap-3">
+        <span class="badge">Neu gegründet</span>
+        <span class="badge">100 % Engagement</span>
+        <span class="badge">Zertifiziert</span>
+        <span class="badge">Versichert</span>
+      </div>
+
+      <a href="#kontakt" class="btn-primary mt-8">
+        Jetzt kennenlernen
+      </a>
+    </div>
+
+    <div class="lg:col-span-7 grid sm:grid-cols-2 gap-4">
+      {
+        highlights.map((h, idx) => (
+          <article
+            class={`rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] ${
+              idx % 3 === 0 ? "sm:translate-y-6" : ""
+            }`}
+          >
+            <div
+              class="h-10 w-10 rounded-xl bg-brand-50 text-brand-600 inline-flex items-center justify-center mb-4"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="h-5 w-5"
+                aria-hidden="true"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h3 class="font-display text-lg font-semibold text-ink-900">
+              {h.title}
+            </h3>
+            <p class="mt-2 text-sm text-ink-600 leading-relaxed">{h.body}</p>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>

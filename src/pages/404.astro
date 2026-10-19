@@ -1,0 +1,24 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout title="Seite nicht gefunden" noindex>
+  <section class="hero-gradient">
+    <div
+      class="container-page py-28 sm:py-36 flex flex-col items-center text-center space-y-6"
+    >
+      <span class="badge">404 · Nicht gefunden</span>
+      <h1 class="section-title max-w-2xl">
+        Diese Seite konnten wir nicht finden
+      </h1>
+      <p class="text-ink-600 max-w-xl">
+        Vielleicht haben Sie sich vertippt oder die Seite ist umgezogen. Von
+        der Startseite aus finden Sie alle unsere Leistungen.
+      </p>
+      <div class="flex flex-wrap gap-3 justify-center">
+        <a href="/" class="btn-primary">Zur Startseite</a>
+        <a href="/#kontakt" class="btn-secondary">Kontakt aufnehmen</a>
+      </div>
+    </div>
+  </section>
+</Layout>

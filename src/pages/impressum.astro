@@ -1,0 +1,60 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { siteConfig } from "../config/site";
+---
+
+<Layout title="Impressum" description="Impressum von Zeus-Service">
+  <section class="section bg-white">
+    <div class="container-page max-w-3xl prose prose-slate">
+      <p class="section-eyebrow">Rechtliches</p>
+      <h1 class="section-title mt-3">Impressum</h1>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 mt-10">
+        Angaben gemäß § 5 TMG
+      </h2>
+      <p class="text-ink-700 mt-3">
+        Zeus-Service<br />
+        {siteConfig.contact.address.zip}
+        {siteConfig.contact.address.city}<br />
+        Deutschland
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 mt-10">
+        Kontakt
+      </h2>
+      <p class="text-ink-700 mt-3">
+        Telefon:
+        <a href={siteConfig.contact.phoneHref} class="text-brand-700 underline">
+          {siteConfig.contact.phone}
+        </a><br />
+        E-Mail:
+        <a href={siteConfig.contact.emailHref} class="text-brand-700 underline">
+          {siteConfig.contact.email}
+        </a>
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 mt-10">
+        Verantwortlich für den Inhalt nach § 55 Abs. 2 RStV
+      </h2>
+      <p class="text-ink-700 mt-3">Inhaber:in von Zeus-Service</p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 mt-10">
+        Haftungsausschluss
+      </h2>
+      <p class="text-ink-700 mt-3">
+        Die Inhalte dieser Seiten wurden mit größter Sorgfalt erstellt. Für
+        die Richtigkeit, Vollständigkeit und Aktualität der Inhalte kann
+        jedoch keine Gewähr übernommen werden. Als Diensteanbieter sind
+        wir gemäß § 7 Abs. 1 TMG für eigene Inhalte auf diesen Seiten nach
+        den allgemeinen Gesetzen verantwortlich.
+      </p>
+
+      <p class="text-sm text-ink-500 mt-10">
+        Hinweis: Dieses Impressum ist ein neutraler Vorschlag und ersetzt
+        keine individuelle Rechtsberatung. Bitte an die eigenen Daten
+        anpassen (vollständige Adresse, verantwortliche Person,
+        ggf. USt-IdNr., Berufsbezeichnung, zuständige Kammer).
+      </p>
+    </div>
+  </section>
+</Layout>
