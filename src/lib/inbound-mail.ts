@@ -2,11 +2,13 @@
  * Ordnet eine eingehende Kundenmail einer Anfrage zu und speichert sie
  * im Verlauf. Die Zuordnung läuft über die signierte Antwortadresse
  * und, falls die fehlt, über In-Reply-To / References.
+ * Danach zählt die Absenderadresse der letzten Anfrage.
  * Mails ohne Zuordnung werden als neue Anfrage angelegt, damit das
  * Postfach nach dem Wechsel von Lima-City nicht ins Leere läuft.
  */
 
 import {
+  findLatestRequestIdBySender,
   findRequestIdByMessageIds,
   getContactRequest,
   insertContactRequest,
@@ -121,8 +123,12 @@ async function resolveRequestId(
     ...extractMessageIds(email.inReplyTo),
     ...extractMessageIds(email.references),
   ];
-  if (referenced.length === 0) return null;
-  return findRequestIdByMessageIds(db, referenced);
+  if (referenced.length > 0) {
+    const threaded = await findRequestIdByMessageIds(db, referenced);
+    if (threaded) return threaded;
+  }
+
+  return findLatestRequestIdBySender(db, email.envelopeFrom);
 }
 
 function isAutomated(from: string, autoSubmitted: string | null, subject: string): boolean {
@@ -150,7 +156,12 @@ export function extractCustomerText(text: string, html: string): string {
     if (trimmed.startsWith(">")) continue;
     kept.push(line);
   }
-  const fresh = kept.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const fresh = kept
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\s*Sent from my (?:iPhone|iPad)\s*$/i, "")
+    .replace(/\s*Von meinem (?:iPhone|iPad) gesendet\s*$/i, "")
+    .trim();
   return fresh || normalized.trim();
 }
 

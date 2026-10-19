@@ -410,6 +410,24 @@ export async function insertInboundReply(
   }
 }
 
+export async function findLatestRequestIdBySender(
+  db: D1Database,
+  email: string,
+): Promise<number | null> {
+  const normalized = email.trim().toLowerCase();
+  if (!normalized.includes("@")) return null;
+  const row = await db
+    .prepare(
+      `SELECT id FROM contact_requests
+       WHERE lower(email) = ?
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+    )
+    .bind(normalized)
+    .first<{ id: number }>();
+  return row?.id ?? null;
+}
+
 export async function findRequestIdByMessageIds(
   db: D1Database,
   messageIds: string[],

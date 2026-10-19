@@ -29,6 +29,7 @@ const quoted = [
   "> vielen Dank fuer Ihre Anfrage.",
 ].join("\n");
 assert.equal(extractCustomerText(quoted, ""), "Ja, der Termin passt.");
+assert.equal(extractCustomerText("Kekdjje\n\nSent from my iPhone", ""), "Kekdjje");
 assert.equal(
   extractCustomerText("", "<p>Hallo</p><p>Am Montag schrieb team@zeus-service.de:</p><p>alt</p>"),
   "Hallo",
