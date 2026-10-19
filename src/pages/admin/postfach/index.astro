@@ -24,14 +24,14 @@ const suggested = user ? localPartFromName(user.first_name, user.last_name) : nu
 const flag = Astro.url.searchParams.get("mail");
 const flags: Record<string, { kind: "ok" | "err"; text: string }> = {
   created: { kind: "ok", text: "Die Adresse ist angelegt." },
-  assigned: { kind: "ok", text: "Die Zuordnung ist gespeichert." },
+  assigned: { kind: "ok", text: "Die Personen sind gespeichert." },
   exists: { kind: "err", text: "Diese Adresse gibt es schon." },
   bad_address: {
     kind: "err",
     text: "Die Adresse darf Buchstaben, Zahlen, Punkte und Bindestriche enthalten, zum Beispiel vor.nachname.",
   },
   bad_user: { kind: "err", text: "Der gewählte Benutzer wurde nicht gefunden." },
-  forbidden: { kind: "err", text: "Dieses Postfach ist einem anderen Benutzer zugeordnet." },
+  forbidden: { kind: "err", text: "Dieses Postfach ist dir nicht zugeordnet." },
   full: { kind: "err", text: "Es sind schon 30 Adressen angelegt." },
   not_found: { kind: "err", text: "Das Postfach wurde nicht gefunden." },
 };
@@ -73,22 +73,28 @@ const userLabel = (person: { first_name: string; last_name: string; username: st
           <span class="mt-4 inline-flex rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white">Öffnen</span>
         </a>
         {isAdmin && (
-          <form method="POST" action="/api/admin/postfach" class="mt-4 flex flex-wrap items-end gap-2 border-t border-ink-100 pt-4 dark:border-white/10">
+          <form method="POST" action="/api/admin/postfach" class="mt-4 space-y-3 border-t border-ink-100 pt-4 dark:border-white/10">
             <input type="hidden" name="action" value="assign" />
             <input type="hidden" name="mailbox_id" value={box.id} />
             <input type="hidden" name="redirect" value="/admin/postfach" />
-            <div class="min-w-0 flex-1">
-              <label class="label" for={`owner-${box.id}`}>Benutzer</label>
-              <select class="input" id={`owner-${box.id}`} name="user_id">
-                <option value="" selected={box.user_id == null}>Nicht zugeordnet</option>
+            <fieldset>
+              <legend class="label">Personen</legend>
+              <div class="mt-2 flex max-h-40 flex-col gap-2 overflow-auto">
                 {users.map((person) => (
-                  <option value={person.id} selected={person.id === box.user_id}>
+                  <label class="flex items-center gap-2 text-sm text-ink-800 dark:text-ink-100">
+                    <input
+                      type="checkbox"
+                      name="user_ids"
+                      value={person.id}
+                      checked={box.memberIds.includes(person.id)}
+                      class="h-4 w-4 rounded border-ink-300 text-brand-600"
+                    />
                     {userLabel(person)}
-                  </option>
+                  </label>
                 ))}
-              </select>
-            </div>
-            <button type="submit" class="btn-secondary">Zuordnen</button>
+              </div>
+            </fieldset>
+            <button type="submit" class="btn-secondary">Personen speichern</button>
           </form>
         )}
       </article>
@@ -120,15 +126,23 @@ const userLabel = (person: { first_name: string; last_name: string; username: st
         <input class="input" id="display_name" name="display_name" maxlength="80" placeholder="Leon Lütcke" />
       </div>
       {isAdmin ? (
-        <div>
-          <label class="label" for="user_id">Benutzer</label>
-          <select class="input" id="user_id" name="user_id">
-            <option value="">Nicht zugeordnet</option>
+        <fieldset class="sm:col-span-2 lg:col-span-4">
+          <legend class="label">Personen</legend>
+          <div class="mt-2 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             {users.map((person) => (
-              <option value={person.id} selected={person.id === session.userId}>{userLabel(person)}</option>
+              <label class="flex items-center gap-2 text-sm text-ink-800 dark:text-ink-100">
+                <input
+                  type="checkbox"
+                  name="user_ids"
+                  value={person.id}
+                  checked={person.id === session.userId}
+                  class="h-4 w-4 rounded border-ink-300 text-brand-600"
+                />
+                {userLabel(person)}
+              </label>
             ))}
-          </select>
-        </div>
+          </div>
+        </fieldset>
       ) : (
         <input type="hidden" name="user_id" value={session.userId ?? ""} />
       )}

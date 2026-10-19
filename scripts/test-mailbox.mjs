@@ -23,17 +23,14 @@ assert.equal(
   "info",
 );
 assert.equal(matchMailboxLocalPart(["fremd@example.com"]), null);
-assert.equal(canOpenMailbox({ role: "admin" }, { user_id: null }), true);
-assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { user_id: 4 }), true);
-assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { user_id: 2 }), false);
-assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { user_id: null }), false);
+assert.equal(canOpenMailbox({ role: "admin" }, { memberIds: [] }), true);
+assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [2, 4] }), true);
+assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [2] }), false);
+assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [] }), false);
 assert.equal(
-  mailboxOwnerLabel({ user_id: 1, owner_name: "Leon Lütcke", owner_username: "admin" }),
-  "Leon Lütcke",
+  mailboxOwnerLabel({ memberNames: "Leon Lütcke, Anna Beispiel" }),
+  "Leon Lütcke, Anna Beispiel",
 );
-assert.equal(
-  mailboxOwnerLabel({ user_id: null, owner_name: "", owner_username: "" }),
-  "Nicht zugeordnet",
-);
+assert.equal(mailboxOwnerLabel({ memberNames: "  " }), "Nicht zugeordnet");
 
 console.log("mailbox checks ok");

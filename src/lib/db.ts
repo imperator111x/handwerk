@@ -510,20 +510,59 @@ export interface MailboxRow {
   local_part: string;
   display_name: string;
   created_at: number;
-  user_id: number | null;
-  owner_name: string;
-  owner_username: string;
+  memberIds: number[];
+  memberNames: string;
+  thread_count: number;
+}
+
+interface MailboxQueryRow {
+  id: number;
+  local_part: string;
+  display_name: string;
+  created_at: number;
+  member_ids: string;
+  member_names: string;
   thread_count: number;
 }
 
 const MAILBOX_SELECT = `
-  SELECT m.id, m.local_part, m.display_name, m.created_at, m.user_id,
-         TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS owner_name,
-         COALESCE(u.username, '') AS owner_username,
+  SELECT m.id, m.local_part, m.display_name, m.created_at,
+         COALESCE((
+           SELECT group_concat(mm.user_id, ',')
+             FROM mailbox_members mm
+            WHERE mm.mailbox_id = m.id
+         ), '') AS member_ids,
+         COALESCE((
+           SELECT group_concat(label, ', ')
+             FROM (
+               SELECT CASE
+                        WHEN trim(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) != ''
+                        THEN trim(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, ''))
+                        ELSE u.username
+                      END AS label
+                 FROM mailbox_members mm
+                 JOIN users u ON u.id = mm.user_id
+                WHERE mm.mailbox_id = m.id
+             )
+         ), '') AS member_names,
          (SELECT COUNT(*) FROM mail_threads t WHERE t.mailbox_id = m.id) AS thread_count
     FROM mailboxes m
-    LEFT JOIN users u ON u.id = m.user_id
 `;
+
+function asMailbox(row: MailboxQueryRow): MailboxRow {
+  return {
+    id: row.id,
+    local_part: row.local_part,
+    display_name: row.display_name,
+    created_at: row.created_at,
+    memberIds: String(row.member_ids ?? "")
+      .split(",")
+      .map((part) => Number.parseInt(part, 10))
+      .filter((id) => Number.isInteger(id) && id > 0),
+    memberNames: String(row.member_names ?? ""),
+    thread_count: Number(row.thread_count ?? 0),
+  };
+}
 
 export interface MailThreadRow {
   id: number;
@@ -563,12 +602,15 @@ export async function listMailboxes(
   const { results } = await db
     .prepare(
       `${MAILBOX_SELECT}
-        ${scoped ? "WHERE m.user_id = ?" : ""}
+        ${scoped ? `WHERE EXISTS (
+           SELECT 1 FROM mailbox_members mm
+            WHERE mm.mailbox_id = m.id AND mm.user_id = ?
+         )` : ""}
         ORDER BY m.local_part ASC`,
     )
     .bind(...(scoped ? [onlyUserId] : []))
-    .all<MailboxRow>();
-  return results ?? [];
+    .all<MailboxQueryRow>();
+  return (results ?? []).map(asMailbox);
 }
 
 export async function countMailboxes(db: D1Database): Promise<number> {
@@ -583,8 +625,8 @@ export async function findMailboxById(
   const row = await db
     .prepare(`${MAILBOX_SELECT} WHERE m.id = ? LIMIT 1`)
     .bind(id)
-    .first<MailboxRow>();
-  return row ?? null;
+    .first<MailboxQueryRow>();
+  return row ? asMailbox(row) : null;
 }
 
 export async function findMailboxByLocalPart(
@@ -596,32 +638,50 @@ export async function findMailboxByLocalPart(
       `${MAILBOX_SELECT} WHERE m.local_part = ? LIMIT 1`,
     )
     .bind(localPart)
-    .first<MailboxRow>();
-  return row ?? null;
+    .first<MailboxQueryRow>();
+  return row ? asMailbox(row) : null;
 }
 
 export async function createMailbox(
   db: D1Database,
   localPart: string,
   displayName: string,
-  userId: number | null,
+  userIds: number[],
 ): Promise<number> {
+  const members = uniqueUserIds(userIds);
   const result = await db
     .prepare(`INSERT INTO mailboxes (local_part, display_name, user_id) VALUES (?, ?, ?)`)
-    .bind(localPart, displayName, userId)
+    .bind(localPart, displayName, members[0] ?? null)
     .run();
-  return Number(result.meta.last_row_id ?? 0);
+  const id = Number(result.meta.last_row_id ?? 0);
+  if (id) await setMailboxMembers(db, id, members);
+  return id;
 }
 
-export async function assignMailbox(
+export async function setMailboxMembers(
   db: D1Database,
   mailboxId: number,
-  userId: number | null,
+  userIds: number[],
 ): Promise<void> {
-  await db
-    .prepare(`UPDATE mailboxes SET user_id = ? WHERE id = ?`)
-    .bind(userId, mailboxId)
-    .run();
+  const members = uniqueUserIds(userIds);
+  await db.batch([
+    db.prepare(`DELETE FROM mailbox_members WHERE mailbox_id = ?`).bind(mailboxId),
+    db.prepare(`UPDATE mailboxes SET user_id = ? WHERE id = ?`).bind(members[0] ?? null, mailboxId),
+    ...members.map((userId) =>
+      db.prepare(`INSERT INTO mailbox_members (mailbox_id, user_id) VALUES (?, ?)`).bind(mailboxId, userId),
+    ),
+  ]);
+}
+
+function uniqueUserIds(userIds: number[]): number[] {
+  const seen = new Set<number>();
+  const unique: number[] = [];
+  for (const userId of userIds) {
+    if (!Number.isInteger(userId) || userId <= 0 || seen.has(userId)) continue;
+    seen.add(userId);
+    unique.push(userId);
+  }
+  return unique;
 }
 
 export async function listMailThreads(
