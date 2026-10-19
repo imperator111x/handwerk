@@ -47,7 +47,6 @@ const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
       if (!window.turnstile || widgetId !== undefined) return;
       widgetId = window.turnstile.render(box, {
         sitekey,
-        size: "invisible",
         action: "page_load",
         callback: send,
         "error-callback": () => true,
