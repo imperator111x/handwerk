@@ -56,11 +56,26 @@ log "Pruefe wrangler-Zugang"
 $WRANGLER whoami >/dev/null 2>&1 || die "Wrangler-Login via Token fehlgeschlagen – Token-Rechte pruefen."
 ok "Wrangler ist authentifiziert."
 
+# Kleines Hilfs-Setup: JSON-Validator
+is_json() { python3 -c "import json,sys;json.load(sys.stdin)" >/dev/null 2>&1 <<<"$1"; }
+
+check_scope() {
+  # $1 = cmd label (fuer Fehler), $2 = scope-hinweis
+  local label="$1" scope="$2"
+  warn "Rohe Ausgabe:"
+  printf '%s\n' "$3" | sed 's/\x1b\[[0-9;]*m//g' | head -30 >&2
+  die "'$label' fehlgeschlagen. Der Cloudflare-API-Token hat vermutlich keinen »$scope«-Scope. 
+     Fix: Cloudflare-Dashboard → My Profile → API Tokens → Token bearbeiten → Permission »$scope« ergaenzen und erneut ausfuehren."
+}
+
 # ---------------------------------------------------------------------------
 # D1-Datenbank anlegen (idempotent)
 # ---------------------------------------------------------------------------
 log "Suche D1-Datenbank »$DB_NAME«"
-DB_LIST_JSON="$($WRANGLER d1 list --json 2>/dev/null || echo '[]')"
+DB_LIST_JSON="$($WRANGLER d1 list --json 2>&1 || true)"
+if ! is_json "$DB_LIST_JSON"; then
+  check_scope "wrangler d1 list" "Account · D1 · Edit" "$DB_LIST_JSON"
+fi
 DB_ID="$(python3 - "$DB_LIST_JSON" "$DB_NAME" <<'PY'
 import json, sys
 data = json.loads(sys.argv[1])
@@ -74,7 +89,7 @@ PY
 
 if [[ -z "$DB_ID" ]]; then
   log "Lege D1-Datenbank »$DB_NAME« an"
-  CREATE_OUT="$($WRANGLER d1 create "$DB_NAME")"
+  CREATE_OUT="$($WRANGLER d1 create "$DB_NAME" 2>&1)" || { echo "$CREATE_OUT"; die "D1 konnte nicht angelegt werden."; }
   echo "$CREATE_OUT"
   DB_ID="$(printf '%s\n' "$CREATE_OUT" | awk -F'"' '/database_id/ {print $4; exit}')"
   [[ -n "$DB_ID" ]] || die "D1 konnte nicht angelegt werden – Ausgabe oben pruefen."
@@ -85,7 +100,10 @@ ok "D1 ID: $DB_ID"
 # KV-Namespace anlegen (idempotent)
 # ---------------------------------------------------------------------------
 log "Suche KV-Namespace »$KV_BINDING«"
-KV_LIST_JSON="$($WRANGLER kv namespace list 2>/dev/null || echo '[]')"
+KV_LIST_JSON="$($WRANGLER kv namespace list 2>&1 || true)"
+if ! is_json "$KV_LIST_JSON"; then
+  check_scope "wrangler kv namespace list" "Account · Workers KV Storage · Edit" "$KV_LIST_JSON"
+fi
 KV_ID="$(python3 - "$KV_LIST_JSON" "$KV_BINDING" <<'PY'
 import json, sys
 data = json.loads(sys.argv[1])
@@ -99,7 +117,7 @@ PY
 
 if [[ -z "$KV_ID" ]]; then
   log "Lege KV-Namespace »$KV_BINDING« an"
-  KV_OUT="$($WRANGLER kv namespace create "$KV_BINDING")"
+  KV_OUT="$($WRANGLER kv namespace create "$KV_BINDING" 2>&1)" || { echo "$KV_OUT"; die "KV konnte nicht angelegt werden."; }
   echo "$KV_OUT"
   KV_ID="$(printf '%s\n' "$KV_OUT" | awk -F'"' '/\"id\"/ {print $4; exit}')"
   [[ -n "$KV_ID" ]] || die "KV konnte nicht angelegt werden – Ausgabe oben pruefen."
