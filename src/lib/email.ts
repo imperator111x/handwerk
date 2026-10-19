@@ -11,6 +11,7 @@
  */
 
 import { EMAIL_MARK_PNG_BASE64 } from "./email-mark";
+import { htmlToPlainText, sanitizeMailHtml } from "./mail-html";
 
 export interface ReplyEmailInput {
   siteName: string;
@@ -18,6 +19,7 @@ export interface ReplyEmailInput {
   recipientName: string;
   subject: string;
   bodyText: string;
+  bodyHtml?: string | null;
   authorName: string;
   fromEmail: string;
   phone?: string | null;
@@ -27,7 +29,7 @@ export interface ReplyEmailInput {
 }
 
 export interface EmailAttachment {
-  content: string;
+  content: string | ArrayBuffer | ArrayBufferView;
   filename: string;
   type: string;
   disposition: "attachment" | "inline";
@@ -67,7 +69,10 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const displayUrl = input.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
   const safePhone = input.phone ? escapeHtml(input.phone) : "";
   const telHref = input.phone ? input.phone.replace(/\s+/g, "") : "";
-  const bodyHtml = textToHtmlParagraphs(input.bodyText);
+  const richHtml = input.bodyHtml ? sanitizeMailHtml(input.bodyHtml) : "";
+  const bodyHtml = richHtml
+    ? `<div class="email-rich email-text" style="color:#1e293b;font-size:16px;line-height:1.6;">${richHtml}</div>`
+    : textToHtmlParagraphs(input.bodyText);
   const logoSrc = `data:image/png;base64,${EMAIL_MARK_PNG_BASE64}`;
   const ctaUrl = input.ctaUrl && /^https:\/\/[^\s<>"]+$/.test(input.ctaUrl) ? input.ctaUrl : "";
   const ctaLabel = escapeHtml(input.ctaLabel?.trim() || "Termin wählen");
@@ -92,11 +97,16 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
     <title>${safeSubject}</title>
     <style>
       :root { color-scheme: light dark; supported-color-schemes: light dark; }
+      .email-rich p { margin: 0 0 14px 0; }
+      .email-rich ul, .email-rich ol { margin: 0 0 14px 1.2em; padding: 0; }
+      .email-rich a { color: #1d4ed8; }
+      .email-rich img { max-width: 100%; height: auto; border: 0; }
       @media (prefers-color-scheme: dark) {
         .email-outer, .email-outer td { background-color: #0b1220 !important; }
         .email-card, .email-card td.email-copy, .email-card td.email-footer { background-color: #162033 !important; }
         .email-outer td.email-header { background-color: #0e172a !important; color: #ffffff !important; }
-        .email-text, .email-copy, .email-copy p, .email-copy h1, .email-copy span { color: #f8fafc !important; }
+        .email-text, .email-copy, .email-copy p, .email-copy h1, .email-copy span, .email-rich, .email-rich p, .email-rich li { color: #f8fafc !important; }
+        .email-rich a { color: #bfdbfe !important; }
         .email-muted { color: #cbd5e1 !important; }
         .email-help, .email-help td { background-color: #1e293b !important; border-color: #334155 !important; }
         .email-link { color: #bfdbfe !important; }
@@ -166,7 +176,7 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
   const lines = [
     `Hallo ${input.recipientName},`,
     "",
-    input.bodyText.trim(),
+    input.bodyHtml ? htmlToPlainText(input.bodyHtml) : input.bodyText.trim(),
     "",
     ...(input.ctaUrl ? ["Termin wählen:", input.ctaUrl, ""] : []),
     "Mit freundlichen Grüßen",
@@ -255,6 +265,19 @@ export async function sendViaCloudflare(
   }
 }
 
+function attachmentBase64(content: EmailAttachment["content"]): string {
+  if (typeof content === "string") return content;
+  const bytes = content instanceof ArrayBuffer
+    ? new Uint8Array(content)
+    : new Uint8Array(content.buffer, content.byteOffset, content.byteLength);
+  let binary = "";
+  const step = 0x8000;
+  for (let index = 0; index < bytes.length; index += step) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + step));
+  }
+  return btoa(binary);
+}
+
 /**
  * Resend-HTTP-Fallback. Nur wenn `env.RESEND_API_KEY` gesetzt ist.
  */
@@ -276,7 +299,7 @@ export async function sendViaResend(
     if (input.attachments?.length) {
       payload.attachments = input.attachments.map((att) => ({
         filename: att.filename,
-        content: att.content,
+        content: attachmentBase64(att.content),
         content_type: att.type,
         content_id: att.contentId,
       }));
