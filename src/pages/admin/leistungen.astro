@@ -1,0 +1,28 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireSession } from "../../lib/auth";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+---
+
+<AdminLayout title="Leistungen" session={session}>
+  <section
+    class="rounded-3xl border border-ink-200 bg-white p-8 space-y-3"
+  >
+    <h2 class="font-display text-2xl font-bold text-ink-900">
+      Leistungen (statisch)
+    </h2>
+    <p class="text-ink-600">
+      Die Leistungen werden derzeit in
+      <code class="rounded bg-ink-100 px-1.5 py-0.5">
+        src/components/Services.astro
+      </code>
+      als strukturierter TypeScript-Datensatz gepflegt. In einer späteren
+      Iteration lassen sie sich in D1 auslagern und hier bearbeiten.
+    </p>
+  </section>
+</AdminLayout>

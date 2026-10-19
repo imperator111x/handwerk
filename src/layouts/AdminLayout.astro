@@ -1,0 +1,145 @@
+---
+import "../styles/global.css";
+import type { SessionData } from "../lib/auth";
+
+interface Props {
+  title: string;
+  session: SessionData;
+}
+
+const { title, session } = Astro.props;
+
+const nav = [
+  { href: "/admin", label: "Übersicht", icon: "home" },
+  { href: "/admin/anfragen", label: "Anfragen", icon: "inbox" },
+  { href: "/admin/leistungen", label: "Leistungen", icon: "list" },
+  { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog" },
+];
+
+const icons: Record<string, string> = {
+  home: "M3 12l9-9 9 9 M5 10v10h14V10",
+  inbox:
+    "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+  list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
+  cog:
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+};
+
+const pathname = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>{title} · Admin · Zeus-Service</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="bg-ink-100 text-ink-900 min-h-screen">
+    <div class="flex min-h-screen">
+      <aside
+        class="hidden lg:flex w-64 flex-col border-r border-ink-200 bg-white"
+      >
+        <div class="px-6 py-6 border-b border-ink-200">
+          <a href="/" class="flex items-center gap-2 text-ink-900 font-bold">
+            <span
+              class="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white inline-flex items-center justify-center"
+              aria-hidden="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="h-4 w-4"
+              >
+                <path d="M4 20h16" />
+                <path d="M6 20V9l6-4 6 4v11" />
+              </svg>
+            </span>
+            Zeus-Service
+          </a>
+          <p class="text-xs uppercase tracking-widest text-brand-600 mt-1">
+            Admin-Panel
+          </p>
+        </div>
+        <nav class="flex-1 p-4 space-y-1 text-sm">
+          {
+            nav.map((item) => {
+              const active = pathname === item.href;
+              return (
+                <a
+                  href={item.href}
+                  class={`flex items-center gap-3 rounded-xl px-3 py-2 font-medium transition ${
+                    active
+                      ? "bg-brand-50 text-brand-700"
+                      : "text-ink-700 hover:bg-ink-100"
+                  }`}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path d={icons[item.icon]} />
+                  </svg>
+                  {item.label}
+                </a>
+              );
+            })
+          }
+        </nav>
+        <div class="p-4 border-t border-ink-200 text-sm">
+          <p class="font-semibold text-ink-900">
+            {session.username}
+          </p>
+          <p class="text-xs text-ink-500 mb-3">angemeldet</p>
+          <form action="/api/auth/logout" method="POST">
+            <button
+              type="submit"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50"
+            >
+              Abmelden
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <div class="flex-1 flex flex-col min-w-0">
+        <header
+          class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-ink-200"
+        >
+          <div class="flex items-center justify-between px-6 py-4">
+            <div>
+              <h1 class="font-display text-xl font-bold text-ink-900">
+                {title}
+              </h1>
+            </div>
+            <div class="lg:hidden">
+              <form action="/api/auth/logout" method="POST">
+                <button
+                  type="submit"
+                  class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-medium text-ink-700"
+                >
+                  Abmelden
+                </button>
+              </form>
+            </div>
+          </div>
+        </header>
+        <main class="flex-1 p-6 lg:p-10 space-y-8">
+          <slot />
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

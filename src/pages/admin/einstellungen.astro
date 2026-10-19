@@ -1,0 +1,61 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireSession } from "../../lib/auth";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const env = Astro.locals.runtime?.env;
+---
+
+<AdminLayout title="Einstellungen" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-8 space-y-5">
+    <h2 class="font-display text-2xl font-bold text-ink-900">
+      Umgebung
+    </h2>
+    <dl class="grid gap-4 sm:grid-cols-2 text-sm">
+      <div>
+        <dt class="font-semibold text-ink-700">Site Name</dt>
+        <dd class="text-ink-900">{env?.SITE_NAME ?? "–"}</dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-ink-700">Site URL</dt>
+        <dd class="text-ink-900">{env?.SITE_URL ?? "–"}</dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-ink-700">Admin Benutzer</dt>
+        <dd class="text-ink-900">{env?.ADMIN_USERNAME ?? "admin"}</dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-ink-700">E-Mail Absender</dt>
+        <dd class="text-ink-900">
+          {env?.CONTACT_FROM_EMAIL ?? "–"}
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <section
+    class="rounded-3xl border border-dashed border-ink-300 bg-white p-8 space-y-3"
+  >
+    <h2 class="font-display text-2xl font-bold text-ink-900">
+      Passwort ändern
+    </h2>
+    <p class="text-ink-600 text-sm max-w-2xl">
+      Admin-Passwörter werden aktuell per Wrangler-Secret verwaltet. Zum
+      Erzeugen eines neuen Hashes das folgende Snippet lokal ausführen:
+    </p>
+    <pre
+      class="rounded-xl bg-ink-900 text-ink-100 text-xs p-4 overflow-x-auto"><code>node --input-type=module -e "import('./src/lib/auth.ts').then(async (m) =&gt; console.log(await m.hashPassword('DEIN_PASSWORT')))"</code></pre>
+    <p class="text-xs text-ink-500">
+      Anschließend den Ausgabestring mit
+      <code class="rounded bg-ink-100 px-1.5 py-0.5">
+        npx wrangler secret put ADMIN_PASSWORD_HASH
+      </code>
+      hinterlegen.
+    </p>
+  </section>
+</AdminLayout>
