@@ -8,6 +8,10 @@
 // bevor D1/KV im Dashboard angelegt wurden.
 
 interface Env {
+  // Index-Signatur, damit dieses Env an den Astro-Cloudflare-Handler
+  // (`handle`) übergeben werden kann.
+  [key: string]: unknown;
+
   // Variablen aus `wrangler.jsonc` -> vars
   SITE_NAME: string;
   SITE_URL: string;

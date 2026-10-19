@@ -159,6 +159,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
 }
 
 export function renderReplyEmailText(input: ReplyEmailInput): string {
+  const contactEmail = input.replyToEmail || input.fromEmail;
   const lines = [
     `Hallo ${input.recipientName},`,
     "",
@@ -169,7 +170,7 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
     input.siteName,
     "",
     "---",
-    `Fragen? E-Mail: ${input.fromEmail}` +
+    `Fragen? E-Mail: ${contactEmail}` +
       (input.phone ? ` · Telefon: ${input.phone}` : ""),
     `Website: ${input.siteUrl}`,
   ];
@@ -196,6 +197,22 @@ export interface SendResult {
   error?: string;
 }
 
+const ALLOWED_SEND_HEADERS = new Set(["in-reply-to", "references"]);
+
+function allowlistedHeaders(
+  headers?: Record<string, string>,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const allowed: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (!ALLOWED_SEND_HEADERS.has(name.toLowerCase())) continue;
+    const trimmed = value.trim();
+    if (!trimmed || /[\r\n]/.test(trimmed)) continue;
+    allowed[name] = trimmed;
+  }
+  return Object.keys(allowed).length > 0 ? allowed : undefined;
+}
+
 /**
  * Cloudflare-Email-Sending-Binding (`env.EMAIL` → `send_email` in wrangler.jsonc).
  */
@@ -204,6 +221,7 @@ export async function sendViaCloudflare(
   input: SendInput,
 ): Promise<SendResult> {
   try {
+    const headers = allowlistedHeaders(input.headers);
     const result = await binding.send({
       from: input.fromName
         ? { email: input.from, name: input.fromName }
@@ -216,7 +234,7 @@ export async function sendViaCloudflare(
       html: input.html,
       text: input.text,
       attachments: input.attachments,
-      headers: input.headers,
+      ...(headers ? { headers } : {}),
     });
     return {
       ok: true,
@@ -249,7 +267,8 @@ export async function sendViaResend(
       html: input.html,
       text: input.text,
     };
-    if (input.headers) payload.headers = input.headers;
+    const headers = allowlistedHeaders(input.headers);
+    if (headers) payload.headers = headers;
     if (input.attachments?.length) {
       payload.attachments = input.attachments.map((att) => ({
         filename: att.filename,

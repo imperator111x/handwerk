@@ -16,6 +16,7 @@ import {
 import {
   buildReplyAddress,
   DEFAULT_REPLY_DOMAIN,
+  formatMessageIdHeader,
   normalizeMessageId,
 } from "../../../lib/reply-address";
 
@@ -82,11 +83,13 @@ export async function POST(ctx: APIContext): Promise<Response> {
       ? await buildReplyAddress(env.SESSION_SECRET, requestId, replyDomain)
       : null;
   const replyTo = replyAddress ?? fromEmail;
-  const priorMessageId = await latestInboundMessageId(db, requestId);
+  const priorMessageId = formatMessageIdHeader(
+    await latestInboundMessageId(db, requestId),
+  );
   const headers = priorMessageId
     ? {
-        "In-Reply-To": `<${priorMessageId}>`,
-        References: `<${priorMessageId}>`,
+        "In-Reply-To": priorMessageId,
+        References: priorMessageId,
       }
     : undefined;
 

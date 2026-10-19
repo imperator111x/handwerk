@@ -6,7 +6,7 @@
  * Raten einer ID fremde Verläufe beschreiben kann.
  */
 
-export const DEFAULT_REPLY_DOMAIN = "zeus-service.de";
+export const DEFAULT_REPLY_DOMAIN = "antwort.zeus-service.de";
 
 const TOKEN_RE = /^r\+(\d+)\.([a-f0-9]{16})$/i;
 
@@ -65,7 +65,14 @@ export function extractMessageIds(header: string | null | undefined): string[] {
 
 export function normalizeMessageId(value: string | null | undefined): string | null {
   const ids = extractMessageIds(value);
-  return ids[0] ?? null;
+  const bare = ids[0]?.trim().replace(/^<|>$/g, "") ?? "";
+  if (!bare || /[\r\n]/.test(bare)) return null;
+  return bare;
+}
+
+export function formatMessageIdHeader(value: string | null | undefined): string | null {
+  const bare = normalizeMessageId(value);
+  return bare ? `<${bare}>` : null;
 }
 
 async function signRequestId(secret: string, requestId: number): Promise<string> {

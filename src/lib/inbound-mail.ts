@@ -5,10 +5,8 @@
  */
 
 import {
-  findOpenRequestBySender,
   findRequestIdByMessageIds,
   getContactRequest,
-  insertContactRequest,
   insertInboundReply,
   updateContactStatus,
 } from "./db";
@@ -35,7 +33,6 @@ export interface ParsedInbound {
 
 export type IngestResult =
   | { action: "stored"; requestId: number; replyId: number }
-  | { action: "created"; requestId: number }
   | { action: "duplicate"; requestId: number }
   | { action: "ignore"; reason: string }
   | { action: "reject"; reason: string };
@@ -57,13 +54,7 @@ export async function ingestInboundEmail(
 
   const requestId = await resolveRequestId(db, secret, email);
   if (!requestId) {
-    const createdId = await insertContactRequest(db, {
-      name: cleanName(email.fromName) || from.split("@")[0] || "Kunde",
-      email: from,
-      topic: "sonstiges",
-      message: clip(extractCustomerText(email.text ?? "", email.html ?? "")) || "(Keine Textnachricht)",
-    });
-    return { action: "created", requestId: createdId };
+    return { action: "reject", reason: "Diese Adresse ist keiner Anfrage zugeordnet." };
   }
 
   const request = await getContactRequest(db, requestId);
@@ -118,12 +109,8 @@ async function resolveRequestId(
     ...extractMessageIds(email.inReplyTo),
     ...extractMessageIds(email.references),
   ];
-  if (referenced.length > 0) {
-    const threaded = await findRequestIdByMessageIds(db, referenced);
-    if (threaded) return threaded;
-  }
-
-  return findOpenRequestBySender(db, email.envelopeFrom);
+  if (referenced.length === 0) return null;
+  return findRequestIdByMessageIds(db, referenced);
 }
 
 function isAutomated(from: string, autoSubmitted: string | null, subject: string): boolean {

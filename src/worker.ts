@@ -15,23 +15,21 @@ interface InboundMessage {
 
 const MAX_INBOUND_BYTES = 2_000_000;
 
+function mailboxAddress(address: { address?: string; group?: Array<{ address?: string }> }): string[] {
+  if (address.address) return [address.address];
+  return (address.group ?? []).flatMap((member) => (member.address ? [member.address] : []));
+}
+
 export function createExports(manifest: SSRManifest) {
   const app = new App(manifest);
   return {
     default: {
-      async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-        const url = new URL(request.url);
-        if (url.hostname === "www.zeus-service.de") {
-          url.hostname = "zeus-service.de";
-          return Response.redirect(url.toString(), 301);
-        }
-        return handle(
-          manifest,
-          app,
-          request as unknown as Parameters<typeof handle>[2],
-          env as unknown as Parameters<typeof handle>[3],
-          ctx,
-        );
+      async fetch(
+        request: Parameters<typeof handle>[2],
+        env: Env,
+        ctx: Parameters<typeof handle>[4],
+      ) {
+        return handle(manifest, app, request, env, ctx);
       },
       async email(message: InboundMessage, env: Env) {
         await receiveEmail(message, env);
@@ -67,9 +65,8 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
     message.headers.get("to"),
     message.headers.get("cc"),
     parsed.deliveredTo,
-    ...(parsed.to ?? []).flatMap((address) =>
-      "address" in address && address.address ? [address.address] : [],
-    ),
+    ...(parsed.to ?? []).flatMap(mailboxAddress),
+    ...(parsed.cc ?? []).flatMap(mailboxAddress),
   ];
 
   const result = await ingestInboundEmail(env.DB, env.SESSION_SECRET ?? "", {

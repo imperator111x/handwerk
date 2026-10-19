@@ -161,23 +161,6 @@ export async function countRequestsAwaitingReply(db: D1Database): Promise<number
   return Number(row?.cnt ?? 0);
 }
 
-export async function findOpenRequestBySender(
-  db: D1Database,
-  email: string,
-): Promise<number | null> {
-  const row = await db
-    .prepare(
-      `SELECT id FROM contact_requests
-       WHERE lower(email) = ?
-         AND status != 'archived'
-       ORDER BY COALESCE(updated_at, created_at) DESC
-       LIMIT 1`,
-    )
-    .bind(email.trim().toLowerCase())
-    .first<{ id: number }>();
-  return row?.id ?? null;
-}
-
 export async function countContactRequestsByStatus(
   db: D1Database,
 ): Promise<Record<ContactStatus, number>> {
@@ -409,7 +392,6 @@ export async function insertInboundReply(
       author_name: data.author_name,
       subject: data.subject,
       body: data.body,
-      email_sent_at: Math.floor(Date.now() / 1000),
       email_status: "received",
       direction: "inbound",
       from_email: data.from_email,
@@ -432,7 +414,14 @@ export async function findRequestIdByMessageIds(
   db: D1Database,
   messageIds: string[],
 ): Promise<number | null> {
-  const ids = [...new Set(messageIds.map((id) => id.trim()).filter(Boolean))].slice(0, 20);
+  const ids = [
+    ...new Set(
+      messageIds.flatMap((id) => {
+        const bare = id.trim().replace(/^<|>$/g, "");
+        return bare ? [bare, `<${bare}>`] : [];
+      }),
+    ),
+  ].slice(0, 40);
   if (ids.length === 0) return null;
   const placeholders = ids.map(() => "?").join(", ");
   const row = await db

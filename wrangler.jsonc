@@ -39,17 +39,14 @@
     }
   },
 
-  "routes": [
-    { "pattern": "zeus-service.de", "custom_domain": true },
-    { "pattern": "www.zeus-service.de", "custom_domain": true }
-  ],
-
   "vars": {
     "SITE_NAME": "Zeus-Service",
     "SITE_URL": "https://zeus-service.de",
     "ADMIN_USERNAME": "admin",
     "CONTACT_FROM_EMAIL": "website@zeus-service.de",
-    "REPLY_DOMAIN": "zeus-service.de"
+    // Nur die Subdomain. Die Apex zeus-service.de bleibt beim bestehenden
+    // Postfach (MX mail.lima-city.de) und darf hier nicht als Empfänger stehen.
+    "REPLY_DOMAIN": "antwort.zeus-service.de"
   },
 
   "d1_databases": [
