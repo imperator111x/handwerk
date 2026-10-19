@@ -66,11 +66,11 @@ const formatDate = (ts: number) =>
 
 const siteName = env?.SITE_NAME ?? "Zeus-Service";
 const defaultSubject = `Ihre Anfrage bei ${siteName} – ${topicLabels[request.topic] ?? request.topic}`;
-const defaultBody = `vielen Dank fuer Ihre Anfrage. Gerne gehen wir auf Ihr Anliegen ein:
+const defaultBody = `vielen Dank für Ihre Anfrage. Gerne gehen wir auf Ihr Anliegen ein:
 
-[hier den Antworttext einfuegen]
+[hier den Antworttext einfügen]
 
-Falls Sie weitere Fragen haben, melden Sie sich einfach – wir sind fuer Sie da.`;
+Falls Sie weitere Fragen haben, melden Sie sich einfach – wir sind für Sie da.`;
 
 const replyFlag = Astro.url.searchParams.get("reply");
 const replyFlags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
@@ -83,7 +83,7 @@ const replyFlags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> 
     kind: "err",
     text: "Antwort gespeichert, aber E-Mail-Versand ist fehlgeschlagen (Details in den Logs).",
   },
-  bad_id: { kind: "err", text: "Ungueltige Anfrage-ID." },
+  bad_id: { kind: "err", text: "Ungültige Anfrage-ID." },
   bad_subject: { kind: "err", text: "Betreff muss zwischen 3 und 200 Zeichen haben." },
   bad_body: { kind: "err", text: "Nachricht muss zwischen 5 und 10 000 Zeichen haben." },
   not_found: { kind: "err", text: "Anfrage nicht gefunden." },
@@ -113,7 +113,7 @@ const redirectPath = Astro.url.pathname;
         <line x1="19" y1="12" x2="5" y2="12" />
         <polyline points="12 19 5 12 12 5" />
       </svg>
-      Zurueck zur Liste
+      Zurück zur Liste
     </a>
   </nav>
 

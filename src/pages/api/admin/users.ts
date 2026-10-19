@@ -47,7 +47,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   if (session.role !== "admin" && !ownName) {
     return new Response(
-      JSON.stringify({ ok: false, error: "Nur Admins duerfen Nutzer verwalten." }),
+      JSON.stringify({ ok: false, error: "Nur Admins dürfen Nutzer verwalten." }),
       { status: 403, headers: { "content-type": "application/json" } },
     );
   }

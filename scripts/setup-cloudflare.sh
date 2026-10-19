@@ -2,15 +2,15 @@
 # -----------------------------------------------------------------------------
 # Zeus-Service · Cloudflare-Erst-Setup
 #
-# Legt D1-Datenbank + KV-Namespace an, traegt die Bindings in wrangler.jsonc
-# ein, fuehrt die Migrations aus, legt den Admin-User (DB + Secret) an und
+# Legt D1-Datenbank + KV-Namespace an, trägt die Bindings in wrangler.jsonc
+# ein, führt die Migrations aus, legt den Admin-User (DB + Secret) an und
 # deployt den Worker.
 #
 # Voraussetzungen:
 #   - Node.js >=20, npm, bash, awk, sed, python3 (standard auf Ubuntu/macOS)
 #   - CLOUDFLARE_API_TOKEN (empfohlen) als Umgebungsvariable
 #     Scopes: Account > D1 Edit, Workers KV Storage Edit, Workers Scripts Edit
-#     plus Zone > Workers Routes Edit falls Custom Domains gewuenscht
+#     plus Zone > Workers Routes Edit falls Custom Domains gewünscht
 #   - optional CLOUDFLARE_ACCOUNT_ID (wird sonst via `wrangler whoami` ermittelt)
 #
 # Nutzung:
@@ -48,24 +48,24 @@ if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
   warn "CLOUDFLARE_API_TOKEN ist nicht gesetzt."
   warn "Lege einen Token im Cloudflare-Dashboard an (My Profile → API Tokens)"
   warn "mit Rechten: D1 Edit, Workers KV Storage Edit, Workers Scripts Edit."
-  warn "Dann:  export CLOUDFLARE_API_TOKEN='…'  und Skript erneut ausfuehren."
+  warn "Dann:  export CLOUDFLARE_API_TOKEN='…'  und Skript erneut ausführen."
   die  "Abbruch."
 fi
 
-log "Pruefe wrangler-Zugang"
-$WRANGLER whoami >/dev/null 2>&1 || die "Wrangler-Login via Token fehlgeschlagen – Token-Rechte pruefen."
+log "Prüfe wrangler-Zugang"
+$WRANGLER whoami >/dev/null 2>&1 || die "Wrangler-Login via Token fehlgeschlagen – Token-Rechte prüfen."
 ok "Wrangler ist authentifiziert."
 
 # Kleines Hilfs-Setup: JSON-Validator
 is_json() { python3 -c "import json,sys;json.load(sys.stdin)" >/dev/null 2>&1 <<<"$1"; }
 
 check_scope() {
-  # $1 = cmd label (fuer Fehler), $2 = scope-hinweis
+  # $1 = cmd label (für Fehler), $2 = scope-hinweis
   local label="$1" scope="$2"
   warn "Rohe Ausgabe:"
   printf '%s\n' "$3" | sed 's/\x1b\[[0-9;]*m//g' | head -30 >&2
   die "'$label' fehlgeschlagen. Der Cloudflare-API-Token hat vermutlich keinen »$scope«-Scope. 
-     Fix: Cloudflare-Dashboard → My Profile → API Tokens → Token bearbeiten → Permission »$scope« ergaenzen und erneut ausfuehren."
+     Fix: Cloudflare-Dashboard → My Profile → API Tokens → Token bearbeiten → Permission »$scope« ergänzen und erneut ausführen."
 }
 
 # ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ if [[ -z "$DB_ID" ]]; then
   CREATE_OUT="$($WRANGLER d1 create "$DB_NAME" 2>&1)" || { echo "$CREATE_OUT"; die "D1 konnte nicht angelegt werden."; }
   echo "$CREATE_OUT"
   DB_ID="$(printf '%s\n' "$CREATE_OUT" | awk -F'"' '/database_id/ {print $4; exit}')"
-  [[ -n "$DB_ID" ]] || die "D1 konnte nicht angelegt werden – Ausgabe oben pruefen."
+  [[ -n "$DB_ID" ]] || die "D1 konnte nicht angelegt werden – Ausgabe oben prüfen."
 fi
 ok "D1 ID: $DB_ID"
 
@@ -120,7 +120,7 @@ if [[ -z "$KV_ID" ]]; then
   KV_OUT="$($WRANGLER kv namespace create "$KV_BINDING" 2>&1)" || { echo "$KV_OUT"; die "KV konnte nicht angelegt werden."; }
   echo "$KV_OUT"
   KV_ID="$(printf '%s\n' "$KV_OUT" | awk -F'"' '/\"id\"/ {print $4; exit}')"
-  [[ -n "$KV_ID" ]] || die "KV konnte nicht angelegt werden – Ausgabe oben pruefen."
+  [[ -n "$KV_ID" ]] || die "KV konnte nicht angelegt werden – Ausgabe oben prüfen."
 fi
 ok "KV ID: $KV_ID"
 
@@ -168,12 +168,12 @@ ok "wrangler.jsonc enthaelt jetzt D1- und KV-Bindings."
 # ---------------------------------------------------------------------------
 # Migrationen
 # ---------------------------------------------------------------------------
-log "Fuehre SQL-Migrations gegen D1 aus"
+log "Führe SQL-Migrations gegen D1 aus"
 for migration in migrations/*.sql; do
   log "  → $migration"
   $WRANGLER d1 execute "$DB_NAME" --remote --file="$migration"
 done
-ok "Migrations erfolgreich ausgefuehrt."
+ok "Migrations erfolgreich ausgeführt."
 
 # ---------------------------------------------------------------------------
 # Admin-Benutzer in DB anlegen
@@ -184,14 +184,14 @@ if [[ -z "${ADMIN_PASSWORD:-}" ]]; then
     read -r -s -p "Neues Admin-Passwort: " ADMIN_PASSWORD; echo
     read -r -s -p "Passwort wiederholen: " ADMIN_PASSWORD_CONFIRM; echo
     [[ "$ADMIN_PASSWORD" == "$ADMIN_PASSWORD_CONFIRM" ]] \
-      || die "Passwoerter stimmen nicht ueberein."
+      || die "Passwörter stimmen nicht überein."
   else
-    die "ADMIN_PASSWORD ist nicht gesetzt und keine interaktive Eingabe moeglich."
+    die "ADMIN_PASSWORD ist nicht gesetzt und keine interaktive Eingabe möglich."
   fi
 fi
 
 ADMIN_USERNAME_VAL="${ADMIN_USERNAME:-admin}"
-log "Erzeuge PBKDF2-Hash fuer User »$ADMIN_USERNAME_VAL«"
+log "Erzeuge PBKDF2-Hash für User »$ADMIN_USERNAME_VAL«"
 PASSWORD_HASH="$(node --input-type=module -e "
 function toHex(buf){return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
 async function h(p,i=100000){const s=new ArrayBuffer(16);crypto.getRandomValues(new Uint8Array(s));

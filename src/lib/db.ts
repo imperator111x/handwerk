@@ -1,8 +1,8 @@
 /**
  * Datenbank-Helfer rund um das D1-Binding `env.DB`.
  *
- * Alle Funktionen liefern null/[] zurueck, wenn die D1-Datenbank nicht
- * gebunden ist – so bleibt die App auch ohne D1 lauffaehig und das Admin-
+ * Alle Funktionen liefern null/[] zurück, wenn die D1-Datenbank nicht
+ * gebunden ist – so bleibt die App auch ohne D1 lauffähig und das Admin-
  * Panel kann sinnvoll „leer" rendern.
  */
 

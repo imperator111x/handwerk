@@ -18,11 +18,11 @@ const pwFlag = Astro.url.searchParams.get("pw");
 const userFlag = Astro.url.searchParams.get("user");
 
 const pwFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
-  ok: { kind: "ok", text: "Passwort erfolgreich geaendert." },
+  ok: { kind: "ok", text: "Passwort erfolgreich geändert." },
   too_short: { kind: "err", text: "Neues Passwort braucht mindestens 10 Zeichen." },
-  mismatch: { kind: "err", text: "Die Passwort-Bestaetigung stimmt nicht ueberein." },
+  mismatch: { kind: "err", text: "Die Passwort-Bestätigung stimmt nicht überein." },
   wrong_current: { kind: "err", text: "Aktuelles Passwort ist falsch." },
-  no_db: { kind: "err", text: "Datenbank nicht verbunden – Passwortaenderung ueber Secret notwendig." },
+  no_db: { kind: "err", text: "Datenbank nicht verbunden – Passwortänderung über Secret notwendig." },
   unknown_user: { kind: "err", text: "Benutzer nicht gefunden." },
 };
 
@@ -33,12 +33,12 @@ const userFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
   name_saved: { kind: "ok", text: "Vor- und Nachname gespeichert. Sie stehen in der Mail-Signatur." },
   bad_name: { kind: "err", text: "Vor- und Nachname bitte jeweils mit Buchstaben angeben (bis 60 Zeichen)." },
   forbidden: { kind: "err", text: "Diesen Namen darfst du nicht ändern." },
-  bad_username: { kind: "err", text: "Ungueltiger Benutzername (3–32 Zeichen, nur a–z, 0–9, . _ -)." },
+  bad_username: { kind: "err", text: "Ungültiger Benutzername (3–32 Zeichen, nur a–z, 0–9, . _ -)." },
   weak_password: { kind: "err", text: "Passwort muss mindestens 10 Zeichen haben." },
-  bad_role: { kind: "err", text: "Ungueltige Rolle." },
-  bad_id: { kind: "err", text: "Ungueltige Benutzer-ID." },
+  bad_role: { kind: "err", text: "Ungültige Rolle." },
+  bad_id: { kind: "err", text: "Ungültige Benutzer-ID." },
   exists: { kind: "err", text: "Benutzername ist bereits vergeben." },
-  self_delete: { kind: "err", text: "Du kannst dich nicht selbst loeschen." },
+  self_delete: { kind: "err", text: "Du kannst dich nicht selbst löschen." },
   self_demote: { kind: "err", text: "Du kannst dir nicht selbst Admin-Rechte entziehen." },
   last_admin: { kind: "err", text: "Mindestens ein Admin muss bestehen bleiben." },
   not_found: { kind: "err", text: "Benutzer nicht gefunden." },
@@ -104,7 +104,7 @@ const redirectPath = Astro.url.pathname;
   </section>
 
   <!-- ================================================================= -->
-  <!-- Passwort aendern -->
+  <!-- Passwort ändern -->
   <!-- ================================================================= -->
   <section
     class="rounded-3xl border border-ink-200 bg-white p-8 space-y-4 dark:border-white/10 dark:bg-ink-900"
@@ -115,7 +115,7 @@ const redirectPath = Astro.url.pathname;
       </h2>
       <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
         Dein eigenes Login-Passwort. Mindestens 10 Zeichen – idealerweise mit
-        Zahlen, Sonderzeichen und ohne Woerterbuch-Woerter.
+        Zahlen, Sonderzeichen und ohne Wörterbuch-Wörter.
       </p>
     </div>
 
@@ -133,13 +133,13 @@ const redirectPath = Astro.url.pathname;
 
     {!db ? (
       <p class="text-sm text-ink-600 dark:text-ink-300">
-        Passwortaenderung erfordert eine verbundene D1-Datenbank.
+        Passwortänderung erfordert eine verbundene D1-Datenbank.
       </p>
     ) : !session.userId ? (
       <p class="text-sm text-ink-600 dark:text-ink-300">
         Dein aktueller Login nutzt noch das Fallback-Secret. Lege erst oben
         einen echten Benutzer an und melde dich damit neu an, danach kannst du
-        hier das Passwort aendern.
+        hier das Passwort ändern.
       </p>
     ) : (
       <form
@@ -200,7 +200,7 @@ const redirectPath = Astro.url.pathname;
           Admin-Benutzer
         </h2>
         <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
-          Admins haben vollen Zugriff. Editors koennen Anfragen bearbeiten und
+          Admins haben vollen Zugriff. Editors können Anfragen bearbeiten und
           beantworten, aber keine Nutzer verwalten. Vor- und Nachname stehen in
           ausgehenden E-Mails unter „Mit freundlichen Grüßen“.
         </p>
@@ -333,7 +333,7 @@ const redirectPath = Astro.url.pathname;
                         method="POST"
                         action="/api/admin/users"
                         class="inline"
-                        onsubmit={`return confirm('Benutzer "${u.username}" wirklich loeschen?')`}
+                        onsubmit={`return confirm('Benutzer "${u.username}" wirklich löschen?')`}
                       >
                         <input type="hidden" name="action" value="delete" />
                         <input type="hidden" name="id" value={u.id} />
@@ -420,7 +420,7 @@ const redirectPath = Astro.url.pathname;
                   autocomplete="new-password"
                 />
                 <p class="mt-1 text-xs text-ink-500">
-                  Mindestens 10 Zeichen. Der neue Benutzer kann das Passwort nach dem ersten Login hier aendern.
+                  Mindestens 10 Zeichen. Der neue Benutzer kann das Passwort nach dem ersten Login hier ändern.
                 </p>
               </div>
               <div class="sm:col-span-2">
@@ -430,7 +430,7 @@ const redirectPath = Astro.url.pathname;
           </details>
         ) : (
           <p class="text-xs text-ink-500 dark:text-ink-400">
-            Nur Admins koennen neue Benutzer anlegen oder loeschen.
+            Nur Admins können neue Benutzer anlegen oder löschen.
           </p>
         )}
       </>

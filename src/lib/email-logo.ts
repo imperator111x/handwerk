@@ -1,6 +1,6 @@
-/** Base64-kodiertes helles Logo (weiss auf transparent), 250x80 PNG.
+/** Base64-kodiertes helles Logo (weiß auf transparent), 250x80 PNG.
  *  Wird als CID-Inline-Attachment in Antwort-Mails eingebettet, damit
- *  Clients das Bild nicht von zeus-service.de nachladen muessen.
+ *  Clients das Bild nicht von zeus-service.de nachladen müssen.
  */
 export const LOGO_LIGHT_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAPoAAABQCAYAAAAwa2i1AAAYIElEQVR42u2dd7xVxbXHv8saFRUES4xYiII9RkVRQazELljQ2GIs" +

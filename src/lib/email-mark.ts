@@ -1,4 +1,4 @@
-/** Logo weiss auf marineblauem Grund, undurchsichtig, fuer den Mail-Header. */
+/** Logo weiß auf marineblauem Grund, undurchsichtig, für den Mail-Header. */
 export const EMAIL_MARK_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAATIAAAB8CAYAAADq4zxtAAAytUlEQVR42u2dd1RTyRfHb0KAhAAJofcq0nuRjgg2BBv2unbXtbHF" +
   "sra1u5Zde1sLdqyIClhAOtKR3juhQ0ISSCDl94cmGxBc3XV/7q7zOSfnJHlv5r07b973zZ13ZwYjr2omAAQCgfgXg0VFgEAgkJAh" +

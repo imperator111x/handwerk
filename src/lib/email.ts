@@ -4,9 +4,9 @@
  * Design-Leitplanken:
  *  - Pur-HTML mit Table-Layouts (für maximale Kompatibilität in E-Mail-Clients)
  *  - Inline-Styles + bgcolor-Attribute (Outlook/Gmail)
- *  - Logo als undurchsichtiges PNG (weiss auf Marine) per Data-URI,
+ *  - Logo als undurchsichtiges PNG (weiß auf Marine) per Data-URI,
  *    damit es ohne Nachladen in Hell und Dunkel sichtbar bleibt
- *  - Eigene Farben fuer prefers-color-scheme: dark, damit iPhone-Mail
+ *  - Eigene Farben für prefers-color-scheme: dark, damit iPhone-Mail
  *    den Text nicht dunkel auf dunkel stellt
  */
 
@@ -312,7 +312,7 @@ export async function sendViaResend(
 }
 
 /**
- * High-Level Send: nutzt Cloudflare Email Sending wenn verfuegbar,
+ * High-Level Send: nutzt Cloudflare Email Sending wenn verfügbar,
  * sonst Resend, sonst „none".
  */
 export async function sendEmail(

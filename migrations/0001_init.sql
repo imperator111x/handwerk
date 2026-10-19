@@ -1,8 +1,8 @@
 -- Initial schema for Zeus-Service admin panel.
 --
--- Ausfuehren (nach `wrangler d1 create zeus-service-db`):
+-- Ausführen (nach `wrangler d1 create zeus-service-db`):
 --   npx wrangler d1 execute zeus-service-db --remote --file=migrations/0001_init.sql
--- Fuer lokale Entwicklung (gegen eine lokale D1):
+-- Für lokale Entwicklung (gegen eine lokale D1):
 --   npx wrangler d1 execute zeus-service-db --local  --file=migrations/0001_init.sql
 
 CREATE TABLE IF NOT EXISTS users (

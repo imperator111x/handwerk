@@ -26,7 +26,7 @@ const quoted = [
   "Ja, der Termin passt.",
   "",
   "Am 19.10.2026 um 10:00 schrieb Zeus-Service:",
-  "> vielen Dank fuer Ihre Anfrage.",
+  "> vielen Dank für Ihre Anfrage.",
 ].join("\n");
 assert.equal(extractCustomerText(quoted, ""), "Ja, der Termin passt.");
 assert.equal(extractCustomerText("Kekdjje\n\nSent from my iPhone", ""), "Kekdjje");

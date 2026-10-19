@@ -81,7 +81,7 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
         </h2>
         <p class="mt-2 text-sm text-amber-800 dark:text-amber-100 max-w-2xl">
           Es ist keine Cloudflare-D1-Datenbank an diesen Worker gebunden.
-          Fuehre <code class="rounded bg-amber-100 px-1.5 py-0.5 dark:bg-amber-500/20">bash scripts/setup-cloudflare.sh</code>
+          Führe <code class="rounded bg-amber-100 px-1.5 py-0.5 dark:bg-amber-500/20">bash scripts/setup-cloudflare.sh</code>
           aus oder aktiviere den <code class="rounded bg-amber-100 px-1.5 py-0.5 dark:bg-amber-500/20">DB</code>-Block
           in <code class="rounded bg-amber-100 px-1.5 py-0.5 dark:bg-amber-500/20">wrangler.jsonc</code> manuell.
         </p>
@@ -192,7 +192,7 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                     href={`/admin/anfragen/${entry.id}`}
                     class="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800 dark:text-brand-300 dark:hover:text-brand-200"
                   >
-                    Oeffnen & antworten
+                    Öffnen & antworten
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4">
                       <line x1="5" y1="12" x2="19" y2="12" />
                       <polyline points="12 5 19 12 12 19" />
@@ -254,7 +254,7 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                     <form
                       method="POST"
                       action="/api/admin/anfragen"
-                      onsubmit="return confirm('Diese Anfrage wirklich loeschen?')"
+                      onsubmit="return confirm('Diese Anfrage wirklich löschen?')"
                       class="inline"
                     >
                       <input type="hidden" name="id" value={entry.id} />

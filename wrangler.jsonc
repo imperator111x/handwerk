@@ -72,7 +72,7 @@
     }
   ],
 
-  // Cloudflare Email Sending – Binding fuer Antwortmails aus dem Admin-Panel.
+  // Cloudflare Email Sending – Binding für Antwortmails aus dem Admin-Panel.
   // Setzt eine im Account onboardete Absender-Domain voraus
   // (siehe `wrangler email sending enable zeus-service.de` oder Dashboard).
   "send_email": [
