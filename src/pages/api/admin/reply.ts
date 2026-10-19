@@ -8,7 +8,6 @@ import {
   updateContactStatus,
 } from "../../../lib/db";
 import {
-  getInlineLogoAttachment,
   renderReplyEmailHtml,
   renderReplyEmailText,
   sendEmail,
@@ -115,7 +114,6 @@ export async function POST(ctx: APIContext): Promise<Response> {
       subject,
       html: renderReplyEmailHtml(emailInput),
       text: renderReplyEmailText(emailInput),
-      attachments: [getInlineLogoAttachment()],
       headers,
     });
 
