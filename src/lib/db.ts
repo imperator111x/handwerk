@@ -510,7 +510,20 @@ export interface MailboxRow {
   local_part: string;
   display_name: string;
   created_at: number;
+  user_id: number | null;
+  owner_name: string;
+  owner_username: string;
+  thread_count: number;
 }
+
+const MAILBOX_SELECT = `
+  SELECT m.id, m.local_part, m.display_name, m.created_at, m.user_id,
+         TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')) AS owner_name,
+         COALESCE(u.username, '') AS owner_username,
+         (SELECT COUNT(*) FROM mail_threads t WHERE t.mailbox_id = m.id) AS thread_count
+    FROM mailboxes m
+    LEFT JOIN users u ON u.id = m.user_id
+`;
 
 export interface MailThreadRow {
   id: number;
@@ -521,6 +534,8 @@ export interface MailThreadRow {
   updated_at: number;
   local_part: string;
   display_name: string;
+  preview: string;
+  last_direction: "inbound" | "outbound" | null;
 }
 
 export interface MailMessageRow {
@@ -540,9 +555,18 @@ export interface MailMessageRow {
   created_at: number;
 }
 
-export async function listMailboxes(db: D1Database): Promise<MailboxRow[]> {
+export async function listMailboxes(
+  db: D1Database,
+  onlyUserId?: number,
+): Promise<MailboxRow[]> {
+  const scoped = Number.isInteger(onlyUserId);
   const { results } = await db
-    .prepare(`SELECT id, local_part, display_name, created_at FROM mailboxes ORDER BY local_part ASC`)
+    .prepare(
+      `${MAILBOX_SELECT}
+        ${scoped ? "WHERE m.user_id = ?" : ""}
+        ORDER BY m.local_part ASC`,
+    )
+    .bind(...(scoped ? [onlyUserId] : []))
     .all<MailboxRow>();
   return results ?? [];
 }
@@ -557,7 +581,7 @@ export async function findMailboxById(
   id: number,
 ): Promise<MailboxRow | null> {
   const row = await db
-    .prepare(`SELECT id, local_part, display_name, created_at FROM mailboxes WHERE id = ? LIMIT 1`)
+    .prepare(`${MAILBOX_SELECT} WHERE m.id = ? LIMIT 1`)
     .bind(id)
     .first<MailboxRow>();
   return row ?? null;
@@ -569,7 +593,7 @@ export async function findMailboxByLocalPart(
 ): Promise<MailboxRow | null> {
   const row = await db
     .prepare(
-      `SELECT id, local_part, display_name, created_at FROM mailboxes WHERE local_part = ? LIMIT 1`,
+      `${MAILBOX_SELECT} WHERE m.local_part = ? LIMIT 1`,
     )
     .bind(localPart)
     .first<MailboxRow>();
@@ -580,26 +604,62 @@ export async function createMailbox(
   db: D1Database,
   localPart: string,
   displayName: string,
+  userId: number | null,
 ): Promise<number> {
   const result = await db
-    .prepare(`INSERT INTO mailboxes (local_part, display_name) VALUES (?, ?)`)
-    .bind(localPart, displayName)
+    .prepare(`INSERT INTO mailboxes (local_part, display_name, user_id) VALUES (?, ?, ?)`)
+    .bind(localPart, displayName, userId)
     .run();
   return Number(result.meta.last_row_id ?? 0);
 }
 
-export async function listMailThreads(db: D1Database): Promise<MailThreadRow[]> {
+export async function assignMailbox(
+  db: D1Database,
+  mailboxId: number,
+  userId: number | null,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE mailboxes SET user_id = ? WHERE id = ?`)
+    .bind(userId, mailboxId)
+    .run();
+}
+
+export async function listMailThreads(
+  db: D1Database,
+  mailboxId: number,
+): Promise<MailThreadRow[]> {
   const { results } = await db
     .prepare(
       `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at,
-              m.local_part, m.display_name
+              m.local_part, m.display_name,
+              COALESCE((
+                SELECT body FROM mail_messages
+                 WHERE thread_id = t.id
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 1
+              ), '') AS preview,
+              (
+                SELECT direction FROM mail_messages
+                 WHERE thread_id = t.id
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 1
+              ) AS last_direction
          FROM mail_threads t
          JOIN mailboxes m ON m.id = t.mailbox_id
+        WHERE t.mailbox_id = ?
         ORDER BY t.updated_at DESC
         LIMIT 200`,
     )
+    .bind(mailboxId)
     .all<MailThreadRow>();
-  return results ?? [];
+  return (results ?? []).map((row) => ({
+    ...row,
+    preview: row.preview ?? "",
+    last_direction:
+      row.last_direction === "inbound" || row.last_direction === "outbound"
+        ? row.last_direction
+        : null,
+  }));
 }
 
 export async function getMailThread(
@@ -609,7 +669,9 @@ export async function getMailThread(
   const row = await db
     .prepare(
       `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at,
-              m.local_part, m.display_name
+              m.local_part, m.display_name,
+              '' AS preview,
+              NULL AS last_direction
          FROM mail_threads t
          JOIN mailboxes m ON m.id = t.mailbox_id
         WHERE t.id = ?

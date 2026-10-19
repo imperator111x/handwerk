@@ -44,6 +44,25 @@ export function mailboxAddress(localPart: string, domain = MAIL_DOMAIN): string 
   return `${localPart}@${domain.replace(/^@/, "")}`;
 }
 
+export function canOpenMailbox(
+  session: { role?: string; userId?: number },
+  mailbox: { user_id: number | null },
+): boolean {
+  if (session.role === "admin") return true;
+  return mailbox.user_id != null && session.userId === mailbox.user_id;
+}
+
+export function mailboxOwnerLabel(mailbox: {
+  user_id: number | null;
+  owner_name: string;
+  owner_username: string;
+}): string {
+  const name = mailbox.owner_name.trim();
+  if (name) return name;
+  if (mailbox.owner_username) return mailbox.owner_username;
+  return "Nicht zugeordnet";
+}
+
 export function cleanRecipient(raw: string): string | null {
   const email = raw.trim().toLowerCase();
   if (!email || email.length > 200 || email.includes(",") || email.includes(";")) return null;

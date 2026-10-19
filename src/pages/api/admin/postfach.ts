@@ -2,10 +2,12 @@ import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
 import {
+  assignMailbox,
   countMailboxes,
   createMailbox,
   findMailboxById,
   findMailboxByLocalPart,
+  findUserById,
   getDb,
   getMailThread,
   insertMailMessage,
@@ -19,6 +21,7 @@ import {
   sendEmail,
 } from "../../../lib/email";
 import {
+  canOpenMailbox,
   cleanLocalPart,
   cleanRecipient,
   mailboxAddress,
@@ -62,8 +65,21 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (await findMailboxByLocalPart(db, localPart)) {
       return ctx.redirect(`${redirectBase}?mail=exists`, 303);
     }
-    await createMailbox(db, localPart, displayName || localPart);
-    return ctx.redirect(`${redirectBase}?mail=created`, 303);
+    const ownerId = await ownerFromForm(db, session.role, session.userId, form);
+    if (ownerId === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
+    const id = await createMailbox(db, localPart, displayName || localPart, ownerId);
+    return ctx.redirect(`/admin/postfach/${id}?mail=created`, 303);
+  }
+
+  if (action === "assign") {
+    if (session.role !== "admin") return ctx.redirect(`${redirectBase}?mail=forbidden`, 303);
+    const mailboxId = Number.parseInt(String(form.get("mailbox_id") ?? ""), 10);
+    const mailbox = Number.isFinite(mailboxId) ? await findMailboxById(db, mailboxId) : null;
+    if (!mailbox) return ctx.redirect(`${redirectBase}?mail=not_found`, 303);
+    const ownerId = await ownerFromForm(db, "admin", session.userId, form);
+    if (ownerId === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
+    await assignMailbox(db, mailbox.id, ownerId);
+    return ctx.redirect(`${redirectBase}?mail=assigned`, 303);
   }
 
   const domain = env?.REPLY_DOMAIN || DEFAULT_REPLY_DOMAIN;
@@ -79,6 +95,9 @@ export async function POST(ctx: APIContext): Promise<Response> {
     ? await findMailboxById(db, thread.mailbox_id)
     : await findMailboxById(db, Number.parseInt(String(form.get("mailbox_id") ?? ""), 10));
   if (!mailbox) return ctx.redirect(`${redirectBase}?mail=bad_from`, 303);
+  if (!canOpenMailbox(session, mailbox)) {
+    return ctx.redirect("/admin/postfach?mail=forbidden", 303);
+  }
 
   const recipient = thread ? thread.peer_email : cleanRecipient(String(form.get("to") ?? ""));
   if (!recipient) return ctx.redirect(`${redirectBase}?mail=bad_to`, 303);
@@ -193,5 +212,20 @@ export async function POST(ctx: APIContext): Promise<Response> {
       : emailStatus?.startsWith("skipped")
         ? "saved_no_email"
         : "saved_email_failed";
-  return ctx.redirect(`/admin/postfach/${threadId}?mail=${flag}`, 303);
+  return ctx.redirect(`/admin/postfach/${mailbox.id}?offen=${threadId}&mail=${flag}`, 303);
+}
+
+async function ownerFromForm(
+  db: D1Database,
+  role: string | undefined,
+  sessionUserId: number | undefined,
+  form: FormData,
+): Promise<number | null | "invalid"> {
+  if (role !== "admin") return sessionUserId ?? null;
+  const raw = String(form.get("user_id") ?? "").trim();
+  if (!raw) return null;
+  const id = Number.parseInt(raw, 10);
+  if (!Number.isFinite(id) || id <= 0) return "invalid";
+  const owner = await findUserById(db, id);
+  return owner ? owner.id : "invalid";
 }

@@ -2,9 +2,9 @@
 import MailEditor from "../../../components/MailEditor.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
-import { getDb, getMailThread, listMailMessages } from "../../../lib/db";
+import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
-import { mailboxAddress } from "../../../lib/mailbox";
+import { canOpenMailbox, mailboxAddress, mailboxOwnerLabel } from "../../../lib/mailbox";
 
 export const prerender = false;
 
@@ -14,105 +14,148 @@ const session = sessionOrRedirect;
 
 const id = Number.parseInt(Astro.params.id ?? "", 10);
 const db = getDb(Astro);
-const thread = db && Number.isFinite(id) ? await getMailThread(db, id) : null;
-if (!thread) return Astro.redirect("/admin/postfach");
+const mailbox = db && Number.isFinite(id) ? await findMailboxById(db, id) : null;
+if (!mailbox) return Astro.redirect("/admin/postfach?mail=not_found");
+if (!canOpenMailbox(session, mailbox)) return Astro.redirect("/admin/postfach?mail=forbidden");
 
-const messages = db ? await listMailMessages(db, thread.id) : [];
 const domain = Astro.locals.runtime?.env?.REPLY_DOMAIN || "zeus-service.de";
-const ownAddress = mailboxAddress(thread.local_part, domain);
+const ownAddress = mailboxAddress(mailbox.local_part, domain);
+const threads = db ? await listMailThreads(db, mailbox.id) : [];
+const openId = Number.parseInt(Astro.url.searchParams.get("offen") ?? "", 10);
+const thread = db && Number.isFinite(openId) ? await getMailThread(db, openId) : null;
+const openThread = thread && thread.mailbox_id === mailbox.id ? thread : null;
+const messages = db && openThread ? await listMailMessages(db, openThread.id) : [];
 
 const flag = Astro.url.searchParams.get("mail");
 const flags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
+  created: { kind: "ok", text: "Das Postfach ist angelegt." },
   sent: { kind: "ok", text: "Die Mail wurde verschickt." },
   saved_no_email: { kind: "warn", text: "Gespeichert, aber nicht verschickt. Es ist kein E-Mail-Transport verbunden." },
   saved_email_failed: { kind: "err", text: "Gespeichert, der Versand ist aber fehlgeschlagen." },
   bad_body: { kind: "err", text: "Die Nachricht ist zu kurz oder zu lang." },
   bad_subject: { kind: "err", text: "Der Betreff muss zwischen 3 und 200 Zeichen haben." },
   bad_file: { kind: "err", text: "Eine Datei ist zu groß oder nicht erlaubt." },
+  bad_to: { kind: "err", text: "Bitte eine gültige Empfängeradresse eintragen." },
   db_error: { kind: "err", text: "Die Mail konnte nicht gespeichert werden." },
 };
-const message = flag ? flags[flag] : null;
+const notice = flag ? flags[flag] : null;
 const formatDate = (ts: number) =>
   new Date(ts * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+const previewText = (value: string) =>
+  value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim().slice(0, 90);
 ---
 
-<AdminLayout title={thread.subject || "Mail"} session={session}>
-  <nav class="text-sm">
-    <a href="/admin/postfach" class="text-ink-500 hover:text-brand-700 dark:text-ink-400">← Zurück zum Postfach</a>
-  </nav>
+<AdminLayout title={ownAddress} session={session}>
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <a href="/admin/postfach" class="text-sm text-ink-500 hover:text-brand-700 dark:text-ink-400">← Alle Postfächer</a>
+    <a href={`/admin/postfach/neu?from=${mailbox.id}`} class="btn-primary">Neue Mail</a>
+  </div>
 
-  {message && (
+  {notice && (
     <p
       class:list={[
         "rounded-2xl border px-4 py-3 text-sm",
-        message.kind === "ok"
+        notice.kind === "ok"
           ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
-          : message.kind === "warn"
+          : notice.kind === "warn"
             ? "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
             : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
       ]}
     >
-      {message.text}
+      {notice.text}
     </p>
   )}
 
-  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
-    <p class="text-sm text-ink-500 dark:text-ink-400">
-      {ownAddress} ↔ {thread.peer_name ? `${thread.peer_name} · ` : ""}{thread.peer_email}
-    </p>
-    <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{thread.subject}</h2>
-  </section>
+  <section class="overflow-hidden rounded-3xl border border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900">
+    <header class="border-b border-ink-100 px-5 py-4 dark:border-white/10">
+      <h2 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">{ownAddress}</h2>
+      <p class="text-sm text-ink-500 dark:text-ink-400">
+        {mailbox.display_name || mailbox.local_part} · {mailboxOwnerLabel(mailbox)}
+      </p>
+    </header>
 
-  <section class="space-y-3">
-    {messages.map((entry) => (
-      <article
-        class:list={[
-          "rounded-2xl border p-5",
-          entry.direction === "inbound"
-            ? "border-brand-200 bg-brand-50/70 dark:border-brand-400/30 dark:bg-brand-500/10"
-            : "border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900",
-        ]}
-      >
-        <header class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">{entry.subject}</p>
-            <p class="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
-              {entry.direction === "inbound" ? "von" : "an"} <strong>{entry.direction === "inbound" ? entry.from_email : entry.to_email}</strong>
-              {" · "}{entry.author_name}{" · "}{formatDate(entry.created_at)}
-            </p>
-          </div>
-          <span class="rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-semibold text-ink-700 dark:bg-white/10 dark:text-ink-200">
-            {entry.direction === "inbound" ? "Eingegangen" : entry.email_sent_at ? "Gesendet" : "Nicht gesendet"}
-          </span>
-        </header>
-        {entry.direction === "outbound" && /<\/?[a-z][\s>]/i.test(entry.body) ? (
-          <div class="mt-3 text-sm leading-relaxed text-ink-700 dark:text-ink-200 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5" set:html={sanitizeMailHtml(entry.body)} />
+    <div class="lg:grid lg:min-h-[36rem] lg:grid-cols-[22rem_1fr]">
+      <aside class:list={["border-ink-100 dark:border-white/10 lg:border-r", openThread && "hidden lg:block"]}>
+        {threads.length === 0 ? (
+          <p class="px-5 py-8 text-sm text-ink-500 dark:text-ink-400">Dieses Postfach ist noch leer.</p>
         ) : (
-          <p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">{entry.body}</p>
+          threads.map((item) => (
+            <a
+              href={`/admin/postfach/${mailbox.id}?offen=${item.id}`}
+              class:list={[
+                "block border-b border-ink-100 px-4 py-3 dark:border-white/10",
+                openThread?.id === item.id
+                  ? "bg-brand-50 dark:bg-brand-500/10"
+                  : "hover:bg-ink-50 dark:hover:bg-white/5",
+              ]}
+            >
+              <div class="flex items-baseline justify-between gap-3">
+                <p class="truncate text-sm font-semibold text-ink-900 dark:text-ink-50">
+                  {item.last_direction === "inbound" ? "● " : ""}
+                  {item.peer_name || item.peer_email}
+                </p>
+                <time class="shrink-0 text-[11px] text-ink-400">{formatDate(item.updated_at)}</time>
+              </div>
+              <p class="truncate text-sm text-ink-700 dark:text-ink-200">{item.subject || "(Ohne Betreff)"}</p>
+              <p class="truncate text-xs text-ink-500 dark:text-ink-400">{previewText(item.preview) || "Keine Vorschau"}</p>
+            </a>
+          ))
         )}
-        {entry.email_error && <p class="mt-2 text-xs text-rose-600 dark:text-rose-300">{entry.email_error}</p>}
-      </article>
-    ))}
-  </section>
+      </aside>
 
-  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
-    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Antworten</h3>
-    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
-      Geht von <strong>{ownAddress}</strong> an <strong>{thread.peer_email}</strong>.
-    </p>
-    <form id="reply-form" method="POST" action="/api/admin/postfach" enctype="multipart/form-data" class="mt-5 grid gap-4">
-      <input type="hidden" name="action" value="send" />
-      <input type="hidden" name="thread_id" value={thread.id} />
-      <input type="hidden" name="redirect" value={`/admin/postfach/${thread.id}`} />
-      <input type="hidden" name="body_html" id="reply-body-html" />
-      <input type="file" id="reply-images" name="images" class="hidden" multiple />
-      <input type="file" id="reply-documents" name="documents" class="hidden" multiple />
-      <div>
-        <label class="label" for="reply_subject">Betreff</label>
-        <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" value={thread.subject.startsWith("Re:") ? thread.subject : `Re: ${thread.subject}`} />
+      <div class:list={["min-w-0", !openThread && "hidden lg:block"]}>
+        {openThread ? (
+          <div class="space-y-4 p-5">
+            <a href={`/admin/postfach/${mailbox.id}`} class="text-sm text-ink-500 hover:text-brand-700 lg:hidden dark:text-ink-400">
+              ← Zurück zur Liste
+            </a>
+            <div>
+              <p class="text-sm text-ink-500 dark:text-ink-400">
+                {ownAddress} ↔ {openThread.peer_name ? `${openThread.peer_name} · ` : ""}{openThread.peer_email}
+              </p>
+              <h3 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{openThread.subject}</h3>
+            </div>
+            {messages.map((entry) => (
+              <article
+                class:list={[
+                  "rounded-2xl border p-4",
+                  entry.direction === "inbound"
+                    ? "border-brand-200 bg-brand-50/70 dark:border-brand-400/30 dark:bg-brand-500/10"
+                    : "border-ink-200 dark:border-white/10",
+                ]}
+              >
+                <p class="text-xs text-ink-500 dark:text-ink-400">
+                  {entry.direction === "inbound" ? "von" : "an"} <strong>{entry.direction === "inbound" ? entry.from_email : entry.to_email}</strong>
+                  {" · "}{formatDate(entry.created_at)}
+                </p>
+                {entry.direction === "outbound" && /<\/?[a-z][\s>]/i.test(entry.body) ? (
+                  <div class="mt-2 text-sm leading-relaxed text-ink-700 dark:text-ink-200 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5" set:html={sanitizeMailHtml(entry.body)} />
+                ) : (
+                  <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">{entry.body}</p>
+                )}
+              </article>
+            ))}
+            <form id="reply-form" method="POST" action="/api/admin/postfach" enctype="multipart/form-data" class="grid gap-4 border-t border-ink-100 pt-4 dark:border-white/10">
+              <input type="hidden" name="action" value="send" />
+              <input type="hidden" name="thread_id" value={openThread.id} />
+              <input type="hidden" name="redirect" value={`/admin/postfach/${mailbox.id}?offen=${openThread.id}`} />
+              <input type="hidden" name="body_html" id="reply-body-html" />
+              <input type="file" id="reply-images" name="images" class="hidden" multiple />
+              <input type="file" id="reply-documents" name="documents" class="hidden" multiple />
+              <div>
+                <label class="label" for="reply_subject">Betreff</label>
+                <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" value={openThread.subject.startsWith("Re:") ? openThread.subject : `Re: ${openThread.subject}`} />
+              </div>
+              <MailEditor />
+              <button type="submit" class="btn-primary w-fit">Antwort senden</button>
+            </form>
+          </div>
+        ) : (
+          <div class="flex h-full min-h-64 items-center justify-center px-6 text-center text-sm text-ink-500 dark:text-ink-400">
+            Wähle links eine Nachricht oder schreibe eine neue Mail.
+          </div>
+        )}
       </div>
-      <MailEditor />
-      <button type="submit" class="btn-primary w-fit">Antwort senden</button>
-    </form>
+    </div>
   </section>
 </AdminLayout>

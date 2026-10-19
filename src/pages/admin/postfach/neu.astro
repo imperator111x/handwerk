@@ -13,9 +13,14 @@ const session = sessionOrRedirect;
 
 const db = getDb(Astro);
 const domain = Astro.locals.runtime?.env?.REPLY_DOMAIN || "zeus-service.de";
-const mailboxes = db ? await listMailboxes(db) : [];
+const isAdmin = session.role === "admin";
+const mailboxes = db
+  ? await listMailboxes(db, isAdmin ? undefined : session.userId ?? -1)
+  : [];
 const preset = Number.parseInt(Astro.url.searchParams.get("from") ?? "", 10);
-const selected = mailboxes.some((box) => box.id === preset) ? preset : mailboxes[0]?.id;
+const selectedBox = mailboxes.find((box) => box.id === preset) ?? mailboxes[0];
+const selected = selectedBox?.id;
+const backHref = selectedBox && preset === selectedBox.id ? `/admin/postfach/${selectedBox.id}` : "/admin/postfach";
 
 const flag = Astro.url.searchParams.get("mail");
 const flags: Record<string, string> = {
@@ -30,7 +35,7 @@ const flags: Record<string, string> = {
 
 <AdminLayout title="Neue Mail" session={session}>
   <nav class="text-sm">
-    <a href="/admin/postfach" class="text-ink-500 hover:text-brand-700 dark:text-ink-400">← Zurück zum Postfach</a>
+    <a href={backHref} class="text-ink-500 hover:text-brand-700 dark:text-ink-400">← Zurück zum Postfach</a>
   </nav>
 
   {flag && flags[flag] && (
