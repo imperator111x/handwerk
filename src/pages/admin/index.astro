@@ -173,37 +173,4 @@ const cards = [
       }
     </div>
   </section>
-
-  <section
-    class="rounded-3xl border border-dashed border-ink-300 bg-white p-8 space-y-4 dark:border-white/15 dark:bg-ink-900"
-  >
-    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">
-      Nächste Schritte
-    </h3>
-    <ol class="list-decimal pl-5 space-y-2 text-sm text-ink-700 dark:text-ink-200">
-      <li>
-        D1-Datenbank anlegen und Migrations-Skript ausführen:
-        <code class="rounded bg-ink-100 px-1.5 py-0.5 dark:bg-white/10 dark:text-ink-100">
-          npx wrangler d1 create zeus-service-db
-        </code>
-      </li>
-      <li>
-        KV-Namespace erzeugen:
-        <code class="rounded bg-ink-100 px-1.5 py-0.5 dark:bg-white/10 dark:text-ink-100">
-          npx wrangler kv namespace create SESSIONS
-        </code>
-      </li>
-      <li>
-        Beide Bindings in
-        <code class="rounded bg-ink-100 px-1.5 py-0.5 dark:bg-white/10 dark:text-ink-100">wrangler.jsonc</code>
-        aktivieren und
-        <code class="rounded bg-ink-100 px-1.5 py-0.5 dark:bg-white/10 dark:text-ink-100">npm run cf:types</code>
-        ausführen.
-      </li>
-      <li>
-        Erste Admin-Seite (Anfragen) an D1 anbinden – siehe
-        <code class="rounded bg-ink-100 px-1.5 py-0.5 dark:bg-white/10 dark:text-ink-100">src/pages/admin/anfragen.astro</code>.
-      </li>
-    </ol>
-  </section>
 </AdminLayout>
