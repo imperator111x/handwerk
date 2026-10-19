@@ -2,15 +2,15 @@
 import { siteConfig } from "../config/site";
 ---
 
-<section id="kontakt" class="section bg-white">
+<section id="kontakt" class="section bg-white dark:bg-ink-950">
   <div class="container-page">
     <div
-      class="grid lg:grid-cols-12 gap-10 rounded-[2rem] border border-ink-200 bg-gradient-to-br from-brand-50/60 via-white to-white p-6 sm:p-10 lg:p-14 shadow-[var(--shadow-soft)]"
+      class="grid lg:grid-cols-12 gap-10 rounded-[2rem] border border-ink-200 bg-gradient-to-br from-brand-50/60 via-white to-white p-6 sm:p-10 lg:p-14 shadow-[var(--shadow-soft)] dark:border-white/10 dark:from-brand-500/10 dark:via-ink-900 dark:to-ink-900"
     >
       <div class="lg:col-span-5 space-y-6">
         <p class="section-eyebrow">Kontakt</p>
         <h2 class="section-title">Lassen Sie uns sprechen</h2>
-        <p class="text-ink-700 text-lg">
+        <p class="text-ink-700 text-lg dark:text-ink-200">
           Schreiben Sie uns, rufen Sie an oder nutzen Sie das Formular.
           Wir melden uns in der Regel innerhalb von 24 Stunden mit einem
           konkreten Vorschlag.
@@ -19,7 +19,7 @@ import { siteConfig } from "../config/site";
         <ul class="space-y-4 pt-2">
           <li class="flex items-start gap-4">
             <span
-              class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm flex-none"
+              class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm flex-none dark:bg-ink-900 dark:text-brand-300"
               aria-hidden="true"
             >
               <svg
@@ -37,12 +37,12 @@ import { siteConfig } from "../config/site";
               </svg>
             </span>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500">
+              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
                 Telefon
               </p>
               <a
                 href={siteConfig.contact.phoneHref}
-                class="text-ink-900 font-semibold hover:text-brand-700"
+                class="text-ink-900 font-semibold hover:text-brand-700 dark:text-ink-50 dark:hover:text-brand-200"
               >
                 {siteConfig.contact.phone}
               </a>
@@ -50,7 +50,7 @@ import { siteConfig } from "../config/site";
           </li>
           <li class="flex items-start gap-4">
             <span
-              class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm flex-none"
+              class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm flex-none dark:bg-ink-900 dark:text-brand-300"
               aria-hidden="true"
             >
               <svg
@@ -67,12 +67,12 @@ import { siteConfig } from "../config/site";
               </svg>
             </span>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500">
+              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
                 E-Mail
               </p>
               <a
                 href={siteConfig.contact.emailHref}
-                class="text-ink-900 font-semibold hover:text-brand-700"
+                class="text-ink-900 font-semibold hover:text-brand-700 dark:text-ink-50 dark:hover:text-brand-200"
               >
                 {siteConfig.contact.email}
               </a>
@@ -80,7 +80,7 @@ import { siteConfig } from "../config/site";
           </li>
           <li class="flex items-start gap-4">
             <span
-              class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm flex-none"
+              class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm flex-none dark:bg-ink-900 dark:text-brand-300"
               aria-hidden="true"
             >
               <svg
@@ -97,30 +97,34 @@ import { siteConfig } from "../config/site";
               </svg>
             </span>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500">
+              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
                 Standort
               </p>
-              <p class="text-ink-900 font-semibold">
+              <p class="text-ink-900 font-semibold dark:text-ink-50">
                 {siteConfig.contact.address.zip}{" "}
                 {siteConfig.contact.address.city}
               </p>
-              <p class="text-sm text-ink-600">
+              <p class="text-sm text-ink-600 dark:text-ink-300">
                 Einsatzgebiet: Hamburg, Norderstedt & Umland
               </p>
             </div>
           </li>
         </ul>
 
-        <div class="rounded-2xl bg-white border border-ink-200 p-5">
-          <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 mb-3">
+        <div class="rounded-2xl bg-white border border-ink-200 p-5 dark:border-white/10 dark:bg-white/5">
+          <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 mb-3 dark:text-ink-400">
             Öffnungszeiten
           </p>
-          <ul class="space-y-1.5 text-sm text-ink-700">
+          <ul class="space-y-1.5 text-sm text-ink-700 dark:text-ink-200">
             {
               siteConfig.contact.hours.map((h) => (
                 <li class="flex justify-between gap-4">
-                  <span class="font-medium text-ink-900">{h.day}</span>
-                  <span class="text-ink-600 text-right">{h.time}</span>
+                  <span class="font-medium text-ink-900 dark:text-ink-50">
+                    {h.day}
+                  </span>
+                  <span class="text-ink-600 dark:text-ink-300 text-right">
+                    {h.time}
+                  </span>
                 </li>
               ))
             }
@@ -133,7 +137,7 @@ import { siteConfig } from "../config/site";
           id="contact-form"
           method="POST"
           action="/api/contact"
-          class="rounded-2xl bg-white border border-ink-200 p-6 sm:p-8 space-y-5 shadow-[var(--shadow-soft)]"
+          class="rounded-2xl bg-white border border-ink-200 p-6 sm:p-8 space-y-5 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900"
           novalidate
         >
           <div class="grid sm:grid-cols-2 gap-4">
@@ -206,16 +210,16 @@ import { siteConfig } from "../config/site";
             <input id="website" name="website" type="text" tabindex="-1" autocomplete="off" />
           </div>
 
-          <label class="flex items-start gap-3 text-sm text-ink-700">
+          <label class="flex items-start gap-3 text-sm text-ink-700 dark:text-ink-200">
             <input
               type="checkbox"
               name="privacy"
               required
-              class="mt-1 h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+              class="mt-1 h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500 dark:border-white/20 dark:bg-ink-900"
             />
             <span>
               Ich habe die
-              <a href="/datenschutz" class="text-brand-700 underline">
+              <a href="/datenschutz" class="text-brand-700 underline dark:text-brand-200">
                 Datenschutzerklärung
               </a>
               gelesen und bin mit der Verarbeitung meiner Daten zur
@@ -224,7 +228,9 @@ import { siteConfig } from "../config/site";
           </label>
 
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <p class="text-xs text-ink-500">Pflichtfelder sind mit * markiert</p>
+            <p class="text-xs text-ink-500 dark:text-ink-400">
+              Pflichtfelder sind mit * markiert
+            </p>
             <button
               type="submit"
               id="contact-submit"
@@ -270,10 +276,10 @@ import { siteConfig } from "../config/site";
     status.className =
       "rounded-xl border px-4 py-3 text-sm " +
       (type === "success"
-        ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-200"
         : type === "error"
-          ? "border-rose-200 bg-rose-50 text-rose-800"
-          : "border-ink-200 bg-ink-50 text-ink-700");
+          ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-200"
+          : "border-ink-200 bg-ink-50 text-ink-700 dark:border-white/10 dark:bg-white/5 dark:text-ink-200");
     status.classList.remove("hidden");
   }
 

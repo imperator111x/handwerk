@@ -63,14 +63,14 @@ const iconPaths: Record<string, string> = {
 };
 ---
 
-<section id="leistungen" class="section bg-white">
+<section id="leistungen" class="section bg-white dark:bg-ink-950">
   <div class="container-page">
     <div class="max-w-2xl mb-14">
       <p class="section-eyebrow">Unsere Leistungen</p>
       <h2 class="section-title mt-3">
         Umfassender Service für Ihr Objekt
       </h2>
-      <p class="mt-4 text-lg text-ink-600">
+      <p class="mt-4 text-lg text-ink-600 dark:text-ink-300">
         Von der kleinen Reparatur bis zur kompletten Objektbetreuung –
         alles aus einer Hand, mit transparenten Preisen und ehrlicher Beratung.
       </p>
@@ -82,7 +82,7 @@ const iconPaths: Record<string, string> = {
           <article class="card group">
             <div class="flex items-center justify-between mb-5">
               <span
-                class="h-12 w-12 inline-flex items-center justify-center rounded-2xl bg-brand-50 text-brand-600 group-hover:bg-brand-600 group-hover:text-white transition-colors"
+                class="h-12 w-12 inline-flex items-center justify-center rounded-2xl bg-brand-50 text-brand-600 group-hover:bg-brand-600 group-hover:text-white transition-colors dark:bg-brand-500/15 dark:text-brand-300 dark:group-hover:bg-brand-500 dark:group-hover:text-ink-950"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -97,19 +97,19 @@ const iconPaths: Record<string, string> = {
                   <path d={iconPaths[s.icon]} />
                 </svg>
               </span>
-              <span class="text-xs font-medium uppercase tracking-widest text-ink-400">
+              <span class="text-xs font-medium uppercase tracking-widest text-ink-400 dark:text-ink-500">
                 Service
               </span>
             </div>
-            <h3 class="font-display text-xl font-bold text-ink-900">
+            <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">
               {s.title}
             </h3>
-            <p class="mt-2 text-sm leading-relaxed text-ink-600">
+            <p class="mt-2 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
               {s.description}
             </p>
             <ul class="mt-5 flex flex-wrap gap-2">
               {s.items.map((i) => (
-                <li class="rounded-full bg-ink-100 px-3 py-1 text-xs font-medium text-ink-700">
+                <li class="rounded-full bg-ink-100 px-3 py-1 text-xs font-medium text-ink-700 dark:bg-white/10 dark:text-ink-200">
                   {i}
                 </li>
               ))}
@@ -120,13 +120,13 @@ const iconPaths: Record<string, string> = {
     </div>
 
     <div
-      class="mt-14 rounded-3xl border border-ink-200 bg-gradient-to-br from-brand-50 to-white p-8 sm:p-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6"
+      class="mt-14 rounded-3xl border border-ink-200 bg-gradient-to-br from-brand-50 to-white p-8 sm:p-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 dark:border-white/10 dark:from-brand-500/10 dark:to-white/5"
     >
       <div class="max-w-2xl">
-        <h3 class="font-display text-2xl font-bold text-ink-900">
+        <h3 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
           Noch nicht die passende Leistung dabei?
         </h3>
-        <p class="mt-2 text-ink-700">
+        <p class="mt-2 text-ink-700 dark:text-ink-200">
           Erzählen Sie uns, worum es geht – wir finden gemeinsam eine Lösung
           und erstellen Ihnen ein unverbindliches Angebot.
         </p>

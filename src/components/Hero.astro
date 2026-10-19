@@ -12,22 +12,22 @@ import { siteConfig } from "../config/site";
           Neue Aufträge möglich
         </span>
         <h1
-          class="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight text-ink-900"
+          class="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight text-ink-900 dark:text-ink-50"
         >
           Ihr Hausmeisterservice für
           <span class="relative inline-block">
             <span
-              class="relative z-10 bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent"
+              class="relative z-10 bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent dark:from-brand-400 dark:to-brand-200"
             >
               Hamburg & Norderstedt
             </span>
             <span
-              class="absolute inset-x-0 bottom-1 h-3 bg-accent-500/30 -z-0 rounded-sm"
+              class="absolute inset-x-0 bottom-1 h-3 bg-accent-500/30 -z-0 rounded-sm dark:bg-accent-500/40"
               aria-hidden="true"
             />
           </span>
         </h1>
-        <p class="text-lg text-ink-700 max-w-2xl leading-relaxed">
+        <p class="text-lg text-ink-700 max-w-2xl leading-relaxed dark:text-ink-200">
           Zuverlässig, kompetent und schnell. Wir übernehmen Reparaturen,
           Reinigung, Wartung und Gartenpflege für Privathaushalte,
           Wohnanlagen und Gewerbeobjekte – mit fundierter Handwerksausbildung
@@ -68,29 +68,29 @@ import { siteConfig } from "../config/site";
         </div>
 
         <dl
-          class="grid grid-cols-3 gap-6 pt-10 border-t border-ink-200/70 max-w-xl"
+          class="grid grid-cols-3 gap-6 pt-10 border-t border-ink-200/70 max-w-xl dark:border-white/10"
         >
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wider text-ink-500">
+            <dt class="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-300">
               Fachwissen
             </dt>
-            <dd class="mt-1 text-2xl font-bold text-ink-900">
+            <dd class="mt-1 text-2xl font-bold text-ink-900 dark:text-ink-50">
               Handwerker
             </dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wider text-ink-500">
+            <dt class="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-300">
               Einsatz
             </dt>
-            <dd class="mt-1 text-2xl font-bold text-ink-900">
+            <dd class="mt-1 text-2xl font-bold text-ink-900 dark:text-ink-50">
               100 %
             </dd>
           </div>
           <div>
-            <dt class="text-xs font-medium uppercase tracking-wider text-ink-500">
+            <dt class="text-xs font-medium uppercase tracking-wider text-ink-500 dark:text-ink-300">
               Reaktion
             </dt>
-            <dd class="mt-1 text-2xl font-bold text-ink-900">
+            <dd class="mt-1 text-2xl font-bold text-ink-900 dark:text-ink-50">
               &lt; 24 h
             </dd>
           </div>
@@ -104,11 +104,11 @@ import { siteConfig } from "../config/site";
             aria-hidden="true"
           />
           <div
-            class="relative rounded-[2rem] border border-ink-200/70 bg-white p-8 shadow-[var(--shadow-glow)]"
+            class="relative rounded-[2rem] border border-ink-200/70 bg-white p-8 shadow-[var(--shadow-glow)] dark:border-white/10 dark:bg-ink-900"
           >
             <div class="flex items-center gap-3 mb-6">
               <div
-                class="h-12 w-12 rounded-2xl bg-brand-50 text-brand-600 inline-flex items-center justify-center"
+                class="h-12 w-12 rounded-2xl bg-brand-50 text-brand-600 inline-flex items-center justify-center dark:bg-brand-500/15 dark:text-brand-300"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -126,13 +126,15 @@ import { siteConfig } from "../config/site";
                 </svg>
               </div>
               <div>
-                <p class="text-sm font-medium text-ink-500">Schnelle Hilfe</p>
-                <p class="text-lg font-semibold text-ink-900">
+                <p class="text-sm font-medium text-ink-500 dark:text-ink-400">
+                  Schnelle Hilfe
+                </p>
+                <p class="text-lg font-semibold text-ink-900 dark:text-ink-50">
                   Transparente Angebote
                 </p>
               </div>
             </div>
-            <ul class="space-y-3 text-sm text-ink-800">
+            <ul class="space-y-3 text-sm text-ink-800 dark:text-ink-200">
               {
                 [
                   "Kostenlose Erstberatung telefonisch oder per E-Mail",
@@ -142,7 +144,7 @@ import { siteConfig } from "../config/site";
                 ].map((item) => (
                   <li class="flex items-start gap-3">
                     <span
-                      class="mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700"
+                      class="mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
                       aria-hidden="true"
                     >
                       <svg
@@ -163,10 +165,10 @@ import { siteConfig } from "../config/site";
               }
             </ul>
             <div
-              class="mt-6 flex items-center gap-3 rounded-2xl bg-ink-50 p-4"
+              class="mt-6 flex items-center gap-3 rounded-2xl bg-ink-50 p-4 dark:bg-white/5"
             >
               <div
-                class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm"
+                class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm dark:bg-ink-900 dark:text-brand-300"
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -182,8 +184,10 @@ import { siteConfig } from "../config/site";
                 </svg>
               </div>
               <div class="text-sm">
-                <p class="font-semibold text-ink-900">Einsatzgebiet</p>
-                <p class="text-ink-600">
+                <p class="font-semibold text-ink-900 dark:text-ink-50">
+                  Einsatzgebiet
+                </p>
+                <p class="text-ink-600 dark:text-ink-300">
                   Hamburg, Norderstedt & direktes Umland
                 </p>
               </div>

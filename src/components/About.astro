@@ -19,20 +19,20 @@ const highlights = [
 ];
 ---
 
-<section id="ueber-uns" class="section bg-ink-50">
+<section id="ueber-uns" class="section bg-ink-50 dark:bg-ink-900/50">
   <div class="container-page grid lg:grid-cols-12 gap-12 items-start">
     <div class="lg:col-span-5">
       <p class="section-eyebrow">Über uns</p>
       <h2 class="section-title mt-3">
         Handwerk mit Herz – Service aus Hamburg & Norderstedt
       </h2>
-      <p class="mt-5 text-lg text-ink-700 leading-relaxed">
+      <p class="mt-5 text-lg text-ink-700 leading-relaxed dark:text-ink-200">
         Als junges Unternehmen mit fundiertem handwerklichen Fachwissen sind
         wir Ihr zuverlässiger Partner, wenn es um Hausmeister-Dienstleistungen
         geht. Qualität, Zuverlässigkeit und Kundenzufriedenheit stehen bei
         uns an erster Stelle.
       </p>
-      <p class="mt-4 text-base text-ink-600 leading-relaxed">
+      <p class="mt-4 text-base text-ink-600 leading-relaxed dark:text-ink-300">
         Ob Privathaushalt, Wohnanlage oder Gewerbeobjekt – wir bieten
         maßgeschneiderte Lösungen für Ihre Bedürfnisse. Dabei legen wir
         besonderen Wert auf saubere Arbeit, pünktliche Termine und
@@ -55,12 +55,12 @@ const highlights = [
       {
         highlights.map((h, idx) => (
           <article
-            class={`rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] ${
+            class={`rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900 ${
               idx % 3 === 0 ? "sm:translate-y-6" : ""
             }`}
           >
             <div
-              class="h-10 w-10 rounded-xl bg-brand-50 text-brand-600 inline-flex items-center justify-center mb-4"
+              class="h-10 w-10 rounded-xl bg-brand-50 text-brand-600 inline-flex items-center justify-center mb-4 dark:bg-brand-500/15 dark:text-brand-300"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -75,10 +75,12 @@ const highlights = [
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <h3 class="font-display text-lg font-semibold text-ink-900">
+            <h3 class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">
               {h.title}
             </h3>
-            <p class="mt-2 text-sm text-ink-600 leading-relaxed">{h.body}</p>
+            <p class="mt-2 text-sm text-ink-600 leading-relaxed dark:text-ink-300">
+              {h.body}
+            </p>
           </article>
         ))
       }
