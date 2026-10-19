@@ -11,7 +11,7 @@ export const siteConfig = {
     email: "info@zeus-service.de",
     emailHref: "mailto:info@zeus-service.de",
     address: {
-      street: "",
+      street: "Berliner Allee 44A",
       zip: "22850",
       city: "Norderstedt",
       country: "Deutschland",
