@@ -194,7 +194,7 @@ ADMIN_USERNAME_VAL="${ADMIN_USERNAME:-admin}"
 log "Erzeuge PBKDF2-Hash fuer User »$ADMIN_USERNAME_VAL«"
 PASSWORD_HASH="$(node --input-type=module -e "
 function toHex(buf){return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join('');}
-async function h(p,i=210000){const s=new ArrayBuffer(16);crypto.getRandomValues(new Uint8Array(s));
+async function h(p,i=100000){const s=new ArrayBuffer(16);crypto.getRandomValues(new Uint8Array(s));
 const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(p),{name:'PBKDF2'},false,['deriveBits']);
 const b=await crypto.subtle.deriveBits({name:'PBKDF2',salt:s,iterations:i,hash:'SHA-256'},k,256);
 return 'pbkdf2\$'+i+'\$'+toHex(s)+'\$'+toHex(b);} console.log(await h(process.env.P));" P="$ADMIN_PASSWORD")"

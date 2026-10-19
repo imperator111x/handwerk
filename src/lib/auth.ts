@@ -116,7 +116,7 @@ function randomToken(bytes = 32): string {
  */
 export async function hashPassword(
   password: string,
-  iterations = 210_000,
+  iterations = 100_000,
 ): Promise<string> {
   const saltBuf = new ArrayBuffer(16);
   const salt = new Uint8Array(saltBuf);

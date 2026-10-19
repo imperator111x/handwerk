@@ -69,7 +69,8 @@ npm run check
 - **Users** werden in der D1-Tabelle `users` abgelegt (siehe
   [`migrations/0001_init.sql`](migrations/0001_init.sql)). Passwörter werden
   **nie** im Klartext gespeichert, sondern als `pbkdf2$<iterations>$<salt_hex>$<hash_hex>`
-  (PBKDF2-SHA-256, 210 000 Iterationen, 16-Byte-Zufallssalt, Web Crypto).
+  (PBKDF2-SHA-256, 100 000 Iterationen, 16-Byte-Zufallssalt, Web Crypto; das ist das von
+  Cloudflare Workers Web-Crypto maximal unterstützte Iterationslimit).
 - **Kontaktanfragen** landen in `contact_requests` mit Status
   `new | in_progress | done | archived`.
 - **Sessions** werden als Zufalls-Token (32 Byte, hex) im HttpOnly-Cookie
@@ -139,8 +140,8 @@ HASH="$(node --input-type=module -e "
 function toHex(b){return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
 const s=new ArrayBuffer(16); crypto.getRandomValues(new Uint8Array(s));
 const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(process.env.P),{name:'PBKDF2'},false,['deriveBits']);
-const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:s,iterations:210000,hash:'SHA-256'},k,256);
-console.log('pbkdf2\$210000\$'+toHex(s)+'\$'+toHex(bits));
+const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:s,iterations:100000,hash:'SHA-256'},k,256);
+console.log('pbkdf2\$100000\$'+toHex(s)+'\$'+toHex(bits));
 " P="DEIN_STARKES_PASSWORT")"
 
 npx wrangler d1 execute zeus-service-db --remote --command \
