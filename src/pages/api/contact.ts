@@ -3,6 +3,7 @@ import { verifyTurnstile } from "../../lib/turnstile";
 import { parseContact } from "../../lib/validation";
 import { insertContactRequest } from "../../lib/db";
 import { sendEmail } from "../../lib/email";
+import { requestNotice } from "../../lib/notice-copy";
 import { notifyStaff } from "../../lib/notify";
 
 export const prerender = false;
@@ -87,9 +88,9 @@ export async function POST(ctx: APIContext): Promise<Response> {
       objektbetreuung: "Objektbetreuung",
       sonstiges: "Sonstiges",
     };
+    const notice = requestNotice(payload.name, topics[payload.topic] ?? payload.topic);
     const job = notifyStaff(env, {
-      title: "Neue Anfrage",
-      body: `${payload.name} · ${topics[payload.topic] ?? payload.topic}`,
+      ...notice,
       url: `/admin/anfragen/${persistedId}`,
     });
     const runtimeCtx = ctx.locals.runtime?.ctx;

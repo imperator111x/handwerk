@@ -3,6 +3,7 @@ import type { SSRManifest } from "astro";
 import { handle } from "@astrojs/cloudflare/handler";
 import PostalMime from "postal-mime";
 import { ingestInboundEmail } from "./lib/inbound-mail";
+import { mailNotice, replyNotice, requestNotice } from "./lib/notice-copy";
 import { notifyStaff } from "./lib/notify";
 
 interface InboundMessage {
@@ -105,15 +106,15 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
     "threadId" in result ? result.threadId : "requestId" in result ? result.requestId : result.reason;
   console.log("inbound_email", result.action, detail);
   if (result.action === "mailbox") {
+    await notifyStaff(env, { ...mailNotice(fromLabel, subject), url: "/admin/postfach" });
+  } else if (result.action === "created") {
     await notifyStaff(env, {
-      title: "Neue Mail",
-      body: `${fromLabel}: ${subject}`,
-      url: `/admin/postfach`,
+      ...requestNotice(fromLabel, subject || "E-Mail"),
+      url: `/admin/anfragen/${result.requestId}`,
     });
-  } else if (result.action === "stored" || result.action === "created") {
+  } else if (result.action === "stored") {
     await notifyStaff(env, {
-      title: result.action === "created" ? "Neue Anfrage" : "Kunde hat geantwortet",
-      body: `${fromLabel}: ${subject}`,
+      ...replyNotice(fromLabel, subject),
       url: `/admin/anfragen/${result.requestId}`,
     });
   }

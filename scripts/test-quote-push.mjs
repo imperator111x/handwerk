@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mailNotice, replyNotice, requestNotice } from "../src/lib/notice-copy.ts";
 import { formatEuro, formatOfferDate, offerPlainText, parseEuroToCents } from "../src/lib/quote.ts";
 import { bytesFromBase64Url, encryptPushPayload } from "../src/lib/web-push.ts";
 
@@ -8,6 +9,12 @@ assert.equal(parseEuroToCents("1.495"), null);
 assert.equal(parseEuroToCents("0"), null);
 assert.equal(formatEuro(14950), "149,50\u00a0€");
 assert.equal(formatOfferDate("2026-10-31"), "31. Oktober 2026");
+assert.deepEqual(requestNotice("Ndbdj jddj", "Objektbetreuung"), {
+  title: "Neue Anfrage",
+  body: "Ndbdj jddj hat angefragt: Objektbetreuung.",
+});
+assert.equal(replyNotice("Anna Beispiel", "Ohne Betreff").body, "Anna Beispiel hat auf eine Anfrage geantwortet.");
+assert.equal(mailNotice("Max <max@example.com>", "Heizung tropft").body, "Max schreibt: Heizung tropft");
 assert.match(offerPlainText({
   title: "Rollladen einstellen",
   body: "Ein Rollladen im Wohnzimmer.",

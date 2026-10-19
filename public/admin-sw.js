@@ -5,10 +5,11 @@ self.addEventListener("push", (event) => {
   } catch (_err) {
     data = {};
   }
-  const title = data.title || "Zeus Admin";
+  const title = data.title || "Zeus-Service";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: data.body || "",
+      lang: "de",
       icon: "/apple-touch-icon.png",
       badge: "/favicon-32.png",
       data: { url: data.url || "/admin" },
