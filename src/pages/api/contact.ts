@@ -1,6 +1,7 @@
 import type { APIContext } from "astro";
 import { parseContact } from "../../lib/validation";
 import { insertContactRequest } from "../../lib/db";
+import { sendEmail } from "../../lib/email";
 
 export const prerender = false;
 
@@ -59,28 +60,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
     }
   }
 
-  if (env?.RESEND_API_KEY && env.CONTACT_TO_EMAIL) {
+  if (env && env.CONTACT_TO_EMAIL) {
     try {
-      const resp = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",
-          to: [env.CONTACT_TO_EMAIL],
-          reply_to: payload.email,
-          subject: `Neue Anfrage: ${payload.topic} – ${payload.name}`,
-          text: renderPlainMail(payload),
-        }),
+      const text = renderPlainMail(payload);
+      const result = await sendEmail(env, {
+        from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",
+        fromName: env.SITE_NAME ?? "Zeus-Service",
+        to: env.CONTACT_TO_EMAIL,
+        replyTo: payload.email,
+        subject: `Neue Anfrage: ${payload.topic} – ${payload.name}`,
+        html: `<pre style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,sans-serif;font-size:14px;line-height:1.6;color:#1f2a44;">${escapeHtml(text)}</pre>`,
+        text,
       });
-      if (!resp.ok) {
-        const body = await resp.text();
-        console.error("resend_error", resp.status, body);
+      if (!result.ok && result.via !== "none") {
+        console.error("contact_notify_failed", result.via, result.error);
       }
     } catch (err) {
-      console.error("resend_exception", err);
+      console.error("contact_notify_exception", err);
     }
   }
 
@@ -124,4 +120,13 @@ function renderPlainMail(payload: {
     "Nachricht:",
     payload.message,
   ].join("\n");
+}
+
+function escapeHtml(input: string): string {
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
