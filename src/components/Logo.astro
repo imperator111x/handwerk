@@ -1,0 +1,43 @@
+---
+interface Props {
+  class?: string;
+  variant?: "light" | "dark";
+}
+
+const { class: className = "", variant = "dark" } = Astro.props;
+const textColor = variant === "light" ? "text-white" : "text-ink-900";
+const subColor = variant === "light" ? "text-brand-200" : "text-brand-600";
+---
+
+<a
+  href="/"
+  class={`inline-flex items-center gap-2.5 group ${className}`}
+  aria-label="Zeus-Service Startseite"
+>
+  <span
+    class="relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-[var(--shadow-glow)] transition-transform group-hover:scale-105"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="h-5 w-5"
+      aria-hidden="true"
+    >
+      <path d="M4 20h16" />
+      <path d="M6 20V9l6-4 6 4v11" />
+      <path d="M10 20v-6h4v6" />
+    </svg>
+  </span>
+  <span class="flex flex-col leading-tight">
+    <span class={`font-display font-bold text-lg tracking-tight ${textColor}`}>
+      Zeus-Service
+    </span>
+    <span class={`text-[11px] font-medium uppercase tracking-[0.18em] ${subColor}`}>
+      Hausmeisterservice
+    </span>
+  </span>
+</a>

@@ -1,0 +1,123 @@
+---
+import "../styles/global.css";
+import { siteConfig } from "../config/site";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  showHeader?: boolean;
+  showFooter?: boolean;
+}
+
+const {
+  title,
+  description = siteConfig.description,
+  canonical,
+  ogImage = "/og-image.svg",
+  noindex = false,
+  showHeader = true,
+  showFooter = true,
+} = Astro.props;
+
+const fullTitle = title
+  ? `${title} | ${siteConfig.name}`
+  : `${siteConfig.name} – ${siteConfig.tagline}`;
+
+const canonicalUrl =
+  canonical ?? new URL(Astro.url.pathname, siteConfig.url).toString();
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "LocalBusiness",
+  name: siteConfig.name,
+  description: siteConfig.description,
+  url: siteConfig.url,
+  telephone: siteConfig.contact.phone,
+  email: siteConfig.contact.email,
+  address: {
+    "@type": "PostalAddress",
+    postalCode: siteConfig.contact.address.zip,
+    addressLocality: siteConfig.contact.address.city,
+    addressCountry: "DE",
+  },
+  areaServed: ["Hamburg", "Norderstedt", "Schleswig-Holstein"],
+  priceRange: "€€",
+  openingHoursSpecification: [
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Monday", "Wednesday", "Thursday", "Friday"],
+      opens: "09:00",
+      closes: "20:00",
+    },
+    {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: "Saturday",
+      opens: "15:00",
+      closes: "18:00",
+    },
+  ],
+};
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="color-scheme" content="light" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+
+    {noindex && <meta name="robots" content="noindex,nofollow" />}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:locale" content="de_DE" />
+    <meta property="og:image" content={new URL(ogImage, siteConfig.url).toString()} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, siteConfig.url).toString()} />
+
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+      crossorigin
+    />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
+    />
+
+    <script
+      is:inline
+      type="application/ld+json"
+      set:html={JSON.stringify(jsonLd)}
+    />
+  </head>
+  <body class="min-h-screen flex flex-col">
+    {showHeader && <Header />}
+    <main class="flex-1">
+      <slot />
+    </main>
+    {showFooter && <Footer />}
+  </body>
+</html>

@@ -1,0 +1,129 @@
+---
+import Logo from "./Logo.astro";
+import { siteConfig } from "../config/site";
+---
+
+<header
+  id="site-header"
+  class="sticky top-0 z-50 border-b border-transparent bg-white/80 backdrop-blur-md transition-all"
+>
+  <div class="container-page flex h-18 items-center justify-between py-4">
+    <Logo />
+
+    <nav aria-label="Hauptnavigation" class="hidden lg:flex items-center gap-1">
+      {
+        siteConfig.nav.map((item) => (
+          <a
+            href={item.href}
+            class="rounded-full px-4 py-2 text-sm font-medium text-ink-700 transition hover:bg-ink-100 hover:text-brand-700"
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <a
+        href={siteConfig.contact.phoneHref}
+        class="hidden sm:inline-flex items-center gap-2 text-sm font-semibold text-ink-800 hover:text-brand-700"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-4 w-4 text-brand-600"
+          aria-hidden="true"
+        >
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+        </svg>
+        {siteConfig.contact.phone}
+      </a>
+      <a href="#kontakt" class="btn-primary hidden md:inline-flex">
+        Jetzt anfragen
+      </a>
+      <button
+        type="button"
+        id="nav-toggle"
+        class="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-full border border-ink-200 text-ink-800 hover:bg-ink-100"
+        aria-expanded="false"
+        aria-controls="mobile-menu"
+        aria-label="Menü öffnen"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-5 w-5"
+          aria-hidden="true"
+        >
+          <line x1="4" y1="6" x2="20" y2="6" />
+          <line x1="4" y1="12" x2="20" y2="12" />
+          <line x1="4" y1="18" x2="20" y2="18" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div
+    id="mobile-menu"
+    class="lg:hidden hidden border-t border-ink-200 bg-white"
+  >
+    <nav class="container-page flex flex-col gap-1 py-4" aria-label="Mobile Navigation">
+      {
+        siteConfig.nav.map((item) => (
+          <a
+            href={item.href}
+            class="rounded-xl px-4 py-3 text-base font-medium text-ink-800 hover:bg-ink-100"
+            data-close-menu
+          >
+            {item.label}
+          </a>
+        ))
+      }
+      <a
+        href="#kontakt"
+        class="btn-primary mt-2 w-full justify-center"
+        data-close-menu
+      >
+        Jetzt anfragen
+      </a>
+    </nav>
+  </div>
+</header>
+
+<script is:inline>
+  const header = document.getElementById("site-header");
+  if (header) {
+    const setScrolled = () => {
+      if (window.scrollY > 8) {
+        header.classList.add("border-ink-200", "shadow-sm");
+      } else {
+        header.classList.remove("border-ink-200", "shadow-sm");
+      }
+    };
+    setScrolled();
+    window.addEventListener("scroll", setScrolled, { passive: true });
+  }
+
+  const toggle = document.getElementById("nav-toggle");
+  const menu = document.getElementById("mobile-menu");
+  if (toggle && menu) {
+    toggle.addEventListener("click", () => {
+      const open = menu.classList.toggle("hidden") === false;
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+    menu.querySelectorAll("[data-close-menu]").forEach((el) => {
+      el.addEventListener("click", () => {
+        menu.classList.add("hidden");
+        toggle.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+</script>

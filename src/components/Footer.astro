@@ -1,0 +1,103 @@
+---
+import Logo from "./Logo.astro";
+import { siteConfig } from "../config/site";
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-ink-200 bg-ink-950 text-ink-200">
+  <div class="container-page py-16 grid gap-10 md:grid-cols-4">
+    <div class="md:col-span-2 space-y-4">
+      <Logo variant="light" />
+      <p class="text-sm text-ink-300 max-w-sm">
+        Professioneller Hausmeisterservice in Hamburg und Norderstedt.
+        Zuverlässig, kompetent und schnell – ob Reparatur, Reinigung oder Wartung.
+      </p>
+      <div class="flex flex-wrap gap-3 pt-2">
+        <a href={siteConfig.contact.phoneHref} class="btn-primary">
+          {siteConfig.contact.phone}
+        </a>
+        <a
+          href={siteConfig.contact.emailHref}
+          class="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+        >
+          E-Mail schreiben
+        </a>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold uppercase tracking-widest text-white mb-4">
+        Navigation
+      </h3>
+      <ul class="space-y-2 text-sm">
+        {
+          siteConfig.nav.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="text-ink-300 hover:text-white transition"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+        <li>
+          <a href="/impressum" class="text-ink-300 hover:text-white transition">
+            Impressum
+          </a>
+        </li>
+        <li>
+          <a
+            href="/datenschutz"
+            class="text-ink-300 hover:text-white transition"
+          >
+            Datenschutz
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold uppercase tracking-widest text-white mb-4">
+        Kontakt
+      </h3>
+      <ul class="space-y-2 text-sm text-ink-300">
+        <li>
+          <a href={siteConfig.contact.phoneHref} class="hover:text-white">
+            {siteConfig.contact.phone}
+          </a>
+        </li>
+        <li>
+          <a href={siteConfig.contact.emailHref} class="hover:text-white">
+            {siteConfig.contact.email}
+          </a>
+        </li>
+        <li>
+          {siteConfig.contact.address.zip} {siteConfig.contact.address.city}
+        </li>
+      </ul>
+      <h3
+        class="text-sm font-semibold uppercase tracking-widest text-white mt-6 mb-3"
+      >
+        Öffnungszeiten
+      </h3>
+      <ul class="space-y-1 text-xs text-ink-400">
+        {
+          siteConfig.contact.hours.map((h) => (
+            <li>
+              <span class="text-ink-200">{h.day}:</span> {h.time}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div
+    class="border-t border-white/10 py-6 text-center text-xs text-ink-400"
+  >
+    © {year} {siteConfig.name}. Alle Rechte vorbehalten. · Gehostet auf
+    Cloudflare Workers.
+  </div>
+</footer>

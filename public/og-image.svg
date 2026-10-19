@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="1" stop-color="#dbeafe"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1050" cy="100" r="200" fill="#bfdbfe" opacity="0.5"/>
+  <circle cx="150" cy="560" r="220" fill="#93c5fd" opacity="0.4"/>
+  <g transform="translate(100,180)">
+    <rect width="88" height="88" rx="20" fill="url(#brand)"/>
+    <path d="M22 72h44M28 72V34l16-11 16 11v38M40 72V54h12v18"
+      fill="none" stroke="white" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="100" y="340" font-family="Inter, Helvetica, Arial, sans-serif" font-size="72" font-weight="800" fill="#0f172a">
+    Zeus-Service
+  </text>
+  <text x="100" y="400" font-family="Inter, Helvetica, Arial, sans-serif" font-size="36" font-weight="500" fill="#1e293b">
+    Hausmeisterservice für Hamburg &amp; Norderstedt
+  </text>
+  <text x="100" y="470" font-family="Inter, Helvetica, Arial, sans-serif" font-size="26" font-weight="500" fill="#475569">
+    Reparaturen · Reinigung · Wartung · Gartenpflege
+  </text>
+  <g transform="translate(100,520)">
+    <rect width="260" height="60" rx="30" fill="#2563eb"/>
+    <text x="130" y="39" text-anchor="middle" font-family="Inter, Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="white">
+      zeus-service.de
+    </text>
+  </g>
+</svg>
