@@ -56,8 +56,12 @@ const message = flag ? messages[flag] : null;
         <input class="input" id="caption" name="caption" maxlength="240" placeholder="Eingestellt in Norderstedt" />
       </div>
       <div class="sm:col-span-2">
-        <label class="label" for="image">Foto</label>
-        <input class="input" id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required />
+        <p class="label">Foto</p>
+        <div class="mt-2 flex flex-wrap items-center gap-3">
+          <label for="image" class="btn-secondary cursor-pointer">Foto auswählen</label>
+          <span id="image-name" class="text-sm text-ink-600 dark:text-ink-300">Keine Datei gewählt</span>
+          <input class="sr-only" id="image" name="image" type="file" accept="image/jpeg,image/png,image/webp" required />
+        </div>
       </div>
       <button type="submit" class="btn-primary sm:col-span-2 sm:w-fit">Auf die Website stellen</button>
     </form>
@@ -91,6 +95,12 @@ const message = flag ? messages[flag] : null;
 <script>
   const form = document.getElementById("photo-form");
   const input = document.getElementById("image");
+  const imageName = document.getElementById("image-name");
+  if (input instanceof HTMLInputElement && imageName) {
+    input.addEventListener("change", () => {
+      imageName.textContent = input.files?.[0]?.name || "Keine Datei gewählt";
+    });
+  }
   if (form instanceof HTMLFormElement && input instanceof HTMLInputElement) {
     form.addEventListener("submit", async (event) => {
       const file = input.files?.[0];
