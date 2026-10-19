@@ -7,12 +7,15 @@
  */
 
 import type { APIContext } from "astro";
+import { formatUserSignature } from "./user-name";
 
 export interface UserRow {
   id: number;
   username: string;
   password_hash: string;
   role: string;
+  first_name: string;
+  last_name: string;
   created_at: number;
   last_login_at: number | null;
 }
@@ -57,7 +60,7 @@ export async function findUserByUsername(
 ): Promise<UserRow | null> {
   const row = await db
     .prepare(
-      "SELECT id, username, password_hash, role, created_at, last_login_at FROM users WHERE username = ? LIMIT 1",
+      "SELECT id, username, password_hash, role, first_name, last_name, created_at, last_login_at FROM users WHERE username = ? LIMIT 1",
     )
     .bind(username)
     .first<UserRow>();
@@ -228,6 +231,8 @@ export interface UserPublic {
   id: number;
   username: string;
   role: string;
+  first_name: string;
+  last_name: string;
   created_at: number;
   last_login_at: number | null;
 }
@@ -235,7 +240,7 @@ export interface UserPublic {
 export async function listUsers(db: D1Database): Promise<UserPublic[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, username, role, created_at, last_login_at
+      `SELECT id, username, role, first_name, last_name, created_at, last_login_at
          FROM users ORDER BY created_at ASC`,
     )
     .all<UserPublic>();
@@ -248,7 +253,7 @@ export async function findUserById(
 ): Promise<UserRow | null> {
   const row = await db
     .prepare(
-      `SELECT id, username, password_hash, role, created_at, last_login_at
+      `SELECT id, username, password_hash, role, first_name, last_name, created_at, last_login_at
          FROM users WHERE id = ? LIMIT 1`,
     )
     .bind(id)
@@ -258,15 +263,45 @@ export async function findUserById(
 
 export async function createUser(
   db: D1Database,
-  data: { username: string; passwordHash: string; role: UserRole },
+  data: {
+    username: string;
+    passwordHash: string;
+    role: UserRole;
+    firstName: string;
+    lastName: string;
+  },
 ): Promise<number> {
   const result = await db
     .prepare(
-      `INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)`,
+      `INSERT INTO users (username, password_hash, role, first_name, last_name)
+       VALUES (?, ?, ?, ?, ?)`,
     )
-    .bind(data.username, data.passwordHash, data.role)
+    .bind(data.username, data.passwordHash, data.role, data.firstName, data.lastName)
     .run();
   return Number(result.meta.last_row_id ?? 0);
+}
+
+export async function updateUserName(
+  db: D1Database,
+  userId: number,
+  firstName: string,
+  lastName: string,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE users SET first_name = ?, last_name = ? WHERE id = ?`)
+    .bind(firstName, lastName, userId)
+    .run();
+}
+
+export async function signatureNameForUser(
+  db: D1Database,
+  userId: number | undefined,
+  fallbackUsername: string,
+): Promise<string> {
+  if (!userId) return fallbackUsername;
+  const user = await findUserById(db, userId);
+  if (!user) return fallbackUsername;
+  return formatUserSignature(user.first_name, user.last_name, fallbackUsername);
 }
 
 export async function updateUserPassword(

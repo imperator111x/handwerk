@@ -7,7 +7,13 @@ import {
   markInviteSent,
 } from "../../../lib/appointments";
 import { requireSession } from "../../../lib/auth";
-import { getContactRequest, getDb, insertReply, updateContactStatus } from "../../../lib/db";
+import {
+  getContactRequest,
+  getDb,
+  insertReply,
+  signatureNameForUser,
+  updateContactStatus,
+} from "../../../lib/db";
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "../../../lib/email";
 import { buildReplyAddress, DEFAULT_REPLY_DOMAIN, normalizeMessageId } from "../../../lib/reply-address";
 
@@ -68,6 +74,8 @@ export async function POST(ctx: APIContext): Promise<Response> {
       ? await buildReplyAddress(env.SESSION_SECRET, requestId, replyDomain)
       : null;
 
+  const authorName = await signatureNameForUser(db, session.userId, session.username);
+
   let emailStatus = "skipped:no_env";
   let sentMessageId: string | null = null;
   let emailSentAt: number | null = null;
@@ -85,7 +93,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         recipientName: request.name,
         subject,
         bodyText: body,
-        authorName: session.username,
+        authorName,
         fromEmail,
         phone: request.phone,
         replyToEmail: replyTo ?? fromEmail,
@@ -98,7 +106,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         recipientName: request.name,
         subject,
         bodyText: body,
-        authorName: session.username,
+        authorName,
         fromEmail,
         phone: request.phone,
         replyToEmail: replyTo ?? fromEmail,
@@ -122,7 +130,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   await insertReply(db, {
     request_id: requestId,
     user_id: session.userId ?? null,
-    author_name: session.username,
+    author_name: authorName,
     subject,
     body: `${body}\n\n${link}`,
     email_sent_at: emailSentAt,

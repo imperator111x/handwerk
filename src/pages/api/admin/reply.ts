@@ -5,6 +5,7 @@ import {
   getDb,
   insertReply,
   latestInboundMessageId,
+  signatureNameForUser,
   updateContactStatus,
 } from "../../../lib/db";
 import {
@@ -71,7 +72,11 @@ export async function POST(ctx: APIContext): Promise<Response> {
   let emailError: string | null = null;
   let sentMessageId: string | null = null;
 
-  const authorName = session.username;
+  const authorName = await signatureNameForUser(
+    db,
+    session.userId,
+    session.username,
+  );
   const siteName = env?.SITE_NAME ?? "Zeus-Service";
   const siteUrl = env?.SITE_URL ?? "https://zeus-service.de";
   const fromEmail = env?.CONTACT_FROM_EMAIL ?? "website@zeus-service.de";
@@ -138,7 +143,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     await insertReply(db, {
       request_id: requestId,
       user_id: session.userId ?? null,
-      author_name: session.username,
+      author_name: authorName,
       subject,
       body,
       email_sent_at: emailSentAt,

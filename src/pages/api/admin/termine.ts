@@ -7,7 +7,7 @@ import {
   createSlot,
   deleteFreeSlot,
 } from "../../../lib/appointments";
-import { getDb } from "../../../lib/db";
+import { getDb, signatureNameForUser } from "../../../lib/db";
 
 export const prerender = false;
 
@@ -64,7 +64,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
           ctx.locals.runtime?.env,
           booking,
           "admin",
-          session.username,
+          await signatureNameForUser(db, session.userId, session.username),
         );
       }
       return ctx.redirect(`${redirectTo}?termin=${booking ? "cancelled" : "missing"}`, 303);
