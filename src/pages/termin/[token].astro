@@ -1,0 +1,200 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import {
+  formatAddress,
+  formatSlot,
+  getBookingForRequest,
+  getInviteByToken,
+  isInviteToken,
+  listOpenSlots,
+  splitPersonName,
+} from "../../lib/appointments";
+import { getContactRequest, getDb } from "../../lib/db";
+
+export const prerender = false;
+
+const token = Astro.params.token ?? "";
+const db = getDb(Astro);
+const invite = db && isInviteToken(token) ? await getInviteByToken(db, token) : null;
+if (!invite || !db) {
+  return new Response("Dieser Terminlink ist ungültig.", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+const request = await getContactRequest(db, invite.request_id);
+if (!request) {
+  return new Response("Diese Anfrage gibt es nicht mehr.", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8" },
+  });
+}
+
+const booking = await getBookingForRequest(db, request.id);
+const slots = booking ? [] : await listOpenSlots(db);
+const person = splitPersonName(request.name);
+const status = Astro.url.searchParams.get("status");
+const statusText: Record<string, string> = {
+  booked: "Ihr Termin ist reserviert. Wir melden uns, falls sich etwas ändert.",
+  taken: "Dieser Termin wurde gerade vergeben. Bitte wählen Sie einen anderen.",
+  already: "Für diese Anfrage ist bereits ein Termin gebucht.",
+  missing: "Dieser Termin ist nicht mehr verfügbar.",
+  invalid: "Bitte füllen Sie Vorname, Nachname und Straße aus.",
+  db: "Die Buchung konnte gerade nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+};
+---
+
+<Layout title="Termin vereinbaren" noindex description="Termin für Ihre Anfrage bei Zeus-Service auswählen">
+  <section class="section bg-white dark:bg-ink-950">
+    <div class="container-page max-w-2xl">
+      <p class="section-eyebrow">Zeus-Service</p>
+      <h1 class="section-title mt-3">Termin vereinbaren</h1>
+      <p class="mt-3 text-ink-600 dark:text-ink-300">
+        Wählen Sie eine freie Zeit und tragen Sie Vorname, Nachname und Straße ein.
+        Die Buchung wird Ihrer Anfrage zugeordnet.
+      </p>
+
+      {status && statusText[status] && (
+        <p class={`mt-6 rounded-2xl border px-4 py-3 text-sm ${
+          status === "booked"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+        }`}>{statusText[status]}</p>
+      )}
+
+      {booking ? (
+        <article class="mt-8 rounded-3xl border border-ink-200 bg-ink-50 p-6 dark:border-white/10 dark:bg-white/5">
+          <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">Ihr Termin</p>
+          <h2 class="mt-2 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+            {formatSlot(booking.starts_at, booking.ends_at)}
+          </h2>
+          <p class="mt-3 text-ink-700 dark:text-ink-200">
+            {booking.first_name} {booking.last_name}<br />
+            {formatAddress(booking)}
+          </p>
+        </article>
+      ) : slots.length === 0 ? (
+        <p class="mt-8 rounded-2xl border border-dashed border-ink-300 px-5 py-8 text-sm text-ink-600 dark:border-white/15 dark:text-ink-300">
+          Aktuell ist keine Zeit frei. Antworten Sie einfach auf die E-Mail, dann finden wir einen anderen Termin.
+        </p>
+      ) : (
+        <form method="POST" action="/api/termin" class="mt-8 space-y-5 rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900">
+          <input type="hidden" name="token" value={token} />
+          <fieldset class="space-y-3">
+            <legend class="label">Freie Termine</legend>
+            {slots.map((slot, index) => (
+              <label class="flex items-start gap-3 rounded-2xl border border-ink-200 px-4 py-3 text-sm dark:border-white/10">
+                <input
+                  class="mt-1"
+                  type="radio"
+                  name="slot_id"
+                  value={slot.id}
+                  required
+                  checked={index === 0}
+                />
+                <span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{formatSlot(slot.starts_at, slot.ends_at)}</span>
+                  {slot.note && <span class="mt-0.5 block text-ink-500 dark:text-ink-400">{slot.note}</span>}
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="label" for="first_name">Vorname</label>
+              <input class="input" id="first_name" name="first_name" required minlength="2" maxlength="80" value={person.firstName} autocomplete="given-name" />
+            </div>
+            <div>
+              <label class="label" for="last_name">Nachname</label>
+              <input class="input" id="last_name" name="last_name" required minlength="2" maxlength="80" value={person.lastName} autocomplete="family-name" />
+            </div>
+          </div>
+
+          <div class="relative">
+            <label class="label" for="street">Straße und Hausnummer</label>
+            <input class="input" id="street" name="street" required minlength="3" maxlength="160" autocomplete="off" placeholder="Straße suchen …" />
+            <ul id="street-suggestions" class="absolute z-10 mt-1 hidden max-h-64 w-full overflow-auto rounded-2xl border border-ink-200 bg-white shadow-lg dark:border-white/10 dark:bg-ink-900"></ul>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label class="label" for="postal_code">PLZ</label>
+              <input class="input" id="postal_code" name="postal_code" maxlength="12" autocomplete="postal-code" />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="label" for="city">Ort</label>
+              <input class="input" id="city" name="city" maxlength="80" autocomplete="address-level2" />
+            </div>
+          </div>
+          <p class="text-xs text-ink-500 dark:text-ink-400">
+            Bei der Straßensuche erscheint ein Vorschlag. PLZ und Ort werden daraus übernommen und können geändert werden.
+          </p>
+          <button type="submit" class="btn-primary">Termin reservieren</button>
+        </form>
+      )}
+    </div>
+  </section>
+</Layout>
+
+<script is:inline>
+  const street = document.getElementById("street");
+  const list = document.getElementById("street-suggestions");
+  const postal = document.getElementById("postal_code");
+  const city = document.getElementById("city");
+  let timer = 0;
+  function hide() {
+    if (!list) return;
+    list.classList.add("hidden");
+    list.replaceChildren();
+  }
+  function fill(item) {
+    if (street) street.value = item.street || "";
+    if (postal) postal.value = item.postalCode || "";
+    if (city) city.value = item.city || "";
+    hide();
+  }
+  async function search(query) {
+    const response = await fetch("/api/adresse?q=" + encodeURIComponent(query), {
+      headers: { Accept: "application/json" },
+    });
+    const payload = await response.json().catch(() => ({ results: [] }));
+    if (!list) return;
+    list.replaceChildren();
+    const results = Array.isArray(payload.results) ? payload.results : [];
+    if (results.length === 0) {
+      list.classList.add("hidden");
+      return;
+    }
+    for (const item of results) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "block w-full px-4 py-3 text-left text-sm text-ink-800 hover:bg-ink-50 dark:text-ink-100 dark:hover:bg-white/5";
+      button.textContent = item.label || item.street || "";
+      button.addEventListener("click", () => fill(item));
+      const row = document.createElement("li");
+      row.append(button);
+      list.append(row);
+    }
+    list.classList.remove("hidden");
+  }
+  if (street) {
+    street.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      const query = street.value.trim();
+      if (query.length < 3) {
+        hide();
+        return;
+      }
+      timer = window.setTimeout(() => {
+        search(query).catch(() => hide());
+      }, 250);
+    });
+    document.addEventListener("click", (event) => {
+      if (!list || !street) return;
+      const target = event.target;
+      if (target instanceof Node && (list.contains(target) || street.contains(target))) return;
+      hide();
+    });
+  }
+</script>

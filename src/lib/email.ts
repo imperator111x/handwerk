@@ -22,6 +22,8 @@ export interface ReplyEmailInput {
   fromEmail: string;
   phone?: string | null;
   replyToEmail?: string | null;
+  ctaUrl?: string | null;
+  ctaLabel?: string | null;
 }
 
 export interface EmailAttachment {
@@ -67,6 +69,18 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const telHref = input.phone ? input.phone.replace(/\s+/g, "") : "";
   const bodyHtml = textToHtmlParagraphs(input.bodyText);
   const logoSrc = `data:image/png;base64,${EMAIL_MARK_PNG_BASE64}`;
+  const ctaUrl = input.ctaUrl && /^https:\/\/[^\s<>"]+$/.test(input.ctaUrl) ? input.ctaUrl : "";
+  const ctaLabel = escapeHtml(input.ctaLabel?.trim() || "Termin wählen");
+  const ctaHtml = ctaUrl
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;">
+         <tr>
+           <td bgcolor="#2563eb" style="border-radius:999px;background-color:#2563eb;">
+             <a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">${ctaLabel}</a>
+           </td>
+         </tr>
+       </table>
+       <p class="email-muted" style="margin:0 0 14px 0;color:#64748b;font-size:13px;line-height:1.5;word-break:break-all;">${escapeHtml(ctaUrl)}</p>`
+    : "";
 
   return `<!doctype html>
 <html lang="de" xmlns="http://www.w3.org/1999/xhtml">
@@ -107,6 +121,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
                 <h1 class="email-text" style="margin:0 0 22px 0;color:#0f172a;font-size:22px;line-height:1.35;font-weight:800;">${safeSubject}</h1>
                 <p class="email-text" style="margin:0 0 16px 0;color:#1e293b;font-size:16px;line-height:1.6;">Hallo ${safeRecipient},</p>
                 ${bodyHtml}
+                ${ctaHtml}
                 <p class="email-text" style="margin:22px 0 4px 0;color:#1e293b;font-size:16px;line-height:1.6;">Mit freundlichen Grüßen</p>
                 <p class="email-text" style="margin:0;color:#0f172a;font-size:16px;line-height:1.6;font-weight:700;">${safeAuthor}</p>
                 <p class="email-muted" style="margin:2px 0 0 0;color:#64748b;font-size:14px;">${safeSite}</p>
@@ -153,6 +168,7 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
     "",
     input.bodyText.trim(),
     "",
+    ...(input.ctaUrl ? ["Termin wählen:", input.ctaUrl, ""] : []),
     "Mit freundlichen Grüßen",
     input.authorName,
     input.siteName,

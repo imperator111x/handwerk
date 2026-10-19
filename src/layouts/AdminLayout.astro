@@ -14,6 +14,7 @@ const { title, session } = Astro.props;
 const nav = [
   { href: "/admin", label: "Übersicht", icon: "home" },
   { href: "/admin/anfragen", label: "Anfragen", icon: "inbox" },
+  { href: "/admin/termine", label: "Termine", icon: "calendar" },
   { href: "/admin/leistungen", label: "Leistungen", icon: "list" },
   { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog" },
 ];
@@ -22,6 +23,8 @@ const icons: Record<string, string> = {
   home: "M3 12l9-9 9 9 M5 10v10h14V10",
   inbox:
     "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+  calendar:
+    "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
   cog:
     "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
@@ -90,7 +93,9 @@ const pathname = Astro.url.pathname;
         <nav class="flex-1 p-4 space-y-1 text-sm">
           {
             nav.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                pathname === item.href ||
+                (item.href !== "/admin" && pathname.startsWith(`${item.href}/`));
               return (
                 <a
                   href={item.href}
@@ -138,6 +143,27 @@ const pathname = Astro.url.pathname;
         <header
           class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-ink-200 dark:bg-ink-950/80 dark:border-white/10"
         >
+          <nav class="lg:hidden flex gap-2 overflow-x-auto px-4 pt-3">
+            {
+              nav.map((item) => {
+                const active =
+                  pathname === item.href ||
+                  (item.href !== "/admin" && pathname.startsWith(`${item.href}/`));
+                return (
+                  <a
+                    href={item.href}
+                    class={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                      active
+                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                        : "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200"
+                    }`}
+                  >
+                    {item.label}
+                  </a>
+                );
+              })
+            }
+          </nav>
           <div class="flex items-center justify-between px-6 py-4">
             <div>
               <h1 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">
