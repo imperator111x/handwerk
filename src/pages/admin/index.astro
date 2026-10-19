@@ -12,7 +12,10 @@ const session = sessionOrRedirect;
 const env = Astro.locals.runtime?.env;
 const dbReady = Boolean(env?.DB);
 const kvReady = Boolean(env?.SESSIONS);
-const mailReady = Boolean(env?.RESEND_API_KEY && env?.CONTACT_TO_EMAIL);
+const cloudflareMail = Boolean(env?.EMAIL);
+const resendMail = Boolean(env?.RESEND_API_KEY);
+const mailReady = cloudflareMail || resendMail;
+const fromEmail = env?.CONTACT_FROM_EMAIL ?? "website@zeus-service.de";
 
 const db = getDb(Astro);
 const stats = db
@@ -41,12 +44,14 @@ const cards = [
       : "Ohne KV werden Sessions nur im Worker-Speicher gehalten (Entwicklung).",
   },
   {
-    label: "E-Mail (Resend)",
+    label: cloudflareMail ? "E-Mail (Cloudflare)" : "E-Mail",
     status: mailReady ? "aktiv" : "nicht konfiguriert",
     ok: mailReady,
-    hint: mailReady
-      ? "Kontaktanfragen werden per E-Mail weitergeleitet."
-      : "Setze Secrets RESEND_API_KEY und CONTACT_TO_EMAIL, um E-Mails zu versenden.",
+    hint: cloudflareMail
+      ? `Versand läuft über Cloudflare. Antworten und Terminmails gehen von ${fromEmail} raus. Neue Anfragen landen hier im Panel.`
+      : resendMail
+        ? "Versand läuft über Resend."
+        : "Kein E-Mail-Transport verbunden. Antworten werden nur im Panel gespeichert.",
   },
 ];
 ---

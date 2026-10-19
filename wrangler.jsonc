@@ -10,8 +10,9 @@
  * Secrets (Produktion) setzen:
  *   npx wrangler secret put ADMIN_PASSWORD_HASH
  *   npx wrangler secret put SESSION_SECRET
- *   npx wrangler secret put CONTACT_TO_EMAIL
- *   npx wrangler secret put RESEND_API_KEY   # optional, nur falls E-Mail-Versand genutzt wird
+ *   # Optional: Benachrichtigung bei neuen Formularanfragen, und Resend nur als Fallback.
+ *   # npx wrangler secret put CONTACT_TO_EMAIL
+ *   # npx wrangler secret put RESEND_API_KEY
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
