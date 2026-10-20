@@ -7,7 +7,7 @@ import {
 } from "@simplewebauthn/server";
 import type {
   AuthenticationResponseJSON,
-  AuthenticatorTransportFuture,
+  AuthenticatorTransport,
   RegistrationResponseJSON,
 } from "@simplewebauthn/server";
 import type { APIContext } from "astro";
@@ -18,21 +18,19 @@ import { bytesFromBase64Url, bytesToBase64Url } from "./web-push";
 
 const CHALLENGE_COOKIE = "zs_passkey";
 const CHALLENGE_TTL = 60 * 5;
-const TRANSPORTS = new Set<AuthenticatorTransportFuture>([
+const TRANSPORTS = new Set<AuthenticatorTransport>([
   "ble",
-  "cable",
   "hybrid",
   "internal",
   "nfc",
-  "smart-card",
   "usb",
 ]);
 
-function transportsOf(value: string): AuthenticatorTransportFuture[] | undefined {
+function transportsOf(value: string): AuthenticatorTransport[] | undefined {
   const list = value
     .split(",")
-    .filter((item): item is AuthenticatorTransportFuture =>
-      TRANSPORTS.has(item as AuthenticatorTransportFuture),
+    .filter((item): item is AuthenticatorTransport =>
+      TRANSPORTS.has(item as AuthenticatorTransport),
     );
   return list.length > 0 ? list : undefined;
 }

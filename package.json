@@ -20,8 +20,8 @@
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.1",
     "@astrojs/sitemap": "^3.7.4",
-    "@simplewebauthn/browser": "^13.2.2",
-    "@simplewebauthn/server": "^13.2.2",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^7.4.1",
     "postal-mime": "^4.0.11",
@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.11",
-    "typescript": "^5.9.3",
-    "wrangler": "^4.151.1"
+    "typescript": "^6.0.3",
+    "wrangler": "^4.151.2"
   }
 }
