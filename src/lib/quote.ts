@@ -121,15 +121,20 @@ export function offerTotalCents(lines: OfferLine[]): number {
   return lines.reduce((sum, line) => sum + lineTotalCents(line), 0);
 }
 
-export function parseOfferForm(form: FormData, today: string): ParsedOffer | null {
+export function parseOfferForm(
+  form: FormData,
+  today: string,
+  options?: { allowPast?: boolean },
+): ParsedOffer | null {
   const title = String(form.get("title") ?? "").trim();
   const intro = String(form.get("intro") ?? "").trim();
   const validUntil = String(form.get("valid_until") ?? "").trim();
   if (title.length < 3 || title.length > 120) return null;
   if (intro.length > 2000) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil) || validUntil < today) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(validUntil)) return null;
+  if (!options?.allowPast && validUntil < today) return null;
   const span = Date.parse(`${validUntil}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`);
-  if (!Number.isFinite(span) || span > 366 * 86_400_000) return null;
+  if (!Number.isFinite(span) || span > 366 * 86_400_000 || span < -366 * 86_400_000) return null;
 
   const labels = form.getAll("line_label").map((value) => String(value));
   const quantities = form.getAll("line_qty").map((value) => String(value));

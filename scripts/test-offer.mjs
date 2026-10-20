@@ -41,6 +41,22 @@ assert.equal(parsed.lines.length, 1);
 assert.equal(parsed.priceCents, 11250);
 assert.equal(quote.parseOfferForm(form, "2026-11-04"), null);
 
+const past = new FormData();
+past.set("title", "Rollladen einstellen");
+past.set("intro", "");
+past.set("valid_until", "2026-10-01");
+past.append("line_label", "Stundenlohn");
+past.append("line_qty", "1");
+past.append("line_unit", "stunde");
+past.append("line_price", "45,00");
+assert.equal(quote.parseOfferForm(past, "2026-10-20"), null);
+assert.equal(quote.parseOfferForm(past, "2026-10-20", { allowPast: true })?.validUntil, "2026-10-01");
+
+const { offerValidity } = await import("../src/lib/offers.ts");
+assert.equal(offerValidity("2026-10-20", "2026-10-20"), "gueltig");
+assert.equal(offerValidity("2026-10-21", "2026-10-20"), "gueltig");
+assert.equal(offerValidity("2026-10-19", "2026-10-20"), "abgelaufen");
+
 const stored = quote.readStoredOffer(
   JSON.stringify({
     greeting: "Guten Tag Frau Muster,",

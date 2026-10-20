@@ -16,6 +16,7 @@ const nav = [
   { href: "/admin", label: "Übersicht", icon: "home" },
   { href: "/admin/besuche", label: "Besuche", icon: "chart" },
   { href: "/admin/anfragen", label: "Anfragen", icon: "inbox" },
+  { href: "/admin/angebote", label: "Angebote", icon: "file" },
   { href: "/admin/postfach", label: "Postfach", icon: "mail" },
   { href: "/admin/termine", label: "Termine", icon: "calendar" },
   { href: "/admin/leistungen", label: "Leistungen", icon: "list" },
@@ -29,6 +30,7 @@ const icons: Record<string, string> = {
   inbox:
     "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
   mail: "M4 6h16v12H4z M4 6l8 7 8-7",
+  file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5",
   calendar:
     "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
@@ -186,7 +188,7 @@ const pathname = Astro.url.pathname;
             </div>
           </div>
         </header>
-        <main class="flex-1 p-4 pb-[calc(9.25rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(9.25rem+env(safe-area-inset-bottom))] lg:p-10 space-y-8">
+        <main class="flex-1 p-4 pb-[calc(13.25rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(13.25rem+env(safe-area-inset-bottom))] lg:p-10 lg:pb-10 space-y-8">
           <div
             id="ios-install"
             hidden

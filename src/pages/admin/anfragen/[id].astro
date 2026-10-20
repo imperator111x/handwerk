@@ -340,9 +340,14 @@ const redirectPath = Astro.url.pathname;
                 <p class="font-semibold text-ink-900 dark:text-ink-50">
                   {offerNumber(quote.id, quote.created_at)} · {quote.title}
                 </p>
-                <a href={`/api/admin/angebot-pdf?id=${quote.id}`} class="font-semibold text-brand-700 underline dark:text-brand-200" target="_blank">
-                  PDF öffnen
-                </a>
+                <span class="flex gap-3">
+                  <a href={`/admin/angebote/${quote.id}`} class="font-semibold text-brand-700 underline dark:text-brand-200">
+                    Bearbeiten
+                  </a>
+                  <a href={`/api/admin/angebot-pdf?id=${quote.id}`} class="font-semibold text-brand-700 underline dark:text-brand-200" target="_blank">
+                    PDF öffnen
+                  </a>
+                </span>
               </div>
               <p class="mt-1 text-ink-600 dark:text-ink-300">Gültig bis {quote.valid_until.split("-").reverse().join(".")}</p>
               {stored.lines.length > 0 ? (

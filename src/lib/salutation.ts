@@ -39,3 +39,11 @@ export function greetingFor(kind: string, rawName: string): string | null {
 export function greetingFromForm(form: FormData, rawName: string): string | null {
   return greetingFor(String(form.get("salutation") ?? ""), rawName);
 }
+
+export function salutationFromGreeting(greeting: string | null, rawName: string): Salutation {
+  if (!greeting) return "hallo_name";
+  for (const kind of SALUTATIONS) {
+    if (greetingFor(kind, rawName) === greeting) return kind;
+  }
+  return "hallo_name";
+}

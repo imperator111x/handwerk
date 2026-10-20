@@ -34,8 +34,24 @@ export function berlinTodayIso(now = new Date()): string {
   }).format(now);
 }
 
-export function cleanOffer(form: FormData, today = berlinTodayIso()): ParsedOffer | null {
-  return parseOfferForm(form, today);
+export function cleanOffer(
+  form: FormData,
+  today = berlinTodayIso(),
+  options?: { allowPast?: boolean },
+): ParsedOffer | null {
+  return parseOfferForm(form, today, options);
+}
+
+export interface QuoteListItem extends QuoteRow {
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string | null;
+}
+
+export type OfferValidity = "gueltig" | "abgelaufen";
+
+export function offerValidity(validUntil: string, today: string): OfferValidity {
+  return validUntil >= today ? "gueltig" : "abgelaufen";
 }
 
 export async function listQuotes(db: D1Database, requestId: number): Promise<QuoteRow[]> {
@@ -46,6 +62,20 @@ export async function listQuotes(db: D1Database, requestId: number): Promise<Quo
     )
     .bind(requestId)
     .all<QuoteRow>();
+  return results ?? [];
+}
+
+export async function listAllQuotes(db: D1Database): Promise<QuoteListItem[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT q.id, q.request_id, q.title, q.body, q.price_cents, q.valid_until, q.created_at,
+              q.sent_at, q.email_status, q.lines_json,
+              c.name AS customer_name, c.email AS customer_email, c.phone AS customer_phone
+         FROM quotes q
+         JOIN contact_requests c ON c.id = q.request_id
+        ORDER BY q.created_at DESC, q.id DESC`,
+    )
+    .all<QuoteListItem>();
   return results ?? [];
 }
 
@@ -80,6 +110,33 @@ export async function saveQuote(
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
+}
+
+export async function updateQuote(
+  db: D1Database,
+  id: number,
+  offer: ParsedOffer,
+  greeting: string | null,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE quotes
+          SET title = ?, body = ?, price_cents = ?, valid_until = ?, lines_json = ?
+        WHERE id = ?`,
+    )
+    .bind(
+      offer.title,
+      offer.intro,
+      offer.priceCents,
+      offer.validUntil,
+      serializeOffer({ greeting, intro: offer.intro, lines: offer.lines }),
+      id,
+    )
+    .run();
+}
+
+export async function deleteQuote(db: D1Database, id: number): Promise<void> {
+  await db.prepare(`DELETE FROM quotes WHERE id = ?`).bind(id).run();
 }
 
 export async function updateQuoteDelivery(
