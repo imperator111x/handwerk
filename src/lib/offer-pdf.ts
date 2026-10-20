@@ -32,13 +32,12 @@ const LEFT = 48;
 const RIGHT = 547;
 const WIDTH = RIGHT - LEFT;
 
-const NAVY = "0.059 0.122 0.322";
-const INK = "0.118 0.161 0.231";
-const MUTED = "0.392 0.455 0.545";
+const BLACK = "0 0 0";
+const INK = "0.15 0.15 0.15";
+const MUTED = "0.40 0.40 0.40";
 const WHITE = "1 1 1";
-const BAND = "0.945 0.961 0.984";
-const BLUE = "0.145 0.388 0.922";
-const RULE = "0.796 0.835 0.882";
+const BAND = "0.94 0.94 0.94";
+const RULE = "0.75 0.75 0.75";
 const LOGO_W = 190;
 
 export function buildOfferPdf(input: OfferPdfInput): Uint8Array {
@@ -83,9 +82,9 @@ function layoutPages(input: OfferPdfInput): string[] {
       const smallH = (smallW * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
       const smallBottom = PAGE_H - 16 - smallH;
       paint(`q ${round(smallW)} 0 0 ${round(smallH)} ${LEFT} ${round(smallBottom)} cm /Im1 Do Q`);
-      textRight(RIGHT, PAGE_H - 28, 11, "F2", `Angebot ${input.number}`, NAVY);
+      textRight(RIGHT, PAGE_H - 28, 11, "F2", `Angebot ${input.number}`, BLACK);
       textRight(RIGHT, PAGE_H - 42, 8, "F1", "Fortsetzung", MUTED);
-      paint(`${BLUE} rg`);
+      paint(`${BLACK} rg`);
       paint(`0 ${round(smallBottom - 10)} ${PAGE_W} 2 re f`);
       y = smallBottom - 26;
     }
@@ -104,14 +103,14 @@ function layoutPages(input: OfferPdfInput): string[] {
   const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
   const logoBottom = PAGE_H - 28 - logoH;
   drawLogo(LEFT, logoBottom, LOGO_W);
-  textRight(RIGHT, PAGE_H - 44, 20, "F2", "Angebot", NAVY);
+  textRight(RIGHT, PAGE_H - 44, 20, "F2", "Angebot", BLACK);
   textRight(RIGHT, PAGE_H - 64, 10, "F1", input.number, MUTED);
   const ruleY = logoBottom - 12;
-  paint(`${BLUE} rg`);
+  paint(`${BLACK} rg`);
   paint(`0 ${round(ruleY)} ${PAGE_W} 3 re f`);
 
   const addressTop = ruleY - 22;
-  textAt(LEFT, addressTop, 11, "F2", "Leon Lütcke", NAVY);
+  textAt(LEFT, addressTop, 11, "F2", "Leon Lütcke", BLACK);
   textAt(LEFT, addressTop - 14, 10, "F1", "Berliner Allee 44a");
   textAt(LEFT, addressTop - 28, 10, "F1", "22850 Norderstedt");
   textAt(LEFT, addressTop - 42, 10, "F1", siteConfig.contact.phone, MUTED);
@@ -124,7 +123,7 @@ function layoutPages(input: OfferPdfInput): string[] {
   const customerLines = [input.customerName, input.customerEmail, input.customerPhone?.trim() || ""].filter(Boolean);
   const boxHeight = 28 + customerLines.length * 14;
   const boxBottom = y - boxHeight + 14;
-  paint(`${NAVY} rg`);
+  paint(`${BLACK} rg`);
   paint(`${LEFT} ${round(boxBottom)} 4 ${boxHeight} re f`);
   paint(`${BAND} rg`);
   paint(`${LEFT + 4} ${round(boxBottom)} 250 ${boxHeight} re f`);
@@ -135,7 +134,7 @@ function layoutPages(input: OfferPdfInput): string[] {
   y -= boxHeight + 24;
 
   need(36);
-  textAt(LEFT, y, 13, "F2", input.title, NAVY);
+  textAt(LEFT, y, 13, "F2", input.title, BLACK);
   y -= 22;
   if (input.greeting) {
     need(16);
@@ -151,7 +150,7 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   const drawTableHead = () => {
     need(22);
-    paint(`${NAVY} rg`);
+    paint(`${BLACK} rg`);
     paint(`${LEFT} ${round(y - 5)} ${WIDTH} 18 re f`);
     textAt(LEFT + 6, y, 8, "F2", "Pos", WHITE);
     textAt(LEFT + 32, y, 8, "F2", "Position", WHITE);
@@ -187,7 +186,7 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   need(36);
   y -= 6;
-  paint(`${NAVY} rg`);
+  paint(`${BLACK} rg`);
   paint(`${LEFT} ${round(y - 6)} ${WIDTH} 24 re f`);
   textAt(LEFT + 8, y, 11, "F2", "Festpreis", WHITE);
   textRight(RIGHT - 6, y, 11, "F2", formatEuroAmount(offerTotalCents(input.lines)), WHITE);
@@ -203,7 +202,7 @@ function layoutPages(input: OfferPdfInput): string[] {
   const noteBottom = y - noteHeight + 12;
   paint(`${BAND} rg`);
   paint(`${LEFT} ${round(noteBottom)} ${WIDTH} ${noteHeight} re f`);
-  paint(`${BLUE} rg`);
+  paint(`${BLACK} rg`);
   paint(`${LEFT} ${round(noteBottom)} 4 ${noteHeight} re f`);
   notes.forEach((note, index) => {
     textAt(LEFT + 16, y - index * 14, 10, "F1", note);
@@ -211,11 +210,11 @@ function layoutPages(input: OfferPdfInput): string[] {
   y -= noteHeight + 20;
 
   need(56);
-  paint(`${NAVY} RG`);
+  paint(`${BLACK} RG`);
   paint(`1 w ${LEFT} ${round(y + 12)} m ${LEFT + 150} ${round(y + 12)} l S`);
   textAt(LEFT, y, 11, "F1", "Mit freundlichen Grüßen");
   y -= 18;
-  textAt(LEFT, y, 11, "F2", input.authorName, NAVY);
+  textAt(LEFT, y, 11, "F2", input.authorName, BLACK);
   y -= 14;
   textAt(LEFT, y, 10, "F1", "Zeus-Service");
 
