@@ -1,5 +1,6 @@
 ---
 import MailEditor from "../../../components/MailEditor.astro";
+import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
@@ -148,6 +149,7 @@ const previewText = (value: string) =>
                 <label class="label" for="reply_subject">Betreff</label>
                 <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" value={openThread.subject.startsWith("Re:") ? openThread.subject : `Re: ${openThread.subject}`} />
               </div>
+              <SalutationSelect name={openThread.peer_name || ""} id="salutation-reply" />
               <MailEditor />
               <button type="submit" class="btn-primary w-fit">Antwort senden</button>
             </form>

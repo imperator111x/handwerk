@@ -82,6 +82,7 @@ export async function sendOfferEmail(
     to: string;
     recipientName: string;
     authorName: string;
+    greeting?: string | null;
     offer: { title: string; body: string; priceCents: number; validUntil: string };
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
@@ -104,6 +105,7 @@ export async function sendOfferEmail(
       fromEmail: from,
       replyToEmail: from,
       eyebrow: "Festpreis-Angebot",
+      greeting: input.greeting,
       footerNote: `Gültig bis ${formatOfferDate(input.offer.validUntil)}. Sie können direkt auf diese E-Mail antworten.`,
     }),
     text: renderReplyEmailText({
@@ -115,6 +117,7 @@ export async function sendOfferEmail(
       authorName: input.authorName,
       fromEmail: from,
       replyToEmail: from,
+      greeting: input.greeting,
       footerNote: `Gültig bis ${formatOfferDate(input.offer.validUntil)}. Sie können direkt auf diese E-Mail antworten.`,
     }),
   });

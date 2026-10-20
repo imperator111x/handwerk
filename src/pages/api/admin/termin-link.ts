@@ -16,6 +16,7 @@ import {
   updateContactStatus,
 } from "../../../lib/db";
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "../../../lib/email";
+import { greetingFromForm } from "../../../lib/salutation";
 import { buildReplyAddress, DEFAULT_REPLY_DOMAIN, normalizeMessageId } from "../../../lib/reply-address";
 
 export const prerender = false;
@@ -76,6 +77,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       : null;
 
   const authorName = await signatureNameForUser(db, session.userId, session.username);
+  const greeting = greetingFromForm(form, request.name);
 
   let emailStatus = "skipped:no_env";
   let sentMessageId: string | null = null;
@@ -100,6 +102,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         replyToEmail: replyTo ?? fromEmail,
         ctaUrl: link,
         ctaLabel: "Termin auswählen",
+        greeting,
       }),
       text: renderReplyEmailText({
         siteName,
@@ -113,6 +116,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         replyToEmail: replyTo ?? fromEmail,
         ctaUrl: link,
         ctaLabel: "Termin auswählen",
+        greeting,
       }),
     });
     if (result.ok) {

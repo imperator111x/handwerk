@@ -1,5 +1,6 @@
 ---
 import MailEditor from "../../../components/MailEditor.astro";
+import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { formatAddress, formatSlot, getBookingForRequest, listOpenSlots } from "../../../lib/appointments";
@@ -265,6 +266,9 @@ const redirectPath = Astro.url.pathname;
         <input class="input" id="offer-until" name="valid_until" type="date" required value={offerUntil} />
       </div>
       <div class="sm:col-span-2">
+        <SalutationSelect name={request.name} id="salutation-offer" />
+      </div>
+      <div class="sm:col-span-2">
         <label class="label" for="offer-body">Leistungsumfang</label>
         <textarea class="input" id="offer-body" name="body" required minlength="10" maxlength="4000" rows="5" placeholder="Was ist enthalten, was nicht."></textarea>
       </div>
@@ -301,6 +305,7 @@ const redirectPath = Astro.url.pathname;
           Schickt {request.email} einen Link. Dort trägt die Person Vorname, Nachname und Straße ein
           und wählt eine der {openSlotCount} freien Zeiten. Die Buchung bleibt an dieser Anfrage.
         </p>
+        <SalutationSelect name={request.name} id="salutation-termin" />
         <button type="submit" class="btn-primary" disabled={openSlotCount === 0}>
           Terminlink per E-Mail senden
         </button>
@@ -355,6 +360,8 @@ const redirectPath = Astro.url.pathname;
           value={defaultSubject}
         />
       </div>
+
+      <SalutationSelect name={request.name} id="salutation-reply" />
 
       <MailEditor defaultHtml={defaultHtml} />
 

@@ -1,7 +1,7 @@
 import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
-import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
+import { greetingFromForm } from "../../../lib/salutation";
 import {
   countMailboxes,
   createMailbox,
@@ -153,7 +153,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         fromEmail,
         replyToEmail: fromEmail,
         eyebrow: "Nachricht",
-        greeting: peerName ? `Hallo ${peerName},` : null,
+        greeting: greetingFromForm(form, peerName),
         footerNote: "Sie können direkt auf diese E-Mail antworten.",
       }),
       text: renderReplyEmailText({
@@ -166,7 +166,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         authorName,
         fromEmail,
         replyToEmail: fromEmail,
-        greeting: peerName ? `Hallo ${peerName},` : null,
+        greeting: greetingFromForm(form, peerName),
         footerNote: "Sie können direkt auf diese E-Mail antworten.",
       }),
       headers,

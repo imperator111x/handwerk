@@ -2,7 +2,7 @@ import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { getContactRequest, getDb, signatureNameForUser } from "../../../lib/db";
-import { cleanOffer, saveQuote, sendOfferEmail } from "../../../lib/offers";
+import { greetingFromForm } from "../../../lib/salutation";
 
 export const prerender = false;
 
@@ -28,6 +28,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     to: request.email,
     recipientName: request.name,
     authorName,
+    greeting: greetingFromForm(form, request.name),
     offer,
   });
   await saveQuote(db, request.id, offer, delivery);

@@ -1,5 +1,6 @@
 ---
 import MailEditor from "../../../components/MailEditor.astro";
+import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb, listMailboxes } from "../../../lib/db";
@@ -89,6 +90,8 @@ const flags: Record<string, string> = {
           <label class="label" for="reply_subject">Betreff</label>
           <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" />
         </div>
+
+        <SalutationSelect id="salutation-new" />
 
         <MailEditor />
 

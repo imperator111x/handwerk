@@ -15,6 +15,7 @@ import {
   renderReplyEmailText,
   sendEmail,
 } from "../../../lib/email";
+import { greetingFromForm } from "../../../lib/salutation";
 import {
   buildReplyAddress,
   DEFAULT_REPLY_DOMAIN,
@@ -107,6 +108,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     fromEmail,
     phone: request.phone ?? null,
     replyToEmail: replyTo,
+    greeting: greetingFromForm(form, request.name),
   };
 
   if (env) {
