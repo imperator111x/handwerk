@@ -211,11 +211,65 @@ export async function loginWithPasskey(ctx: APIContext, response: Authentication
     },
   });
   if (!verified.verified) return false;
+  const detected = passkeyDeviceLabel(ctx.request.headers.get("user-agent") ?? "");
+  const label = detected === "Unbekanntes Gerät" && row.label.trim() ? row.label : detected;
   await db
-    .prepare(`UPDATE passkeys SET counter = ?, last_used_at = unixepoch() WHERE id = ?`)
-    .bind(verified.authenticationInfo.newCounter, row.id)
+    .prepare(`UPDATE passkeys SET counter = ?, last_used_at = unixepoch(), label = ? WHERE id = ?`)
+    .bind(verified.authenticationInfo.newCounter, label, row.id)
     .run();
   await createSession(ctx, { username: user.username, userId: user.id, role: user.role });
+  return true;
+}
+
+export async function identificationOptions(ctx: APIContext, userId: number): Promise<unknown | null> {
+  const db = cfEnv()?.DB;
+  if (!db) return null;
+  const existing = await listPasskeys(db, userId);
+  if (existing.length === 0) return null;
+  const { rpID } = relyingParty(new URL(ctx.request.url));
+  const options = await generateAuthenticationOptions({
+    rpID,
+    userVerification: "required",
+    allowCredentials: existing.map((row) => ({
+      id: row.credential_id,
+      transports: transportsOf(row.transports),
+    })),
+  });
+  await rememberChallenge(ctx, options.challenge, userId);
+  return options;
+}
+
+export async function labelPasskeyFromAuthentication(
+  ctx: APIContext,
+  userId: number,
+  response: AuthenticationResponseJSON,
+): Promise<boolean> {
+  const db = cfEnv()?.DB;
+  const pending = await takeChallenge(ctx);
+  if (!db || !pending || pending.userId !== userId) return false;
+  const row = await findPasskey(db, response.id);
+  if (!row || row.user_id !== userId) return false;
+  const { rpID, origins } = relyingParty(new URL(ctx.request.url));
+  const verified = await verifyAuthenticationResponse({
+    response,
+    expectedChallenge: pending.challenge,
+    expectedOrigin: origins,
+    expectedRPID: rpID,
+    requireUserVerification: true,
+    credential: {
+      id: row.credential_id,
+      publicKey: bytesFromBase64Url(row.public_key).slice(),
+      counter: row.counter,
+      transports: transportsOf(row.transports),
+    },
+  });
+  if (!verified.verified) return false;
+  const detected = passkeyDeviceLabel(ctx.request.headers.get("user-agent") ?? "");
+  const label = detected === "Unbekanntes Gerät" && row.label.trim() ? row.label : detected;
+  await db
+    .prepare(`UPDATE passkeys SET counter = ?, last_used_at = unixepoch(), label = ? WHERE id = ?`)
+    .bind(verified.authenticationInfo.newCounter, label, row.id)
+    .run();
   return true;
 }
 

@@ -208,7 +208,8 @@ const redirectPath = Astro.url.pathname;
         Einmal auf dem iPhone einschalten, danach öffnet die Admin-App beim
         Login Face ID. Das Passwort bleibt zusätzlich gültig. Gespeichert wird
         nur ein Schlüssel des Geräts, nicht das Gesicht. Jedes Gerät lässt sich
-        einzeln entfernen.
+        einzeln entfernen. Der Typ, zum Beispiel „iPhone · Safari“, erscheint,
+        sobald Sie das Gerät hier erkennen oder sich damit anmelden.
       </p>
     </div>
     {!session.userId ? (
@@ -225,7 +226,7 @@ const redirectPath = Astro.url.pathname;
         {passkeys.length > 0 && (
           <ul class="divide-y divide-ink-200/80 rounded-2xl border border-ink-200 dark:divide-white/10 dark:border-white/10">
             {passkeys.map((device) => {
-              const name = device.label.trim() || "Gerät";
+              const name = device.label.trim() || "Unbekanntes Gerät";
               return (
                 <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div>
@@ -254,15 +255,21 @@ const redirectPath = Astro.url.pathname;
           <button type="button" id="faceid-enroll" class="btn-primary w-fit">
             {passkeys.length > 0 ? "Weiteres Gerät einschalten" : "Face ID einschalten"}
           </button>
+          {passkeys.length > 0 && (
+            <button type="button" id="faceid-identify" class="btn-secondary w-fit">
+              Gerät erkennen
+            </button>
+          )}
         </div>
       </>
     )}
   </section>
   {session.userId && (
     <script>
-      import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
+      import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
 
       const enroll = document.getElementById("faceid-enroll");
+      const identify = document.getElementById("faceid-identify");
       const status = document.getElementById("faceid-settings-status");
 
       function setStatus(text: string) {
@@ -297,6 +304,38 @@ const redirectPath = Astro.url.pathname;
             );
           } finally {
             enroll.disabled = false;
+          }
+        });
+      }
+
+      if (identify instanceof HTMLButtonElement) {
+        identify.addEventListener("click", async () => {
+          if (!browserSupportsWebAuthn()) {
+            setStatus("Dieses Gerät kann Face ID hier nicht verwenden. Bitte die Admin-App auf dem iPhone öffnen.");
+            return;
+          }
+          identify.disabled = true;
+          try {
+            const prepared = await fetch("/api/admin/passkey?intent=identify", { headers: { accept: "application/json" } });
+            if (!prepared.ok) throw new Error("options");
+            const payload = (await prepared.json()) as { options: Parameters<typeof startAuthentication>[0]["optionsJSON"] };
+            const credential = await startAuthentication({ optionsJSON: payload.options });
+            const saved = await fetch("/api/admin/passkey", {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json" },
+              body: JSON.stringify({ purpose: "identify", response: credential }),
+            });
+            if (!saved.ok) throw new Error("save");
+            window.location.assign("/admin/einstellungen");
+          } catch (err) {
+            const name = err instanceof Error ? err.name : "";
+            setStatus(
+              name === "NotAllowedError"
+                ? "Die Erkennung wurde abgebrochen."
+                : "Dieses Gerät steht noch nicht in der Liste. Bitte die Seite auf dem eingeschalteten Gerät öffnen.",
+            );
+          } finally {
+            identify.disabled = false;
           }
         });
       }

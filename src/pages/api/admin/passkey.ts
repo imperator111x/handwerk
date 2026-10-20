@@ -1,8 +1,15 @@
 import type { APIContext } from "astro";
-import type { RegistrationResponseJSON } from "@simplewebauthn/server";
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
 import { getSession } from "../../../lib/auth";
 import { findUserById, getDb } from "../../../lib/db";
-import { deletePasskey, listPasskeys, registrationOptions, saveRegistration } from "../../../lib/passkey";
+import {
+  deletePasskey,
+  identificationOptions,
+  labelPasskeyFromAuthentication,
+  listPasskeys,
+  registrationOptions,
+  saveRegistration,
+} from "../../../lib/passkey";
 
 export const prerender = false;
 
@@ -19,6 +26,11 @@ export async function GET(ctx: APIContext): Promise<Response> {
   const db = getDb(ctx);
   const user = db ? await findUserById(db, session.userId) : null;
   if (!db || !user) return json({ ok: false }, 401);
+  if (new URL(ctx.request.url).searchParams.get("intent") === "identify") {
+    const options = await identificationOptions(ctx, user.id);
+    if (!options) return json({ ok: false }, 400);
+    return json({ options });
+  }
   const existing = await listPasskeys(db, user.id);
   const options = await registrationOptions(ctx, { id: user.id, username: user.username });
   return json({ options, registered: existing.length > 0 });
@@ -27,7 +39,7 @@ export async function GET(ctx: APIContext): Promise<Response> {
 export async function POST(ctx: APIContext): Promise<Response> {
   const session = await getSession(ctx);
   if (!session?.userId) return json({ ok: false }, 401);
-  let body: { response?: RegistrationResponseJSON };
+  let body: { purpose?: string; response?: RegistrationResponseJSON | AuthenticationResponseJSON };
   try {
     body = await ctx.request.json();
   } catch {
@@ -35,7 +47,9 @@ export async function POST(ctx: APIContext): Promise<Response> {
   }
   if (!body.response || typeof body.response !== "object") return json({ ok: false }, 400);
   try {
-    const ok = await saveRegistration(ctx, session.userId, body.response);
+    const ok = body.purpose === "identify"
+      ? await labelPasskeyFromAuthentication(ctx, session.userId, body.response as AuthenticationResponseJSON)
+      : await saveRegistration(ctx, session.userId, body.response as RegistrationResponseJSON);
     if (!ok) return json({ ok: false }, 400);
   } catch (err) {
     console.error("passkey_register_failed", err);
