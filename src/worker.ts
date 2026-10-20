@@ -1,4 +1,5 @@
 import { handle } from "@astrojs/cloudflare/handler";
+import { deleteExpiredFreeSlots } from "./lib/appointments";
 import PostalMime from "postal-mime";
 import { blockedKinds, normalizeBlockEmail } from "./lib/blocks";
 import { ingestInboundEmail, type IngestResult } from "./lib/inbound-mail";
@@ -53,6 +54,14 @@ export default {
   },
   async email(message: InboundMessage, env: Env, ctx: ExecutionContext) {
     await receiveEmail(message, env, ctx);
+  },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (!env.DB) return;
+    ctx.waitUntil(
+      deleteExpiredFreeSlots(env.DB).catch((err) => {
+        console.error("expired_slots_delete_failed", err);
+      }),
+    );
   },
 } satisfies ExportedHandler<Env>;
 

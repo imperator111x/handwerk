@@ -148,10 +148,29 @@ const SLOT_SELECT = `
   LEFT JOIN appointment_bookings b ON b.slot_id = s.id
 `;
 
+/** Entfernt freie Zeiten, deren Ende vorbei ist. Gebuchte Termine bleiben. */
+export async function deleteExpiredFreeSlots(
+  db: D1Database,
+  now = Math.floor(Date.now() / 1000),
+): Promise<number> {
+  const result = await db
+    .prepare(
+      `DELETE FROM appointment_slots
+       WHERE ends_at <= ?
+         AND NOT EXISTS (
+           SELECT 1 FROM appointment_bookings WHERE slot_id = appointment_slots.id
+         )`,
+    )
+    .bind(now)
+    .run();
+  return Number(result.meta.changes ?? 0);
+}
+
 export async function listUpcomingSlots(
   db: D1Database,
   now = Math.floor(Date.now() / 1000),
 ): Promise<AppointmentSlot[]> {
+  await deleteExpiredFreeSlots(db, now);
   const { results } = await db
     .prepare(
       `${SLOT_SELECT}
@@ -184,6 +203,7 @@ export async function listOpenSlots(
   db: D1Database,
   now = Math.floor(Date.now() / 1000),
 ): Promise<AppointmentSlot[]> {
+  await deleteExpiredFreeSlots(db, now);
   const { results } = await db
     .prepare(
       `${SLOT_SELECT}
