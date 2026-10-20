@@ -16,11 +16,19 @@ assert.deepEqual(requestNotice("Ndbdj jddj", "Objektbetreuung"), {
 assert.equal(replyNotice("Anna Beispiel", "Ohne Betreff").body, "Anna Beispiel hat auf eine Anfrage geantwortet.");
 assert.equal(mailNotice("Max <max@example.com>", "Heizung tropft").body, "Max schreibt: Heizung tropft");
 assert.match(offerPlainText({
+  number: "A-2026-0001",
   title: "Rollladen einstellen",
-  body: "Ein Rollladen im Wohnzimmer.",
-  priceCents: 8900,
+  intro: "Ein Rollladen im Wohnzimmer.",
+  lines: [{ label: "Stundenlohn", quantity: 2, unit: "stunde", unitCents: 4450 }],
   validUntil: "2026-11-02",
 }), /89,00/);
+assert.match(offerPlainText({
+  number: "A-2026-0001",
+  title: "Rollladen einstellen",
+  intro: "",
+  lines: [{ label: "Stundenlohn", quantity: 2, unit: "stunde", unitCents: 4450 }],
+  validUntil: "2026-11-02",
+}), /14 Tagen nach Ausführung/);
 
 const asPublic = "BP4z9KsN6nGRTbVYI_c7VJSPQTBtkgcy27mlmlMoZIIgDll6e3vCYLocInmYWAmS6TlzAC8wEqKK6PBru3jl7A8";
 const asPrivate = "yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw";
