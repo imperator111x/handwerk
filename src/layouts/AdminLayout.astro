@@ -103,6 +103,9 @@ const icons: Record<string, string> = {
               if (!localStorage.getItem("theme")) window.__setTheme("system");
             });
           }
+          if (localStorage.getItem("zs-admin-nav") === "closed") {
+            root.setAttribute("data-admin-nav", "closed");
+          }
         } catch (_err) {}
       })();
     </script>
@@ -228,7 +231,7 @@ const icons: Record<string, string> = {
             </div>
           </div>
         </header>
-        <main class="flex-1 p-4 pb-[calc(8.75rem+env(safe-area-inset-bottom))] sm:p-6 sm:pb-[calc(8.75rem+env(safe-area-inset-bottom))] lg:p-10 lg:pb-10 space-y-8">
+        <main class="admin-main flex-1 p-4 sm:p-6 lg:p-10 lg:pb-10 space-y-8">
           <div
             id="ios-install"
             hidden
@@ -353,8 +356,25 @@ const icons: Record<string, string> = {
     </div>
     <nav
       aria-label="Admin-Navigation"
-      class="admin-mobile-nav relative lg:hidden fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.28)] touch-manipulation dark:border-white/10 dark:bg-ink-950"
+      class="admin-mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.28)] touch-manipulation dark:border-white/10 dark:bg-ink-950"
     >
+      <button
+        type="button"
+        data-nav-collapse
+        aria-expanded="true"
+        aria-controls="admin-mobile-links"
+        class="flex min-h-11 w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-ink-600 touch-manipulation dark:text-ink-300"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-chevron-open h-4 w-4" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-chevron-closed h-4 w-4" aria-hidden="true">
+          <path d="M6 15l6-6 6 6" />
+        </svg>
+        <span class="nav-label-open">Menü einklappen</span>
+        <span class="nav-label-closed">Menü</span>
+      </button>
+      <div id="admin-mobile-links" data-nav-links>
       <div
         id="admin-settings-menu"
         data-settings-menu
@@ -475,6 +495,7 @@ const icons: Record<string, string> = {
           })
         }
       </ul>
+      </div>
     </nav>
     <style>
       ::view-transition-old(root),
@@ -490,6 +511,29 @@ const icons: Record<string, string> = {
       :where(.dark, [data-theme="dark"]) aside nav a.is-pressed {
         background-color: rgb(59 130 246 / 0.15);
         color: var(--color-brand-200);
+      }
+      .nav-label-closed,
+      .nav-chevron-closed {
+        display: none;
+      }
+      @media (max-width: 1023px) {
+        .admin-main {
+          padding-bottom: calc(11rem + env(safe-area-inset-bottom));
+        }
+        html[data-admin-nav="closed"] .admin-main {
+          padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
+        }
+        html[data-admin-nav="closed"] .admin-mobile-nav [data-nav-links] {
+          display: none;
+        }
+        html[data-admin-nav="closed"] .nav-label-open,
+        html[data-admin-nav="closed"] .nav-chevron-open {
+          display: none;
+        }
+        html[data-admin-nav="closed"] .nav-label-closed,
+        html[data-admin-nav="closed"] .nav-chevron-closed {
+          display: inline;
+        }
       }
     </style>
     <script is:inline>
@@ -601,6 +645,30 @@ const icons: Record<string, string> = {
           next.classList.toggle("dark", current.classList.contains("dark"));
           next.setAttribute("data-theme", current.getAttribute("data-theme") || "light");
           next.style.colorScheme = current.style.colorScheme;
+          var navState = current.getAttribute("data-admin-nav");
+          if (navState) next.setAttribute("data-admin-nav", navState);
+        });
+
+        document.addEventListener("click", function (event) {
+          var target = event.target;
+          if (!(target instanceof Element)) return;
+          var collapse = target.closest("[data-nav-collapse]");
+          if (!(collapse instanceof HTMLElement)) return;
+          var root = document.documentElement;
+          var closed = root.getAttribute("data-admin-nav") === "closed";
+          if (closed) {
+            root.removeAttribute("data-admin-nav");
+            collapse.setAttribute("aria-expanded", "true");
+            try { localStorage.removeItem("zs-admin-nav"); } catch (_err) {}
+            return;
+          }
+          root.setAttribute("data-admin-nav", "closed");
+          collapse.setAttribute("aria-expanded", "false");
+          var menu = document.querySelector("[data-settings-menu]");
+          if (menu instanceof HTMLElement) menu.setAttribute("hidden", "");
+          var settings = document.querySelector("[data-settings-toggle]");
+          if (settings instanceof HTMLElement) settings.setAttribute("aria-expanded", "false");
+          try { localStorage.setItem("zs-admin-nav", "closed"); } catch (_err) {}
         });
 
         document.addEventListener("click", function (event) {
@@ -622,7 +690,18 @@ const icons: Record<string, string> = {
           }
         });
 
-        document.addEventListener("astro:page-load", scheduleWarm);
+        function syncNavButton() {
+          var collapse = document.querySelector("[data-nav-collapse]");
+          if (!(collapse instanceof HTMLElement)) return;
+          var closed = document.documentElement.getAttribute("data-admin-nav") === "closed";
+          collapse.setAttribute("aria-expanded", closed ? "false" : "true");
+        }
+
+        document.addEventListener("astro:page-load", function () {
+          syncNavButton();
+          scheduleWarm();
+        });
+        syncNavButton();
         scheduleWarm();
       })();
     </script>
