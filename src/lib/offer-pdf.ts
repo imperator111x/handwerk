@@ -1,5 +1,5 @@
 import { siteConfig } from "../config/site";
-import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_NAVY, OFFER_LOGO_WIDTH } from "./offer-logo";
+import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_WIDTH } from "./offer-logo";
 import {
   OFFER_DEFAULT_INTRO,
   OFFER_PAYMENT_TERMS,
@@ -39,7 +39,7 @@ const WHITE = "1 1 1";
 const BAND = "0.945 0.961 0.984";
 const BLUE = "0.145 0.388 0.922";
 const RULE = "0.796 0.835 0.882";
-const LOGO_W = 176;
+const LOGO_W = 190;
 
 export function buildOfferPdf(input: OfferPdfInput): Uint8Array {
   return serializePdf(layoutPages(input));
@@ -79,12 +79,15 @@ function layoutPages(input: OfferPdfInput): string[] {
     paint(`${RULE} RG`);
     paint(`0.6 w ${LEFT} 46 m ${RIGHT} 46 l S`);
     if (continued) {
-      paint(`${OFFER_LOGO_NAVY} rg`);
-      paint(`0 ${round(PAGE_H - 52)} ${PAGE_W} 52 re f`);
-      paint(`q 96 0 0 ${round((96 * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH)} 36 ${round(PAGE_H - 44)} cm /Im1 Do Q`);
-      textRight(RIGHT, PAGE_H - 28, 11, "F2", `Angebot ${input.number}`, WHITE);
-      textRight(RIGHT, PAGE_H - 42, 8, "F1", "Fortsetzung", WHITE);
-      y = 770;
+      const smallW = 120;
+      const smallH = (smallW * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
+      const smallBottom = PAGE_H - 16 - smallH;
+      paint(`q ${round(smallW)} 0 0 ${round(smallH)} ${LEFT} ${round(smallBottom)} cm /Im1 Do Q`);
+      textRight(RIGHT, PAGE_H - 28, 11, "F2", `Angebot ${input.number}`, NAVY);
+      textRight(RIGHT, PAGE_H - 42, 8, "F1", "Fortsetzung", MUTED);
+      paint(`${BLUE} rg`);
+      paint(`0 ${round(smallBottom - 10)} ${PAGE_W} 2 re f`);
+      y = smallBottom - 26;
     }
   };
 
@@ -98,25 +101,26 @@ function layoutPages(input: OfferPdfInput): string[] {
   };
 
   startPage(false);
-  const barBottom = PAGE_H - 104;
-  paint(`${OFFER_LOGO_NAVY} rg`);
-  paint(`0 ${round(barBottom)} ${PAGE_W} 104 re f`);
-  drawLogo(36, barBottom + 18, LOGO_W);
-  textRight(RIGHT, PAGE_H - 46, 20, "F2", "Angebot", WHITE);
-  textRight(RIGHT, PAGE_H - 66, 10, "F1", input.number, WHITE);
+  const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
+  const logoBottom = PAGE_H - 28 - logoH;
+  drawLogo(LEFT, logoBottom, LOGO_W);
+  textRight(RIGHT, PAGE_H - 44, 20, "F2", "Angebot", NAVY);
+  textRight(RIGHT, PAGE_H - 64, 10, "F1", input.number, MUTED);
+  const ruleY = logoBottom - 12;
   paint(`${BLUE} rg`);
-  paint(`0 ${round(barBottom - 5)} ${PAGE_W} 5 re f`);
+  paint(`0 ${round(ruleY)} ${PAGE_W} 3 re f`);
 
-  textAt(LEFT, 708, 11, "F2", "Leon Lütcke", NAVY);
-  textAt(LEFT, 694, 10, "F1", "Berliner Allee 44a");
-  textAt(LEFT, 680, 10, "F1", "22850 Norderstedt");
-  textAt(LEFT, 666, 10, "F1", siteConfig.contact.phone, MUTED);
-  textAt(LEFT, 652, 10, "F1", siteConfig.contact.email, MUTED);
-  textRight(RIGHT, 708, 10, "F1", `Norderstedt, ${input.dateLabel}`);
-  textRight(RIGHT, 694, 10, "F1", `Gültig bis ${input.validUntilLabel}`);
-  textRight(RIGHT, 680, 10, "F1", "zeus-service.de", MUTED);
+  const addressTop = ruleY - 22;
+  textAt(LEFT, addressTop, 11, "F2", "Leon Lütcke", NAVY);
+  textAt(LEFT, addressTop - 14, 10, "F1", "Berliner Allee 44a");
+  textAt(LEFT, addressTop - 28, 10, "F1", "22850 Norderstedt");
+  textAt(LEFT, addressTop - 42, 10, "F1", siteConfig.contact.phone, MUTED);
+  textAt(LEFT, addressTop - 56, 10, "F1", siteConfig.contact.email, MUTED);
+  textRight(RIGHT, addressTop, 10, "F1", `Norderstedt, ${input.dateLabel}`);
+  textRight(RIGHT, addressTop - 14, 10, "F1", `Gültig bis ${input.validUntilLabel}`);
+  textRight(RIGHT, addressTop - 28, 10, "F1", "zeus-service.de", MUTED);
 
-  y = 622;
+  y = addressTop - 92;
   const customerLines = [input.customerName, input.customerEmail, input.customerPhone?.trim() || ""].filter(Boolean);
   const boxHeight = 28 + customerLines.length * 14;
   const boxBottom = y - boxHeight + 14;
