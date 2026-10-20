@@ -32,6 +32,7 @@ interface Env {
   TURNSTILE_PAGE_SECRET?: string;
   VAPID_PRIVATE_JWK?: string;
   INFO_FORWARD_TO?: string;
+  VIRUSTOTAL_API_KEY?: string;
 
   // Static Assets Fetcher (automatisch durch `assets.binding` erzeugt)
   ASSETS: Fetcher;
@@ -40,6 +41,7 @@ interface Env {
   // in wrangler.jsonc aktivieren)
   DB?: D1Database;
   SESSIONS?: KVNamespace;
+  FILES?: KVNamespace;
 
   // Cloudflare Email Sending (nach `wrangler email sending enable zeus-service.de`
   // oder Dashboard-Onboarding + Binding in wrangler.jsonc)

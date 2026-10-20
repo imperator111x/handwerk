@@ -1,6 +1,7 @@
 import { handle } from "@astrojs/cloudflare/handler";
 import PostalMime from "postal-mime";
-import { ingestInboundEmail } from "./lib/inbound-mail";
+import { ingestInboundEmail, type IngestResult } from "./lib/inbound-mail";
+import { scanStoredFiles, storeInboundFiles, type RawAttachment } from "./lib/mail-files";
 import { isExternalMailboxAddress } from "./lib/mailbox";
 import { mailNotice, replyNotice, requestNotice } from "./lib/notice-copy";
 import { notifyStaff } from "./lib/notify";
@@ -39,12 +40,12 @@ export default {
     const response = await handle(request, env, ctx);
     return response ?? new Response(null, { status: 500 });
   },
-  async email(message: InboundMessage, env: Env) {
-    await receiveEmail(message, env);
+  async email(message: InboundMessage, env: Env, ctx: ExecutionContext) {
+    await receiveEmail(message, env, ctx);
   },
 } satisfies ExportedHandler<Env>;
 
-async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
+async function receiveEmail(message: InboundMessage, env: Env, ctx: ExecutionContext): Promise<void> {
   const domain = env.REPLY_DOMAIN || "zeus-service.de";
   if (isExternalMailboxAddress(message.to, domain)) {
     const target = env.INFO_FORWARD_TO?.trim();
@@ -113,6 +114,7 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
   const detail =
     "threadId" in result ? result.threadId : "requestId" in result ? result.requestId : result.reason;
   console.log("inbound_email", result.action, detail);
+  await keepInboundAttachments(env, ctx, parsed.attachments ?? [], result);
   if (result.action === "mailbox") {
     await notifyStaff(env, { ...mailNotice(fromLabel, subject), url: "/admin/postfach" });
   } else if (result.action === "created") {
@@ -125,5 +127,34 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
       ...replyNotice(fromLabel, subject),
       url: `/admin/anfragen/${result.requestId}`,
     });
+  }
+}
+
+async function keepInboundAttachments(
+  env: Env,
+  ctx: ExecutionContext,
+  attachments: RawAttachment[],
+  result: IngestResult,
+): Promise<void> {
+  if (!env.DB || !env.FILES || attachments.length === 0) return;
+  const link =
+    result.action === "mailbox"
+      ? { mailMessageId: result.messageRowId }
+      : result.action === "stored"
+        ? { replyId: result.replyId, requestId: result.requestId }
+        : result.action === "created"
+          ? { requestId: result.requestId }
+          : null;
+  if (!link) return;
+  try {
+    const stored = await storeInboundFiles(env.DB, env.FILES, link, attachments);
+    if (stored.length === 0) return;
+    ctx.waitUntil(
+      scanStoredFiles(env, stored, { poll: true }).catch((err: unknown) => {
+        console.error("virus_total_failed", err instanceof Error ? err.name : "error");
+      }),
+    );
+  } catch (err) {
+    console.error("mail_files_failed", err instanceof Error ? err.name : "error");
   }
 }

@@ -1,3 +1,5 @@
+import { canOpenScan, inspectWithVirusTotal, type ScanOutcome, type ScanStatus } from "./virus-total";
+
 // Cloudflare Email Sending begrenzt die ganze Nachricht auf 5 MiB.
 // Base64 vergrößert Anhänge um ein Drittel, das Logo und der HTML-Rahmen
 // brauchen ebenfalls Platz. 3 MB Rohdaten bleiben darunter.
@@ -146,3 +148,271 @@ export async function readFormUploads(
   }
   return prepared;
 }
+
+const INBOUND_MAX_FILES = 12;
+const INBOUND_MAX_BYTES = 1_500_000;
+
+export interface MailFileRow {
+  id: number;
+  mail_message_id: number | null;
+  reply_id: number | null;
+  request_id: number | null;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  sha256: string;
+  storage_key: string;
+  scan_status: ScanStatus | string;
+  vt_malicious: number;
+  vt_suspicious: number;
+  vt_harmless: number;
+  vt_analysis_id: string | null;
+  created_at: number;
+}
+
+export interface RawAttachment {
+  filename?: string | null;
+  mimeType?: string | null;
+  contentId?: string | null;
+  content: ArrayBuffer | Uint8Array | string;
+  encoding?: "base64" | "utf8" | null;
+}
+
+export interface FileLink {
+  mailMessageId?: number | null;
+  replyId?: number | null;
+  requestId?: number | null;
+}
+
+export function safeDownloadName(name: string): string {
+  const base = name.split(/[/\\]/).pop() ?? "anhang";
+  const clean = base.replace(/[^\w.\- ()äöüÄÖÜß]+/g, "_").replace(/^\.+/, "").slice(0, 120);
+  return clean || "anhang";
+}
+
+export function safeContentType(value: string): string {
+  const type = value.split(";")[0]?.trim().toLowerCase() ?? "";
+  return /^[\w.+-]+\/[\w.+-]+$/.test(type) ? type : "application/octet-stream";
+}
+
+export function isPreviewImage(contentType: string): boolean {
+  return IMAGE_TYPES.has(safeContentType(contentType));
+}
+
+export function attachmentBytes(file: RawAttachment): Uint8Array | null {
+  const { content, encoding } = file;
+  if (typeof content === "string") {
+    if (encoding === "base64") {
+      const clean = content.replace(/\s/g, "");
+      if (!clean || clean.length % 4 === 1) return null;
+      try {
+        const binary = atob(clean);
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        return bytes;
+      } catch {
+        return null;
+      }
+    }
+    return new TextEncoder().encode(content);
+  }
+  if (content instanceof Uint8Array) return content;
+  if (content instanceof ArrayBuffer) return new Uint8Array(content);
+  return null;
+}
+
+export async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", Uint8Array.from(bytes));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
+  return `${Math.round(bytes / 104857.6) / 10} MB`;
+}
+
+export async function storeInboundFiles(
+  db: D1Database,
+  bucket: KVNamespace,
+  link: FileLink,
+  attachments: RawAttachment[],
+): Promise<Array<{ id: number; bytes: Uint8Array; sha256: string; filename: string }>> {
+  const stored: Array<{ id: number; bytes: Uint8Array; sha256: string; filename: string }> = [];
+  let kept = 0;
+  for (const attachment of attachments) {
+    if (kept >= INBOUND_MAX_FILES) break;
+    const bytes = attachmentBytes(attachment);
+    if (!bytes || bytes.byteLength === 0 || bytes.byteLength > INBOUND_MAX_BYTES) continue;
+    const filename = safeDownloadName(attachment.filename?.trim() || "anhang");
+    const contentType = safeContentType(attachment.mimeType || "application/octet-stream");
+    const owned = bytes.slice();
+    const sha256 = await sha256Hex(owned);
+    const storageKey = `file:${crypto.randomUUID()}`;
+    await bucket.put(storageKey, owned);
+    const result = await db
+      .prepare(
+        `INSERT INTO mail_files
+           (mail_message_id, reply_id, request_id, filename, content_type, size_bytes, sha256, storage_key, scan_status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      )
+      .bind(
+        link.mailMessageId ?? null,
+        link.replyId ?? null,
+        link.requestId ?? null,
+        filename,
+        contentType,
+        owned.byteLength,
+        sha256,
+        storageKey,
+      )
+      .run();
+    const id = Number(result.meta.last_row_id ?? 0);
+    if (!Number.isInteger(id) || id <= 0) continue;
+    kept += 1;
+    stored.push({ id, bytes: owned, sha256, filename });
+  }
+  return stored;
+}
+
+export async function listMailFiles(db: D1Database, where: string, values: number[]): Promise<MailFileRow[]> {
+  if (values.length === 0) return [];
+  const { results } = await db
+    .prepare(`SELECT * FROM mail_files WHERE ${where} ORDER BY id ASC`)
+    .bind(...values)
+    .all<MailFileRow>();
+  return results ?? [];
+}
+
+export async function listFilesForMessages(db: D1Database, messageIds: number[]): Promise<MailFileRow[]> {
+  const ids = messageIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return [];
+  return listMailFiles(db, `mail_message_id IN (${ids.map(() => "?").join(", ")})`, ids);
+}
+
+export async function listFilesForRequest(db: D1Database, requestId: number, replyIds: number[]): Promise<MailFileRow[]> {
+  const replies = replyIds.filter((id) => Number.isInteger(id) && id > 0);
+  const placeholders = replies.map(() => "?").join(", ");
+  const where = replies.length ? `request_id = ? OR reply_id IN (${placeholders})` : "request_id = ?";
+  return listMailFiles(db, where, [requestId, ...replies]);
+}
+
+export async function getMailFile(db: D1Database, id: number): Promise<MailFileRow | null> {
+  return db.prepare(`SELECT * FROM mail_files WHERE id = ? LIMIT 1`).bind(id).first<MailFileRow>();
+}
+
+async function saveOutcome(db: D1Database, id: number, outcome: ScanOutcome): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE mail_files
+          SET scan_status = ?, vt_malicious = ?, vt_suspicious = ?, vt_harmless = ?,
+              vt_analysis_id = COALESCE(?, vt_analysis_id)
+        WHERE id = ?`,
+    )
+    .bind(outcome.status, outcome.malicious, outcome.suspicious, outcome.harmless, outcome.analysisId, id)
+    .run();
+}
+
+async function priorVerdict(db: D1Database, sha256: string): Promise<ScanOutcome | null> {
+  const row = await db
+    .prepare(
+      `SELECT scan_status, vt_malicious, vt_suspicious, vt_harmless
+         FROM mail_files
+        WHERE sha256 = ? AND scan_status IN ('clean', 'malicious')
+        LIMIT 1`,
+    )
+    .bind(sha256)
+    .first<{ scan_status: string; vt_malicious: number; vt_suspicious: number; vt_harmless: number }>();
+  if (!row) return null;
+  return {
+    status: row.scan_status === "malicious" ? "malicious" : "clean",
+    malicious: row.vt_malicious,
+    suspicious: row.vt_suspicious,
+    harmless: row.vt_harmless,
+    analysisId: null,
+  };
+}
+
+async function discardIfMalicious(env: Env, id: number, status: string): Promise<void> {
+  if (status !== "malicious" || !env.DB || !env.FILES) return;
+  const row = await getMailFile(env.DB, id);
+  if (!row) return;
+  await env.FILES.delete(row.storage_key);
+}
+
+async function readStoredBytes(bucket: KVNamespace, storageKey: string): Promise<Uint8Array | null> {
+  const value = await bucket.get(storageKey, "arrayBuffer");
+  return value ? new Uint8Array(value) : null;
+}
+
+export async function scanStoredFiles(
+  env: Env,
+  files: Array<{ id: number; bytes?: Uint8Array | null; sha256: string; filename: string; analysisId?: string | null }>,
+  options: { poll?: boolean } = {},
+): Promise<void> {
+  const db = env.DB;
+  const key = env.VIRUSTOTAL_API_KEY;
+  if (!db || files.length === 0) return;
+  for (const file of files) {
+    if (!Number.isInteger(file.id) || file.id <= 0) continue;
+    const copied = await priorVerdict(db, file.sha256);
+    if (copied && !file.analysisId) {
+      await saveOutcome(db, file.id, copied);
+      await discardIfMalicious(env, file.id, copied.status);
+      continue;
+    }
+    if (!key) continue;
+    let bytes = file.bytes ?? null;
+    if (!bytes && env.FILES) {
+      const row = await getMailFile(db, file.id);
+      if (!row) continue;
+      bytes = await readStoredBytes(env.FILES, row.storage_key);
+    }
+    if (!bytes) continue;
+    try {
+      const outcome = await inspectWithVirusTotal(key, bytes, file.sha256, file.filename, {
+        poll: options.poll,
+        analysisId: file.analysisId,
+      });
+      await saveOutcome(db, file.id, outcome);
+      await discardIfMalicious(env, file.id, outcome.status);
+    } catch (err) {
+      console.error("virus_total_failed", err instanceof Error ? err.name : "error");
+    }
+  }
+}
+
+export async function mailboxIdForMessage(db: D1Database, messageId: number): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `SELECT t.mailbox_id AS mailbox_id
+         FROM mail_messages m
+         JOIN mail_threads t ON t.id = m.thread_id
+        WHERE m.id = ?
+        LIMIT 1`,
+    )
+    .bind(messageId)
+    .first<{ mailbox_id: number }>();
+  return row?.mailbox_id ?? null;
+}
+
+export async function refreshPendingFiles(env: Env, rows: MailFileRow[]): Promise<void> {
+  const pending = rows.filter((row) => row.scan_status === "pending" || row.scan_status === "error").slice(0, 3);
+  await scanStoredFiles(
+    env,
+    pending.map((row) => ({
+      id: row.id,
+      sha256: row.sha256,
+      filename: row.filename,
+      analysisId: row.vt_analysis_id,
+    })),
+    { poll: false },
+  );
+}
+
+export function fileHref(id: number): string {
+  return `/api/admin/datei?id=${id}`;
+}
+
+export { canOpenScan };
+

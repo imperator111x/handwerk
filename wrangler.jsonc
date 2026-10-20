@@ -13,6 +13,7 @@
  *   # Optional: Benachrichtigung bei neuen Formularanfragen, und Resend nur als Fallback.
  *   # npx wrangler secret put CONTACT_TO_EMAIL
  *   # npx wrangler secret put RESEND_API_KEY
+ *   npx wrangler secret put VIRUSTOTAL_API_KEY
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
@@ -70,6 +71,10 @@
     {
       "binding": "SESSIONS",
       "id": "bec99176f19f47fc93c548a378e7e0b2"
+    },
+    {
+      "binding": "FILES",
+      "id": "6b28115b487e4ccab5eb71d1be4c3b06"
     }
   ],
 

@@ -1,9 +1,11 @@
 ---
 import MailEditor from "../../../components/MailEditor.astro";
+import MailFiles from "../../../components/MailFiles.astro";
 import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
+import { listFilesForMessages, refreshPendingFiles, type MailFileRow } from "../../../lib/mail-files";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { canOpenMailbox, mailboxAddress, mailboxOwnerLabel } from "../../../lib/mailbox";
 import { formatBerlin } from "../../../lib/time";
@@ -21,7 +23,8 @@ const mailbox = db && Number.isFinite(id) ? await findMailboxById(db, id) : null
 if (!mailbox) return Astro.redirect("/admin/postfach?mail=not_found");
 if (!canOpenMailbox(session, mailbox)) return Astro.redirect("/admin/postfach?mail=forbidden");
 
-const domain = cfEnv()?.REPLY_DOMAIN || "zeus-service.de";
+const env = cfEnv();
+const domain = env?.REPLY_DOMAIN || "zeus-service.de";
 const ownAddress = mailboxAddress(mailbox.local_part, domain);
 const threads = db ? await listMailThreads(db, mailbox.id) : [];
 const openId = Number.parseInt(Astro.url.searchParams.get("offen") ?? "", 10);
@@ -29,6 +32,14 @@ const thread = db && Number.isFinite(openId) ? await getMailThread(db, openId) :
 const openThread = thread && thread.mailbox_id === mailbox.id ? thread : null;
 const messages = db && openThread ? await listMailMessages(db, openThread.id) : [];
 if (db && openThread) await markThreadInboundSeen(db, openThread.id);
+const messageIds = messages.map((entry) => entry.id);
+let messageFiles: MailFileRow[] = db && messageIds.length ? await listFilesForMessages(db, messageIds) : [];
+if (env && messageFiles.some((file) => file.scan_status === "pending" || file.scan_status === "error")) {
+  await refreshPendingFiles(env, messageFiles);
+  messageFiles = db && messageIds.length ? await listFilesForMessages(db, messageIds) : [];
+}
+const filesForMessage = (messageId: number) => messageFiles.filter((file) => file.mail_message_id === messageId);
+const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
 
 const flag = Astro.url.searchParams.get("mail");
 const flags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
@@ -136,6 +147,11 @@ const previewText = (value: string) =>
                 ) : (
                   <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">{entry.body}</p>
                 )}
+                <MailFiles
+                  files={filesForMessage(entry.id)}
+                  redirect={`/admin/postfach/${mailbox.id}?offen=${openThread.id}`}
+                  ready={virusTotalReady}
+                />
               </article>
             ))}
             <form id="reply-form" method="POST" action="/api/admin/postfach" enctype="multipart/form-data" class="grid gap-4 border-t border-ink-100 pt-4 dark:border-white/10">

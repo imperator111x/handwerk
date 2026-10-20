@@ -1,5 +1,6 @@
 ---
 import MailEditor from "../../../components/MailEditor.astro";
+import MailFiles from "../../../components/MailFiles.astro";
 import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
@@ -11,6 +12,7 @@ import {
   type ContactReplyRow,
   type ContactStatus,
 } from "../../../lib/db";
+import { listFilesForRequest, refreshPendingFiles, type MailFileRow } from "../../../lib/mail-files";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { formatBerlin } from "../../../lib/time";
 import { berlinTodayIso, formatEuro, listQuotes } from "../../../lib/offers";
@@ -37,6 +39,15 @@ if (!request) {
 }
 
 const replies: ContactReplyRow[] = db ? await listReplies(db, id) : [];
+const replyIds = replies.map((reply) => reply.id);
+let attachedFiles: MailFileRow[] = db ? await listFilesForRequest(db, id, replyIds) : [];
+if (env && attachedFiles.some((file) => file.scan_status === "pending" || file.scan_status === "error")) {
+  await refreshPendingFiles(env, attachedFiles);
+  attachedFiles = db ? await listFilesForRequest(db, id, replyIds) : [];
+}
+const customerFiles = attachedFiles.filter((file) => file.reply_id == null);
+const filesForReply = (replyId: number) => attachedFiles.filter((file) => file.reply_id === replyId);
+const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
 const quotes = db ? await listQuotes(db, id) : [];
 const offerUntil = new Date(Date.parse(`${berlinTodayIso()}T00:00:00Z`) + 14 * 86_400_000)
   .toISOString()
@@ -202,6 +213,7 @@ const redirectPath = Astro.url.pathname;
       <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-800 dark:text-ink-100">
         {request.message}
       </p>
+      <MailFiles files={customerFiles} redirect={`/admin/anfragen/${request.id}`} ready={virusTotalReady} />
     </article>
 
     <footer class="mt-5 flex flex-wrap items-center gap-2 border-t border-ink-200/70 pt-4 dark:border-white/10">
@@ -449,6 +461,7 @@ const redirectPath = Astro.url.pathname;
               {r.body}
             </p>
           )}
+          <MailFiles files={filesForReply(r.id)} redirect={`/admin/anfragen/${request.id}`} ready={virusTotalReady} />
         </article>
       ))}
     </section>

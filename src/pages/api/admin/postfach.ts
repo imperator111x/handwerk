@@ -1,6 +1,7 @@
 import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
+import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
 import { greetingFromForm } from "../../../lib/salutation";
 import {
   countMailboxes,
