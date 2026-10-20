@@ -41,6 +41,8 @@ export interface EmailAttachment {
   contentId?: string;
 }
 
+const MAIL_IMPRESSUM = "ZEUS-SERVICE Leon Lütcke, Berliner Allee 44a, 22850 Norderstedt";
+
 function escapeHtml(input: string): string {
   return input
     .replace(/&/g, "&amp;")
@@ -175,6 +177,9 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
                   ${safeSite} · <a class="email-link" href="${safeSiteUrl}" style="color:#64748b;text-decoration:underline;">${displayUrl}</a><br />
                   ${footerNote}
                 </p>
+                <p class="email-muted" style="margin:10px 0 0 0;color:#94a3b8;font-size:11px;line-height:1.45;">
+                  ${escapeHtml(MAIL_IMPRESSUM)}
+                </p>
               </td>
             </tr>
           </table>
@@ -203,6 +208,8 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
     `Fragen? E-Mail: ${contactEmail}` +
       (input.phone ? ` · Telefon: ${input.phone}` : ""),
     `Website: ${input.siteUrl}`,
+    "",
+    MAIL_IMPRESSUM,
   ];
   return lines.join("\n");
 }
