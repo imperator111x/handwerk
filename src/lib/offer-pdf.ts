@@ -1,4 +1,5 @@
 import { siteConfig } from "../config/site";
+import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_NAVY, OFFER_LOGO_WIDTH } from "./offer-logo";
 import {
   OFFER_DEFAULT_INTRO,
   OFFER_PAYMENT_TERMS,
@@ -35,8 +36,10 @@ const NAVY = "0.059 0.122 0.322";
 const INK = "0.118 0.161 0.231";
 const MUTED = "0.392 0.455 0.545";
 const WHITE = "1 1 1";
-const BAND = "0.941 0.965 1";
+const BAND = "0.945 0.961 0.984";
+const BLUE = "0.145 0.388 0.922";
 const RULE = "0.796 0.835 0.882";
+const LOGO_W = 176;
 
 export function buildOfferPdf(input: OfferPdfInput): Uint8Array {
   return serializePdf(layoutPages(input));
@@ -76,10 +79,18 @@ function layoutPages(input: OfferPdfInput): string[] {
     paint(`${RULE} RG`);
     paint(`0.6 w ${LEFT} 46 m ${RIGHT} 46 l S`);
     if (continued) {
-      textAt(LEFT, 800, 10, "F2", `Angebot ${input.number}`, NAVY);
-      textRight(RIGHT, 800, 9, "F1", "Fortsetzung", MUTED);
-      y = 776;
+      paint(`${OFFER_LOGO_NAVY} rg`);
+      paint(`0 ${round(PAGE_H - 52)} ${PAGE_W} 52 re f`);
+      paint(`q 96 0 0 ${round((96 * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH)} 36 ${round(PAGE_H - 44)} cm /Im1 Do Q`);
+      textRight(RIGHT, PAGE_H - 28, 11, "F2", `Angebot ${input.number}`, WHITE);
+      textRight(RIGHT, PAGE_H - 42, 8, "F1", "Fortsetzung", WHITE);
+      y = 770;
     }
+  };
+
+  const drawLogo = (x: number, yBottom: number, width: number) => {
+    const height = (width * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
+    paint(`q ${round(width)} 0 0 ${round(height)} ${round(x)} ${round(yBottom)} cm /Im1 Do Q`);
   };
 
   const need = (height: number) => {
@@ -87,33 +98,37 @@ function layoutPages(input: OfferPdfInput): string[] {
   };
 
   startPage(false);
+  const barBottom = PAGE_H - 104;
+  paint(`${OFFER_LOGO_NAVY} rg`);
+  paint(`0 ${round(barBottom)} ${PAGE_W} 104 re f`);
+  drawLogo(36, barBottom + 18, LOGO_W);
+  textRight(RIGHT, PAGE_H - 46, 20, "F2", "Angebot", WHITE);
+  textRight(RIGHT, PAGE_H - 66, 10, "F1", input.number, WHITE);
+  paint(`${BLUE} rg`);
+  paint(`0 ${round(barBottom - 5)} ${PAGE_W} 5 re f`);
+
+  textAt(LEFT, 708, 11, "F2", "Leon Lütcke", NAVY);
+  textAt(LEFT, 694, 10, "F1", "Berliner Allee 44a");
+  textAt(LEFT, 680, 10, "F1", "22850 Norderstedt");
+  textAt(LEFT, 666, 10, "F1", siteConfig.contact.phone, MUTED);
+  textAt(LEFT, 652, 10, "F1", siteConfig.contact.email, MUTED);
+  textRight(RIGHT, 708, 10, "F1", `Norderstedt, ${input.dateLabel}`);
+  textRight(RIGHT, 694, 10, "F1", `Gültig bis ${input.validUntilLabel}`);
+  textRight(RIGHT, 680, 10, "F1", "zeus-service.de", MUTED);
+
+  y = 622;
+  const customerLines = [input.customerName, input.customerEmail, input.customerPhone?.trim() || ""].filter(Boolean);
+  const boxHeight = 28 + customerLines.length * 14;
+  const boxBottom = y - boxHeight + 14;
   paint(`${NAVY} rg`);
-  paint(`0 ${PAGE_H - 78} ${PAGE_W} 78 re f`);
-  textAt(LEFT, 792, 18, "F2", "ZEUS-SERVICE", WHITE);
-  textAt(LEFT, 774, 9, "F1", "Hausmeisterservice · Hamburg & Norderstedt", WHITE);
-  textRight(RIGHT, 792, 16, "F2", "Angebot", WHITE);
-  textRight(RIGHT, 774, 9, "F1", input.number, WHITE);
-
-  textAt(LEFT, 742, 10, "F1", "Leon Lütcke", NAVY);
-  textAt(LEFT, 728, 10, "F1", "Berliner Allee 44a");
-  textAt(LEFT, 714, 10, "F1", "22850 Norderstedt");
-  textRight(RIGHT, 742, 10, "F1", `Norderstedt, ${input.dateLabel}`);
-  textRight(RIGHT, 728, 10, "F1", `Gültig bis ${input.validUntilLabel}`);
-
-  y = 680;
+  paint(`${LEFT} ${round(boxBottom)} 4 ${boxHeight} re f`);
   paint(`${BAND} rg`);
-  const customerLines = [
-    input.customerName,
-    input.customerEmail,
-    input.customerPhone?.trim() || "",
-  ].filter(Boolean);
-  const boxHeight = 18 + customerLines.length * 14;
-  paint(`${LEFT} ${y - boxHeight + 16} ${240} ${boxHeight} re f`);
-  textAt(LEFT + 10, y, 8, "F2", "An", MUTED);
+  paint(`${LEFT + 4} ${round(boxBottom)} 250 ${boxHeight} re f`);
+  textAt(LEFT + 16, y, 8, "F2", "An", MUTED);
   customerLines.forEach((line, index) => {
-    textAt(LEFT + 10, y - 16 - index * 14, 11, index === 0 ? "F2" : "F1", line);
+    textAt(LEFT + 16, y - 16 - index * 14, 11, index === 0 ? "F2" : "F1", line);
   });
-  y -= boxHeight + 22;
+  y -= boxHeight + 24;
 
   need(36);
   textAt(LEFT, y, 13, "F2", input.title, NAVY);
@@ -174,18 +189,26 @@ function layoutPages(input: OfferPdfInput): string[] {
   textRight(RIGHT - 6, y, 11, "F2", formatEuroAmount(offerTotalCents(input.lines)), WHITE);
   y -= 32;
 
-  for (const note of [
+  const notes = [
     OFFER_PAYMENT_TERMS,
     OFFER_SCOPE_NOTE,
     `Dieses Angebot ist gültig bis ${input.validUntilLabel}.`,
-  ]) {
-    need(14);
-    textAt(LEFT, y, 10, "F1", note);
-    y -= 14;
-  }
+  ];
+  const noteHeight = notes.length * 14 + 18;
+  need(noteHeight + 8);
+  const noteBottom = y - noteHeight + 12;
+  paint(`${BAND} rg`);
+  paint(`${LEFT} ${round(noteBottom)} ${WIDTH} ${noteHeight} re f`);
+  paint(`${BLUE} rg`);
+  paint(`${LEFT} ${round(noteBottom)} 4 ${noteHeight} re f`);
+  notes.forEach((note, index) => {
+    textAt(LEFT + 16, y - index * 14, 10, "F1", note);
+  });
+  y -= noteHeight + 20;
 
-  y -= 16;
-  need(48);
+  need(56);
+  paint(`${NAVY} RG`);
+  paint(`1 w ${LEFT} ${round(y + 12)} m ${LEFT + 150} ${round(y + 12)} l S`);
   textAt(LEFT, y, 11, "F1", "Mit freundlichen Grüßen");
   y -= 18;
   textAt(LEFT, y, 11, "F2", input.authorName, NAVY);
@@ -249,41 +272,68 @@ function pdfText(value: string): string {
 function serializePdf(streams: string[]): Uint8Array {
   const fontRegular = 3;
   const fontBold = 4;
+  const imageId = 5;
   const pageIds: number[] = [];
-  const objects = new Map<number, string>();
-  let nextId = 5;
+  const objects = new Map<number, Uint8Array>();
+  let nextId = 6;
   for (const stream of streams) {
     const contentId = nextId;
     nextId += 1;
     const pageId = nextId;
     nextId += 1;
     pageIds.push(pageId);
-    objects.set(contentId, `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    objects.set(contentId, latin1(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`));
     objects.set(
       pageId,
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> >> >>`,
+      latin1(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> /XObject << /Im1 ${imageId} 0 R >> >> >>`,
+      ),
     );
   }
-  objects.set(1, `<< /Type /Catalog /Pages 2 0 R >>`);
-  objects.set(2, `<< /Type /Pages /Count ${pageIds.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] >>`);
-  objects.set(fontRegular, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`);
-  objects.set(fontBold, `<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`);
+  objects.set(1, latin1(`<< /Type /Catalog /Pages 2 0 R >>`));
+  objects.set(2, latin1(`<< /Type /Pages /Count ${pageIds.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] >>`));
+  objects.set(fontRegular, latin1(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>`));
+  objects.set(fontBold, latin1(`<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>`));
+  objects.set(
+    imageId,
+    concat([
+      latin1(
+        `<< /Type /XObject /Subtype /Image /Width ${OFFER_LOGO_WIDTH} /Height ${OFFER_LOGO_HEIGHT} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode /Length ${OFFER_LOGO_BYTES.length} >>\nstream\n`,
+      ),
+      OFFER_LOGO_BYTES,
+      latin1("\nendstream"),
+    ]),
+  );
 
   const count = nextId - 1;
-  let body = "%PDF-1.4\n";
+  const parts: Uint8Array[] = [latin1("%PDF-1.4\n")];
   const offsets = [0];
   for (let id = 1; id <= count; id += 1) {
-    offsets.push(body.length);
-    body += `${id} 0 obj\n${objects.get(id) ?? "<<>>"}\nendobj\n`;
+    offsets.push(parts.reduce((sum, part) => sum + part.length, 0));
+    parts.push(latin1(`${id} 0 obj\n`), objects.get(id) ?? latin1("<<>>"), latin1("\nendobj\n"));
   }
-  const startxref = body.length;
-  body += `xref\n0 ${count + 1}\n`;
-  body += "0000000000 65535 f \n";
-  for (let id = 1; id <= count; id += 1) {
-    body += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
+  const startxref = parts.reduce((sum, part) => sum + part.length, 0);
+  let xref = `xref\n0 ${count + 1}\n0000000000 65535 f \n`;
+  for (let id = 1; id <= count; id += 1) xref += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
+  xref += `trailer << /Size ${count + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF`;
+  parts.push(latin1(xref));
+  return concat(parts);
+}
+
+function latin1(value: string): Uint8Array {
+  const bytes = new Uint8Array(value.length);
+  for (let index = 0; index < value.length; index += 1) bytes[index] = value.charCodeAt(index) & 0xff;
+  return bytes;
+}
+
+function concat(parts: Uint8Array[]): Uint8Array {
+  const bytes = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    bytes.set(part, offset);
+    offset += part.length;
   }
-  body += `trailer << /Size ${count + 1} /Root 1 0 R >>\nstartxref\n${startxref}\n%%EOF`;
-  return new TextEncoder().encode(body);
+  return bytes;
 }
 
 const WIN_EXTRA: Record<string, number> = {

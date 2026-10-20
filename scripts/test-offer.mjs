@@ -83,6 +83,8 @@ const pdf = buildOfferPdf({
 const raw = new TextDecoder("latin1").decode(pdf);
 const text = raw.replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
 assert.match(raw, /^%PDF-1.4/);
+assert.match(raw, /\/Subtype \/Image/);
+assert.match(raw, /\/Im1 Do/);
 assert.match(text, /Angebot/);
 assert.match(text, /A-2026-0007/);
 assert.match(text, /Erika Muster/);
