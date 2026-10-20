@@ -1,13 +1,30 @@
 import assert from "node:assert/strict";
+import { registerHooks } from "node:module";
 import PostalMime from "postal-mime";
-import {
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "cloudflare:workers") {
+      return {
+        url: new URL("./cloudflare-workers-stub.mjs", import.meta.url).href,
+        shortCircuit: true,
+      };
+    }
+    if (specifier.startsWith(".") && !/\.(?:ts|js|mjs|json)$/.test(specifier)) {
+      return nextResolve(`${specifier}.ts`, context);
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const {
   buildReplyAddress,
   formatMessageIdHeader,
   normalizeMessageId,
   parseReplyToken,
   verifyReplyToken,
-} from "../src/lib/reply-address.ts";
-import { extractCustomerText } from "../src/lib/inbound-mail.ts";
+} = await import("../src/lib/reply-address.ts");
+const { extractCustomerText } = await import("../src/lib/inbound-mail.ts");
 
 const secret = "test-secret";
 const address = await buildReplyAddress(secret, 2, "antwort.zeus-service.de");
@@ -34,6 +51,9 @@ assert.equal(
   extractCustomerText("", "<p>Hallo</p><p>Am Montag schrieb team@zeus-service.de:</p><p>alt</p>"),
   "Hallo",
 );
+assert.equal(extractCustomerText("Gr&uuml;&szlig;e &amp; &raquo;Pr&uuml;fung&laquo;", ""), "Grüße & »Prüfung«");
+assert.equal(extractCustomerText("", "<p>F&uuml;r &auml;hnliche F&auml;lle</p>"), "Für ähnliche Fälle");
+assert.equal(extractCustomerText("&#252;ber &#xFC;ber", ""), "über über");
 
 const raw = [
   "From: Erika Muster <erika@example.com>",

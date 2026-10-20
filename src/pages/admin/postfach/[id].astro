@@ -7,6 +7,7 @@ import { requireSession } from "../../../lib/auth";
 import { blockedKinds, isOwnMailboxEmail, normalizeBlockEmail } from "../../../lib/blocks";
 import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
 import { listFilesForMessages, refreshPendingFiles, type MailFileRow } from "../../../lib/mail-files";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { canOpenMailbox, mailboxAddress, mailboxOwnerLabel } from "../../../lib/mailbox";
 import { formatBerlin } from "../../../lib/time";
@@ -31,6 +32,8 @@ const threads = db ? await listMailThreads(db, mailbox.id) : [];
 const openId = Number.parseInt(Astro.url.searchParams.get("offen") ?? "", 10);
 const thread = db && Number.isFinite(openId) ? await getMailThread(db, openId) : null;
 const openThread = thread && thread.mailbox_id === mailbox.id ? thread : null;
+const threadSubject = openThread ? decodeHtmlEntities(openThread.subject) : "";
+const threadPeerName = openThread ? decodeHtmlEntities(openThread.peer_name || "") : "";
 const messages = db && openThread ? await listMailMessages(db, openThread.id) : [];
 if (db && openThread) await markThreadInboundSeen(db, openThread.id);
 const messageIds = messages.map((entry) => entry.id);
@@ -122,11 +125,11 @@ const previewText = (value: string) =>
               <div class="flex items-baseline justify-between gap-3">
                 <p class="truncate text-sm font-semibold text-ink-900 dark:text-ink-50">
                   {item.last_direction === "inbound" ? "● " : ""}
-                  {item.peer_name || item.peer_email}
+                  {decodeHtmlEntities(item.peer_name || item.peer_email)}
                 </p>
                 <time class="shrink-0 text-[11px] text-ink-400">{formatDate(item.updated_at)}</time>
               </div>
-              <p class="truncate text-sm text-ink-700 dark:text-ink-200">{item.subject || "(Ohne Betreff)"}</p>
+              <p class="truncate text-sm text-ink-700 dark:text-ink-200">{decodeHtmlEntities(item.subject || "(Ohne Betreff)")}</p>
               <p class="truncate text-xs text-ink-500 dark:text-ink-400">{previewText(item.preview) || "Keine Vorschau"}</p>
             </a>
           ))
@@ -143,9 +146,9 @@ const previewText = (value: string) =>
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-sm text-ink-500 dark:text-ink-400">
-                    {ownAddress} ↔ {openThread.peer_name ? `${openThread.peer_name} · ` : ""}{openThread.peer_email}
+                    {ownAddress} ↔ {threadPeerName ? `${threadPeerName} · ` : ""}{openThread.peer_email}
                   </p>
-                  <h3 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{openThread.subject}</h3>
+                  <h3 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{threadSubject}</h3>
                 </div>
                 <form method="POST" action="/api/admin/postfach" onsubmit="return confirm('Diesen Mailverlauf wirklich löschen?')">
                   <input type="hidden" name="action" value="delete" />
@@ -196,7 +199,7 @@ const previewText = (value: string) =>
                 {entry.direction === "outbound" && /<\/?[a-z][\s>]/i.test(entry.body) ? (
                   <div class="mt-2 text-sm leading-relaxed text-ink-700 dark:text-ink-200 [&_a]:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5" set:html={sanitizeMailHtml(entry.body)} />
                 ) : (
-                  <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">{entry.body}</p>
+                  <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">{decodeHtmlEntities(entry.body)}</p>
                 )}
                 <MailFiles
                   files={filesForMessage(entry.id)}
@@ -214,9 +217,9 @@ const previewText = (value: string) =>
               <input type="file" id="reply-documents" name="documents" class="hidden" multiple />
               <div>
                 <label class="label" for="reply_subject">Betreff</label>
-                <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" value={openThread.subject.startsWith("Re:") ? openThread.subject : `Re: ${openThread.subject}`} />
+                <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" value={threadSubject.startsWith("Re:") ? threadSubject : `Re: ${threadSubject}`} />
               </div>
-              <SalutationSelect name={openThread.peer_name || ""} id="salutation-reply" />
+              <SalutationSelect name={threadPeerName} id="salutation-reply" />
               <MailEditor />
               <button type="submit" class="btn-primary w-fit">Antwort senden</button>
             </form>

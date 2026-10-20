@@ -14,6 +14,7 @@ import {
   type ContactStatus,
 } from "../../../lib/db";
 import { listFilesForRequest, refreshPendingFiles, type MailFileRow } from "../../../lib/mail-files";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { formatBerlin } from "../../../lib/time";
 import { berlinTodayIso, formatEuro, listQuotes } from "../../../lib/offers";
@@ -88,6 +89,8 @@ const topicLabels: Record<string, string> = {
 
 const formatDate = (ts: number) => formatBerlin(ts);
 
+const customerName = decodeHtmlEntities(request.name);
+const customerMessage = decodeHtmlEntities(request.message);
 const siteName = env?.SITE_NAME ?? "Zeus-Service";
 const defaultSubject = `Ihre Anfrage bei ${siteName} – ${topicLabels[request.topic] ?? request.topic}`;
 const defaultBody = `vielen Dank für Ihre Anfrage. Gerne gehen wir auf Ihr Anliegen ein:
@@ -212,7 +215,7 @@ const redirectPath = Astro.url.pathname;
       <div>
         <div class="flex flex-wrap items-center gap-2">
           <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
-            {request.name}
+            {customerName}
           </h2>
           <span class={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusChipClasses[request.status]}`}>
             {statusLabels[request.status]}
@@ -274,7 +277,7 @@ const redirectPath = Astro.url.pathname;
         Nachricht des Kunden
       </p>
       <p class="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink-800 dark:text-ink-100">
-        {request.message}
+        {customerMessage}
       </p>
       <MailFiles files={customerFiles} redirect={`/admin/anfragen/${request.id}`} ready={virusTotalReady} />
     </article>
@@ -341,7 +344,7 @@ const redirectPath = Astro.url.pathname;
         <input class="input" id="offer-until" name="valid_until" type="date" required value={offerUntil} />
       </div>
       <div class="sm:col-span-2">
-        <SalutationSelect name={request.name} id="salutation-offer" />
+        <SalutationSelect name={customerName} id="salutation-offer" />
       </div>
       <div class="sm:col-span-2">
         <label class="label" for="offer-body">Leistungsumfang</label>
@@ -380,7 +383,7 @@ const redirectPath = Astro.url.pathname;
           Schickt {request.email} einen Link. Dort trägt die Person Vorname, Nachname und Straße ein
           und wählt eine der {openSlotCount} freien Zeiten. Die Buchung bleibt an dieser Anfrage.
         </p>
-        <SalutationSelect name={request.name} id="salutation-termin" />
+        <SalutationSelect name={customerName} id="salutation-termin" />
         <button type="submit" class="btn-primary" disabled={openSlotCount === 0}>
           Terminlink per E-Mail senden
         </button>
@@ -436,7 +439,7 @@ const redirectPath = Astro.url.pathname;
         />
       </div>
 
-      <SalutationSelect name={request.name} id="salutation-reply" />
+      <SalutationSelect name={customerName} id="salutation-reply" />
 
       <MailEditor defaultHtml={defaultHtml} />
 
@@ -491,7 +494,7 @@ const redirectPath = Astro.url.pathname;
           <header class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">
-                {r.subject}
+                {decodeHtmlEntities(r.subject)}
               </p>
               <p class="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
                 von <strong>{r.author_name}</strong>
@@ -534,7 +537,7 @@ const redirectPath = Astro.url.pathname;
             />
           ) : (
             <p class="mt-3 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">
-              {r.body}
+              {decodeHtmlEntities(r.body)}
             </p>
           )}
           <MailFiles files={filesForReply(r.id)} redirect={`/admin/anfragen/${request.id}`} ready={virusTotalReady} />

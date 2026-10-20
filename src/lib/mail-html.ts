@@ -1,3 +1,5 @@
+import { decodeHtmlEntities } from "./html-entities";
+
 const ALLOWED = new Set([
   "p",
   "br",
@@ -77,13 +79,7 @@ export function htmlToPlainText(input: string): string {
   const withBreaks = input
     .replace(/<br\s*\/?\s*>/gi, "\n")
     .replace(/<\/(p|div|li|blockquote|h\d|ul|ol)>/gi, "\n");
-  const stripped = withBreaks
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"');
+  const stripped = decodeHtmlEntities(withBreaks.replace(/<[^>]+>/g, ""));
   return stripped.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 

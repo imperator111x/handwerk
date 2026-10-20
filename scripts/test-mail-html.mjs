@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
-import { htmlToPlainText, replaceEditorImages, sanitizeMailHtml } from "../src/lib/mail-html.ts";
-import { imageNameParts, inspectUpload, safeFilename } from "../src/lib/mail-files.ts";
+import { registerHooks } from "node:module";
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier.startsWith(".") && !/\.(?:ts|js|mjs|json)$/.test(specifier)) {
+      return nextResolve(`${specifier}.ts`, context);
+    }
+    return nextResolve(specifier, context);
+  },
+});
+
+const { htmlToPlainText, replaceEditorImages, sanitizeMailHtml } = await import("../src/lib/mail-html.ts");
+const { imageNameParts, inspectUpload, safeFilename } = await import("../src/lib/mail-files.ts");
 
 const dirty = `<p onclick="alert(1)">Hallo <strong>Team</strong></p><script>alert(1)</script><a href="javascript:alert(1)">böse</a><a href="https://zeus-service.de">Seite</a>`;
 const clean = sanitizeMailHtml(dirty);
@@ -20,6 +31,7 @@ assert.match(
   /Bild: foto\.png/,
 );
 assert.equal(htmlToPlainText("<p>Hallo <strong>du</strong></p><p>Anhang: a.pdf</p>"), "Hallo du\nAnhang: a.pdf");
+assert.equal(htmlToPlainText("<p>Gr&uuml;&szlig;e &amp; Co</p>"), "Grüße & Co");
 
 assert.deepEqual(imageNameParts("imgabc123--my--file.png"), {
   uploadId: "imgabc123",

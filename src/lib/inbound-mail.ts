@@ -22,6 +22,7 @@ import {
   upsertMailThread,
 } from "./db";
 import { MAIL_DOMAIN, isExternalLocalPart, matchMailboxLocalPart } from "./mailbox";
+import { decodeHtmlEntities } from "./html-entities";
 import {
   collectAddresses,
   extractMessageIds,
@@ -108,7 +109,7 @@ export async function ingestInboundEmail(
       request_id: requestId,
       author_name: author,
       from_email: from,
-      subject: clip(email.subject?.trim() || `Antwort von ${author}`, 200),
+      subject: clip(decodeHtmlEntities(email.subject?.trim() || `Antwort von ${author}`), 200),
       body: body || "(Keine Textnachricht)",
       message_id: messageId,
     });
@@ -177,7 +178,7 @@ async function storeMailboxMail(
   }
 
   const peerName = cleanName(email.fromName);
-  const subject = clip(email.subject?.trim() || "Nachricht", 200);
+  const subject = clip(decodeHtmlEntities(email.subject?.trim() || "Nachricht"), 200);
   const threadId = linked
     ? linked.id
     : await upsertMailThread(db, {
@@ -229,7 +230,7 @@ function isAutomated(from: string, autoSubmitted: string | null, subject: string
 }
 
 export function extractCustomerText(text: string, html: string): string {
-  const source = text.trim() ? text : htmlToText(html);
+  const source = decodeHtmlEntities(text.trim() ? text : htmlToText(html));
   const normalized = source.replace(/\r\n/g, "\n").replace(/\u00a0/g, " ");
   const lines = normalized.split("\n");
   const kept: string[] = [];
@@ -264,17 +265,14 @@ function htmlToText(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'");
+    .replace(/<[^>]+>/g, "");
 }
 
 function cleanName(value: string | null | undefined): string {
-  return (value ?? "").replace(/["<>]/g, "").trim().slice(0, 120);
+  return decodeHtmlEntities(value ?? "")
+    .replace(/["<>]/g, "")
+    .trim()
+    .slice(0, 120);
 }
 
 function clip(value: string, max = MAX_BODY): string {

@@ -7,6 +7,7 @@ import {
   listContactRequests,
   type ContactStatus,
 } from "../../lib/db";
+import { decodeHtmlEntities } from "../../lib/html-entities";
 import { formatBerlin } from "../../lib/time";
 
 export const prerender = false;
@@ -141,7 +142,7 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                           href={`/admin/anfragen/${entry.id}`}
                           class="hover:text-brand-600 dark:hover:text-brand-300 transition-colors"
                         >
-                          {entry.name}
+                          {decodeHtmlEntities(entry.name)}
                         </a>
                       </h3>
                       <span
@@ -184,7 +185,7 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
                 </header>
 
                 <p class="mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-700 dark:text-ink-200">
-                  {entry.message}
+                  {decodeHtmlEntities(entry.message)}
                 </p>
 
                 <div class="mt-4">
