@@ -4,7 +4,11 @@ import ObfuscatedEmail from "../components/ObfuscatedEmail.astro";
 import { siteConfig } from "../config/site";
 ---
 
-<Layout title="Datenschutz" description="Datenschutzerklärung von Zeus-Service">
+<Layout
+  title="Datenschutz"
+  description="Datenschutzerklärung von Zeus-Service in Norderstedt: Besuch, Kontaktformular und Terminbuchung."
+  crumbs={[{ name: "Datenschutz", path: "/datenschutz" }]}
+>
   <section class="section bg-white dark:bg-ink-950">
     <div class="container-page max-w-3xl space-y-6">
       <p class="section-eyebrow">Rechtliches</p>

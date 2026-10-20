@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Zeus-Service",
   tagline: "Ihr Hausmeisterservice für Hamburg & Norderstedt",
   description:
-    "Professioneller Hausmeisterservice in Hamburg und Norderstedt. Reparaturen, Reinigung, Wartung und Objektbetreuung für Privathaushalte, Wohnanlagen und Gewerbeobjekte. Zuverlässig, kompetent, schnell.",
+    "Hausmeisterservice in Hamburg und Norderstedt: Reparaturen, Reinigung, Wartung und Objektbetreuung für Haushalte, Wohnanlagen und Gewerbe.",
   url: "https://zeus-service.de",
   locale: "de-DE",
   contact: {
@@ -30,6 +30,7 @@ export const siteConfig = {
     { label: "Über uns", href: "/#ueber-uns" },
     { label: "Ablauf", href: "/#ablauf" },
     { label: "Referenzen", href: "/#referenzen" },
+    { label: "Fragen", href: "/#fragen" },
     { label: "Kontakt", href: "/#kontakt" },
   ],
 } as const;

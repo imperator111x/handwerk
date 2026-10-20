@@ -92,7 +92,10 @@ const stack = [
           <ObfuscatedEmail class="hover:text-white" />
         </li>
         <li>
-          {siteConfig.contact.address.zip} {siteConfig.contact.address.city}
+          <address class="not-italic">
+            {siteConfig.contact.address.street}<br />
+            {siteConfig.contact.address.zip} {siteConfig.contact.address.city}
+          </address>
         </li>
       </ul>
       <h3

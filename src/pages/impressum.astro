@@ -4,7 +4,11 @@ import ObfuscatedEmail from "../components/ObfuscatedEmail.astro";
 import { siteConfig } from "../config/site";
 ---
 
-<Layout title="Impressum" description="Impressum von Zeus-Service">
+<Layout
+  title="Impressum"
+  description="Impressum von Zeus-Service: Leon Lütcke, Berliner Allee 44A, 22850 Norderstedt."
+  crumbs={[{ name: "Impressum", path: "/impressum" }]}
+>
   <section class="section bg-white dark:bg-ink-950">
     <div class="container-page max-w-3xl">
       <p class="section-eyebrow">Rechtliches</p>

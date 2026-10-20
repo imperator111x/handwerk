@@ -1,0 +1,21 @@
+---
+import { faqJsonLd, faqs } from "../lib/seo";
+---
+
+<section id="fragen" class="section scroll-mt-24 bg-ink-100 dark:bg-ink-900">
+  <div class="container-page max-w-3xl">
+    <p class="section-eyebrow">Fragen</p>
+    <h2 class="section-title mt-3">Häufige Fragen</h2>
+    <div class="mt-10 space-y-4">
+      {
+        faqs.map((entry) => (
+          <article class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-950">
+            <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">{entry.question}</h3>
+            <p class="mt-2 text-ink-700 leading-relaxed dark:text-ink-200">{entry.answer}</p>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
+<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd())} />

@@ -8,11 +8,23 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   site: 'https://zeus-service.de',
   output: 'server',
+  trailingSlash: 'never',
   session: false,
   adapter: cloudflare({
     imageService: 'compile',
   }),
-  integrations: [sitemap()],
+  integrations: [
+    sitemap({
+      filter(page) {
+        try {
+          const path = new URL(page).pathname.replace(/\/$/, "") || "/";
+          return path === "/" || path === "/impressum" || path === "/datenschutz";
+        } catch {
+          return false;
+        }
+      },
+    }),
+  ],
   vite: {
     plugins: [
       /** @type {any} */
