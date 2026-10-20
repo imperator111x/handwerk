@@ -1,3 +1,4 @@
+import { blockedKinds } from "../../lib/blocks";
 import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
 import { verifyTurnstile } from "../../lib/turnstile";
@@ -57,6 +58,22 @@ export async function POST(ctx: APIContext): Promise<Response> {
     "unknown";
   const country = ctx.request.headers.get("cf-ipcountry") ?? "unknown";
   const userAgent = ctx.request.headers.get("user-agent") ?? "unknown";
+
+  if (env?.DB) {
+    try {
+      const blocked = await blockedKinds(env.DB, { email: payload.email, ip });
+      if (blocked.email || blocked.ip) {
+        console.log("contact_blocked", blocked.email ? "email" : "ip");
+        return json({
+          ok: true,
+          id: null,
+          message: "Vielen Dank für Ihre Anfrage – wir melden uns in Kürze bei Ihnen.",
+        });
+      }
+    } catch (err) {
+      console.error("contact_block_check_failed", err);
+    }
+  }
 
   const log = {
     at: new Date().toISOString(),

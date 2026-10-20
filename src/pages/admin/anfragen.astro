@@ -90,6 +90,9 @@ const tabs: Array<{ status: ContactStatus | "all"; count: number }> = [
     db && (
       <>
         <section class="flex flex-wrap items-center gap-2">
+          <a href="/admin/sperren" class="text-sm font-medium text-ink-500 underline hover:text-brand-700 dark:text-ink-400">
+            Gesperrte Absender
+          </a>
           {tabs.map((tab) => {
             const active = tab.status === statusFilter;
             const href =

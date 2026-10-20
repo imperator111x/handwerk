@@ -1,5 +1,6 @@
 import { handle } from "@astrojs/cloudflare/handler";
 import PostalMime from "postal-mime";
+import { blockedKinds, normalizeBlockEmail } from "./lib/blocks";
 import { ingestInboundEmail, type IngestResult } from "./lib/inbound-mail";
 import { scanStoredFiles, storeInboundFiles, type RawAttachment } from "./lib/mail-files";
 import { isExternalMailboxAddress } from "./lib/mailbox";
@@ -21,6 +22,16 @@ const MAX_INBOUND_BYTES = 20_000_000;
 function mailboxAddress(address: { address?: string; group?: Array<{ address?: string }> }): string[] {
   if (address.address) return [address.address];
   return (address.group ?? []).flatMap((member) => (member.address ? [member.address] : []));
+}
+
+async function emailIsBlocked(db: D1Database, email: string | null): Promise<boolean> {
+  if (!email) return false;
+  try {
+    return (await blockedKinds(db, { email })).email;
+  } catch (err) {
+    console.error("inbound_block_check_failed", err);
+    return false;
+  }
 }
 
 export default {
@@ -66,6 +77,11 @@ async function receiveEmail(message: InboundMessage, env: Env, ctx: ExecutionCon
     message.setReject("Postfach vorübergehend nicht erreichbar.");
     return;
   }
+  const envelopeFrom = normalizeBlockEmail(message.from);
+  if (await emailIsBlocked(env.DB, envelopeFrom)) {
+    console.log("inbound_blocked");
+    return;
+  }
   if (message.rawSize > MAX_INBOUND_BYTES) {
     console.log("inbound_too_large", message.rawSize);
     message.setReject("Die Nachricht ist zu groß.");
@@ -83,6 +99,11 @@ async function receiveEmail(message: InboundMessage, env: Env, ctx: ExecutionCon
   }
 
   const fromMailbox = parsed.from && "address" in parsed.from ? parsed.from : null;
+  const headerFrom = normalizeBlockEmail(fromMailbox && "address" in fromMailbox ? fromMailbox.address ?? "" : "");
+  if (headerFrom && headerFrom !== envelopeFrom && (await emailIsBlocked(env.DB, headerFrom))) {
+    console.log("inbound_blocked");
+    return;
+  }
   const headerRecipients = [
     message.headers.get("delivered-to"),
     message.headers.get("x-original-to"),

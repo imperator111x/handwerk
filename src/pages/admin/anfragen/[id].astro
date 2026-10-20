@@ -4,6 +4,7 @@ import MailFiles from "../../../components/MailFiles.astro";
 import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
+import { blockedKinds, isOwnMailboxEmail, normalizeBlockEmail } from "../../../lib/blocks";
 import { formatAddress, formatSlot, getBookingForRequest, listOpenSlots } from "../../../lib/appointments";
 import {
   getContactRequest,
@@ -39,6 +40,12 @@ if (!request) {
 }
 
 const replies: ContactReplyRow[] = db ? await listReplies(db, id) : [];
+const senderBlock = db ? await blockedKinds(db, { email: request.email, ip: request.ip }) : { email: false, ip: false };
+const blockEmail = normalizeBlockEmail(request.email);
+const blockIp = request.ip && request.ip !== "unknown" ? request.ip : "";
+const ownEmail = Boolean(blockEmail && isOwnMailboxEmail(blockEmail, env?.REPLY_DOMAIN || "zeus-service.de"));
+const canBlockEmail = Boolean(blockEmail) && !ownEmail && !senderBlock.email;
+const canBlockIp = Boolean(blockIp) && !senderBlock.ip;
 const replyIds = replies.map((reply) => reply.id);
 let attachedFiles: MailFileRow[] = db ? await listFilesForRequest(db, id, replyIds) : [];
 if (env && attachedFiles.some((file) => file.scan_status === "pending" || file.scan_status === "error")) {
@@ -127,6 +134,18 @@ const angebotFlags: Record<string, { kind: "ok" | "warn" | "err"; text: string }
   db: { kind: "err", text: "Das Angebot konnte nicht gespeichert werden." },
 };
 const angebotMessage = angebotFlag ? angebotFlags[angebotFlag] : null;
+const sperreFlag = Astro.url.searchParams.get("sperre");
+const sperreFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
+  saved: {
+    kind: "ok",
+    text: "Der Absender ist gesperrt. Neue Mails und Anfragen von dieser E-Mail und IP kommen nicht mehr an.",
+  },
+  lifted: { kind: "ok", text: "Die Sperre ist aufgehoben." },
+  own: { kind: "err", text: "Adressen von zeus-service.de lassen sich nicht sperren." },
+  empty: { kind: "err", text: "Es gibt keine E-Mail oder IP zum Sperren." },
+  db: { kind: "err", text: "Die Sperre konnte nicht gespeichert werden." },
+};
+const sperreMessage = sperreFlag ? sperreFlags[sperreFlag] : null;
 const terminFlag = Astro.url.searchParams.get("termin");
 const terminFlags: Record<string, string> = {
   sent: "Der Terminlink wurde per E-Mail verschickt.",
@@ -153,6 +172,19 @@ const redirectPath = Astro.url.pathname;
       Zurück zur Liste
     </a>
   </nav>
+
+  {sperreMessage && (
+    <p
+      class:list={[
+        "rounded-xl border px-4 py-3 text-sm",
+        sperreMessage.kind === "ok"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-100"
+          : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-100",
+      ]}
+    >
+      {sperreMessage.text}
+    </p>
+  )}
 
   {replyFlagMsg && (
     <div
@@ -201,6 +233,30 @@ const redirectPath = Astro.url.pathname;
             class="rounded-full border border-ink-200 bg-white px-3 py-1.5 font-medium text-ink-800 hover:bg-ink-100 dark:border-white/10 dark:bg-white/5 dark:text-ink-100 dark:hover:bg-white/10"
           >
             {request.phone}
+          </a>
+        )}
+        {(canBlockEmail || canBlockIp) && (
+          <form method="POST" action="/api/admin/sperren" class="inline">
+            <input type="hidden" name="action" value="block" />
+            <input type="hidden" name="email" value={canBlockEmail ? request.email : ""} />
+            <input type="hidden" name="ip" value={canBlockIp ? blockIp : ""} />
+            <input type="hidden" name="note" value={`Anfrage #${request.id}`} />
+            <input type="hidden" name="redirect" value={redirectPath} />
+            <button
+              type="submit"
+              class="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 font-medium text-rose-800 hover:bg-rose-100 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100"
+            >
+              {canBlockEmail && canBlockIp ? "E-Mail und IP sperren" : canBlockEmail ? "E-Mail sperren" : "IP sperren"}
+            </button>
+          </form>
+        )}
+        {(senderBlock.email || senderBlock.ip) && (
+          <a href="/admin/sperren" class="text-sm font-medium text-ink-500 underline dark:text-ink-400">
+            {senderBlock.email && senderBlock.ip
+              ? "E-Mail und IP sind gesperrt"
+              : senderBlock.email
+                ? "E-Mail ist gesperrt"
+                : "IP ist gesperrt"}
           </a>
         )}
       </div>

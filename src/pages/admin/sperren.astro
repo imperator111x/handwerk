@@ -1,0 +1,79 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireSession } from "../../lib/auth";
+import { listSenderBlocks } from "../../lib/blocks";
+import { getDb } from "../../lib/db";
+import { formatBerlin } from "../../lib/time";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const db = getDb(Astro);
+const blocks = db ? await listSenderBlocks(db) : [];
+const flag = Astro.url.searchParams.get("sperre");
+const flags: Record<string, { kind: "ok" | "err"; text: string }> = {
+  saved: { kind: "ok", text: "Der Absender ist gesperrt." },
+  lifted: { kind: "ok", text: "Die Sperre ist aufgehoben." },
+  own: { kind: "err", text: "Adressen von zeus-service.de lassen sich nicht sperren." },
+  empty: { kind: "err", text: "Es gibt keine E-Mail oder IP zum Sperren." },
+  bad: { kind: "err", text: "Diese Sperre gibt es nicht." },
+  db: { kind: "err", text: "Die Sperre konnte nicht gespeichert werden." },
+};
+const notice = flag ? flags[flag] : null;
+---
+
+<AdminLayout title="Gesperrte Absender" session={session}>
+  <a href="/admin/anfragen" class="text-sm text-ink-500 hover:text-brand-700 dark:text-ink-400">← Anfragen</a>
+  <header>
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Gesperrte Absender</h2>
+    <p class="mt-1 max-w-2xl text-sm text-ink-600 dark:text-ink-300">
+      Neue Mails und Anfragen von einer gesperrten E-Mail kommen nicht mehr an. Eine gesperrte IP gilt für das Kontaktformular.
+    </p>
+  </header>
+  {notice && (
+    <p
+      class:list={[
+        "rounded-2xl border px-4 py-3 text-sm",
+        notice.kind === "ok"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+          : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+      ]}
+    >
+      {notice.text}
+    </p>
+  )}
+  {blocks.length === 0 ? (
+    <p class="rounded-3xl border border-ink-200 bg-white px-5 py-8 text-sm text-ink-500 dark:border-white/10 dark:bg-ink-900 dark:text-ink-400">
+      Noch ist niemand gesperrt. In einer Anfrage oder im Postfach lässt sich der Absender sperren.
+    </p>
+  ) : (
+    <ul class="space-y-3">
+      {blocks.map((block) => (
+        <li class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-ink-200 bg-white px-4 py-3 dark:border-white/10 dark:bg-ink-900">
+          <div>
+            <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">
+              {block.kind === "email" ? "E-Mail" : "IP"} · {block.value}
+            </p>
+            <p class="text-xs text-ink-500 dark:text-ink-400">
+              gesperrt {formatBerlin(block.created_at)}
+              {block.note ? ` · ${block.note}` : ""}
+            </p>
+          </div>
+          <form method="POST" action="/api/admin/sperren">
+            <input type="hidden" name="action" value="unblock" />
+            <input type="hidden" name="id" value={block.id} />
+            <input type="hidden" name="redirect" value="/admin/sperren" />
+            <button
+              type="submit"
+              class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-100 dark:border-white/10 dark:bg-white/5 dark:text-ink-200"
+            >
+              Entsperren
+            </button>
+          </form>
+        </li>
+      ))}
+    </ul>
+  )}
+</AdminLayout>

@@ -4,6 +4,7 @@ import MailFiles from "../../../components/MailFiles.astro";
 import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
+import { blockedKinds, isOwnMailboxEmail, normalizeBlockEmail } from "../../../lib/blocks";
 import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
 import { listFilesForMessages, refreshPendingFiles, type MailFileRow } from "../../../lib/mail-files";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
@@ -40,6 +41,20 @@ if (env && messageFiles.some((file) => file.scan_status === "pending" || file.sc
 }
 const filesForMessage = (messageId: number) => messageFiles.filter((file) => file.mail_message_id === messageId);
 const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
+const peerEmail = openThread ? normalizeBlockEmail(openThread.peer_email) : null;
+const peerBlocked = db && peerEmail ? await blockedKinds(db, { email: peerEmail }) : { email: false, ip: false };
+const canBlockPeer = Boolean(peerEmail) && !isOwnMailboxEmail(peerEmail ?? "", domain) && !peerBlocked.email;
+const sperreFlag = Astro.url.searchParams.get("sperre");
+const sperreText =
+  sperreFlag === "saved"
+    ? "Diese E-Mail ist gesperrt. Neue Nachrichten von dort kommen nicht mehr an."
+    : sperreFlag === "own"
+      ? "Adressen von zeus-service.de lassen sich nicht sperren."
+      : sperreFlag === "empty"
+        ? "Diese Adresse lässt sich nicht sperren."
+        : sperreFlag === "db"
+          ? "Die Sperre konnte nicht gespeichert werden."
+          : "";
 
 const flag = Astro.url.searchParams.get("mail");
 const flags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
@@ -128,6 +143,27 @@ const previewText = (value: string) =>
                 {ownAddress} ↔ {openThread.peer_name ? `${openThread.peer_name} · ` : ""}{openThread.peer_email}
               </p>
               <h3 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{openThread.subject}</h3>
+              {sperreText && (
+                <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">{sperreText}</p>
+              )}
+              {peerBlocked.email ? (
+                <a href="/admin/sperren" class="mt-2 inline-block text-sm font-medium text-ink-500 underline dark:text-ink-400">
+                  Absender ist gesperrt
+                </a>
+              ) : canBlockPeer ? (
+                <form method="POST" action="/api/admin/sperren" class="mt-2">
+                  <input type="hidden" name="action" value="block" />
+                  <input type="hidden" name="email" value={peerEmail ?? ""} />
+                  <input type="hidden" name="note" value="Postfach" />
+                  <input type="hidden" name="redirect" value={`/admin/postfach/${mailbox.id}?offen=${openThread.id}`} />
+                  <button
+                    type="submit"
+                    class="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100"
+                  >
+                    Absender sperren
+                  </button>
+                </form>
+              ) : null}
             </div>
             {messages.map((entry) => (
               <article
