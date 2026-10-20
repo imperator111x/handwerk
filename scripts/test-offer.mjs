@@ -97,6 +97,8 @@ assert.match(text, /112,50 EUR/);
 assert.match(text, /8,40 EUR/);
 assert.match(text, /120,90 EUR/);
 assert.match(text, /Zahlbar innerhalb von 14 Tagen nach Ausführung/);
+assert.match(text, /Angebotsnummer: A-2026-0007/);
+assert.match(text, /Bei Zahlung bitte angeben/);
 assert.match(text, /Kontoinhaber: ZEUS-SERVICE/);
 assert.match(text, /IBAN: DE38 1001 4000 1598 1684 18/);
 assert.match(text, /SWIFT: SWNB DE BB/);

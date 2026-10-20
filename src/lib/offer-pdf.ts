@@ -127,6 +127,12 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   y = addressTop - 92;
   const customerLines = [input.customerName, input.customerEmail, input.customerPhone?.trim() || ""].filter(Boolean);
+  const paymentHint = [`Angebotsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
+  const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
+  const hintX = RIGHT - hintWidth;
+  paymentHint.forEach((line, index) => {
+    textAt(hintX, y - index * 14, 10, "F1", line);
+  });
   textAt(LEFT, y, 8, "F2", "An", MUTED);
   customerLines.forEach((line, index) => {
     textAt(LEFT, y - 14 - index * 14, 11, index === 0 ? "F2" : "F1", line);
