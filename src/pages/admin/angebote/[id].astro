@@ -2,9 +2,8 @@
 import SalutationSelect from "../../../components/SalutationSelect.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
-import { getContactRequest, getDb } from "../../../lib/db";
-import { decodeHtmlEntities } from "../../../lib/html-entities";
-import { berlinTodayIso, getQuote, offerValidity } from "../../../lib/offers";
+import { getDb } from "../../../lib/db";
+import { berlinTodayIso, getQuote, offerValidity, quoteParty } from "../../../lib/offers";
 import {
   OFFER_BANK_LINES,
   OFFER_PAYMENT_TERMS,
@@ -32,10 +31,10 @@ if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/angebote");
 const db = getDb(Astro);
 const quote = db ? await getQuote(db, id) : null;
 if (!quote) return Astro.redirect("/admin/angebote?angebot=missing");
-const request = db ? await getContactRequest(db, quote.request_id) : null;
-if (!request) return Astro.redirect("/admin/angebote?angebot=missing");
+const party = db ? await quoteParty(db, quote) : null;
+if (!party) return Astro.redirect("/admin/angebote?angebot=missing");
 
-const customerName = decodeHtmlEntities(request.name);
+const customerName = party.name;
 const stored = readStoredOffer(quote.lines_json, quote.body);
 const lines: OfferLine[] = stored.lines.length
   ? stored.lines
@@ -57,8 +56,8 @@ const euroField = (cents: number) =>
         <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">Angebot</p>
         <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{number}</h2>
         <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
-          {customerName} · {request.email}
-          {request.phone ? ` · ${request.phone}` : ""}
+          {customerName} · {party.email}
+          {party.phone ? ` · ${party.phone}` : ""}
         </p>
       </div>
       <span

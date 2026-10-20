@@ -193,12 +193,22 @@ const emptyText =
                     >
                       PDF öffnen
                     </a>
-                    <a
-                      href={`/admin/anfragen/${quote.request_id}`}
-                      class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
-                    >
-                      Zur Anfrage
-                    </a>
+                    {quote.customer_id ? (
+                      <a
+                        href={`/admin/kunden/${quote.customer_id}`}
+                        class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                      >
+                        Zum Kunden
+                      </a>
+                    ) : null}
+                    {quote.request_id ? (
+                      <a
+                        href={`/admin/anfragen/${quote.request_id}`}
+                        class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                      >
+                        Zur Anfrage
+                      </a>
+                    ) : null}
                     <form
                       method="POST"
                       action="/api/admin/angebote"

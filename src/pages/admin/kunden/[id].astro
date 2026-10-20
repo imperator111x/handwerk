@@ -1,0 +1,167 @@
+---
+import CustomerForm from "../../../components/CustomerForm.astro";
+import OfferComposer from "../../../components/OfferComposer.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { customerAddress, getCustomer } from "../../../lib/customers";
+import { getDb } from "../../../lib/db";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
+import { berlinTodayIso, listQuotesForCustomer, offerValidity } from "../../../lib/offers";
+import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
+import { formatBerlin } from "../../../lib/time";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const id = Number.parseInt(Astro.params.id ?? "", 10);
+if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/kunden");
+
+const db = getDb(Astro);
+const customer = db ? await getCustomer(db, id) : null;
+if (!customer) return Astro.redirect("/admin/kunden?kunde=missing");
+
+const name = decodeHtmlEntities(customer.name);
+const address = customerAddress(customer);
+const quotes = db ? await listQuotesForCustomer(db, customer.id) : [];
+const today = berlinTodayIso();
+const offerUntil = new Date(Date.parse(`${today}T00:00:00Z`) + 14 * 86_400_000).toISOString().slice(0, 10);
+const kunde = Astro.url.searchParams.get("kunde");
+const angebot = Astro.url.searchParams.get("angebot");
+
+const kundeText =
+  kunde === "saved"
+    ? "Kunde gespeichert."
+    : kunde === "bad"
+      ? "Bitte Name und E-Mail prüfen."
+      : "";
+const angebotText: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
+  sent: { kind: "ok", text: "Das Angebot ist als PDF verschickt." },
+  saved: { kind: "warn", text: "Das Angebot ist gespeichert, aber nicht per E-Mail verschickt." },
+  failed: { kind: "bad", text: "Das Angebot ist gespeichert, der Versand ist aber fehlgeschlagen." },
+  bad: { kind: "bad", text: "Bitte Position, Menge, Einzelpreis und Gültigkeit prüfen." },
+  db: { kind: "bad", text: "Das Angebot konnte nicht gespeichert werden." },
+};
+const angebotMessage = angebot ? angebotText[angebot] : undefined;
+
+const deliveryLabel = (status: string | null, sentAt: number | null) => {
+  if ((status ?? "").startsWith("sent:")) return sentAt ? `Gesendet ${formatBerlin(sentAt)}` : "Gesendet";
+  if ((status ?? "").startsWith("failed")) return "Versand fehlgeschlagen";
+  if ((status ?? "").startsWith("skipped")) return "Nicht versendet";
+  return "Noch nicht gesendet";
+};
+---
+
+<AdminLayout title={name} session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">Kunde</p>
+        <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{name}</h2>
+        <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+          {customer.email}
+          {customer.phone ? ` · ${customer.phone}` : ""}
+        </p>
+        {address && <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">{address}</p>}
+      </div>
+      <a href="/admin/kunden" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Alle Kunden</a>
+    </div>
+
+    {kundeText && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          kunde === "saved"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {kundeText}
+      </p>
+    )}
+
+    <div class="mt-5">
+      <CustomerForm customer={customer} submitLabel="Änderungen speichern" />
+    </div>
+
+    <form
+      method="POST"
+      action="/api/admin/kunden"
+      class="mt-4"
+      onsubmit="return confirm('Diesen Kunden und die dazu gespeicherten Angebote wirklich löschen?')"
+    >
+      <input type="hidden" name="id" value={customer.id} />
+      <input type="hidden" name="action" value="delete" />
+      <button
+        type="submit"
+        class="rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:bg-rose-500/5 dark:text-rose-200"
+      >
+        Kunde löschen
+      </button>
+    </form>
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Angebote</h3>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Hier stehen die Angebote, die {name} schon bekommen hat.
+    </p>
+    {quotes.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Dieser Kunde hat noch kein Angebot erhalten.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {quotes.map((quote) => {
+          const validity = offerValidity(quote.valid_until, today);
+          return (
+            <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+              <div class="flex flex-wrap items-start justify-between gap-2">
+                <p class="font-semibold text-ink-900 dark:text-ink-50">
+                  {offerNumber(quote.id, quote.created_at)} · {quote.title}
+                </p>
+                <span class="flex gap-3">
+                  <a href={`/admin/angebote/${quote.id}`} class="font-semibold text-brand-700 underline dark:text-brand-200">Bearbeiten</a>
+                  <a href={`/api/admin/angebot-pdf?id=${quote.id}`} class="font-semibold text-brand-700 underline dark:text-brand-200" target="_blank">PDF</a>
+                </span>
+              </div>
+              <p class="mt-1 text-ink-600 dark:text-ink-300">
+                {`${formatEuro(quote.price_cents)} · ${
+                  validity === "gueltig"
+                    ? `Gültig bis ${formatOfferDate(quote.valid_until)}`
+                    : `Abgelaufen am ${formatOfferDate(quote.valid_until)}`
+                } · ${deliveryLabel(quote.email_status, quote.sent_at)}`}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Neues Angebot</h3>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">Geht als PDF an {customer.email}.</p>
+    {angebotMessage && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          angebotMessage.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : angebotMessage.kind === "warn"
+              ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+              : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {angebotMessage.text}
+      </p>
+    )}
+    <div class="mt-4">
+      <OfferComposer
+        customerName={name}
+        validUntil={offerUntil}
+        hidden={[{ name: "customer_id", value: String(customer.id) }]}
+      />
+    </div>
+  </section>
+</AdminLayout>

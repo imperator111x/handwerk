@@ -3,6 +3,7 @@ import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
 import { verifyTurnstile } from "../../lib/turnstile";
 import { parseContact } from "../../lib/validation";
+import { ensureCustomer } from "../../lib/customers";
 import { insertContactRequest } from "../../lib/db";
 import { sendEmail } from "../../lib/email";
 import { requestNotice } from "../../lib/notice-copy";
@@ -92,6 +93,11 @@ export async function POST(ctx: APIContext): Promise<Response> {
         ip,
         country,
         user_agent: userAgent,
+      });
+      await ensureCustomer(env.DB, {
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
       });
     } catch (err) {
       console.error("contact_persist_failed", err);

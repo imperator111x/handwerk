@@ -1,0 +1,33 @@
+---
+import CustomerForm from "../../../components/CustomerForm.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const bad = Astro.url.searchParams.get("kunde") === "bad";
+---
+
+<AdminLayout title="Neuer Kunde" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">Kunden</p>
+    <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Neuer Kunde</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Name und E-Mail reichen. Straße und Telefon stehen danach auch auf dem Angebot.
+    </p>
+    {bad && (
+      <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+        Bitte einen Namen und eine gültige E-Mail eintragen.
+      </p>
+    )}
+    <div class="mt-5">
+      <CustomerForm submitLabel="Kunde anlegen" />
+    </div>
+    <p class="mt-4">
+      <a href="/admin/kunden" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zurück zur Liste</a>
+    </p>
+  </section>
+</AdminLayout>

@@ -19,6 +19,9 @@ export interface OfferPdfInput {
   customerName: string;
   customerEmail: string;
   customerPhone?: string | null;
+  customerStreet?: string | null;
+  customerPostalCode?: string | null;
+  customerCity?: string | null;
   title: string;
   greeting: string | null;
   intro: string;
@@ -126,7 +129,14 @@ function layoutPages(input: OfferPdfInput): string[] {
   textRight(RIGHT, addressTop - 28, 10, "F1", "zeus-service.de", MUTED);
 
   y = addressTop - 92;
-  const customerLines = [input.customerName, input.customerEmail, input.customerPhone?.trim() || ""].filter(Boolean);
+  const place = [input.customerPostalCode?.trim() || "", input.customerCity?.trim() || ""].filter(Boolean).join(" ");
+  const customerLines = [
+    input.customerName,
+    input.customerStreet?.trim() || "",
+    place,
+    input.customerEmail,
+    input.customerPhone?.trim() || "",
+  ].filter(Boolean);
   const paymentHint = [`Angebotsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;

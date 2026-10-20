@@ -7,6 +7,7 @@
  * Postfach nach dem Wechsel von Lima-City nicht ins Leere läuft.
  */
 
+import { ensureCustomer } from "./customers";
 import {
   findLatestRequestIdBySender,
   findMailboxByLocalPart,
@@ -80,20 +81,31 @@ export async function ingestInboundEmail(
     requestId = await findLatestRequestIdBySender(db, from);
   }
   if (!requestId) {
+    const createdName = cleanName(email.fromName) || from.split("@")[0] || "Kunde";
     const createdId = await insertContactRequest(db, {
-      name: cleanName(email.fromName) || from.split("@")[0] || "Kunde",
+      name: createdName,
       email: from,
       topic: "sonstiges",
       message:
         clip(extractCustomerText(email.text ?? "", email.html ?? "")) ||
         "(Keine Textnachricht)",
     });
+    try {
+      await ensureCustomer(db, { name: createdName, email: from });
+    } catch (err) {
+      console.error("customer_ensure_failed", err);
+    }
     return { action: "created", requestId: createdId };
   }
 
   const request = await getContactRequest(db, requestId);
   if (!request) {
     return { action: "reject", reason: "Diese Adresse ist keiner Anfrage zugeordnet." };
+  }
+  try {
+    await ensureCustomer(db, { name: request.name, email: request.email, phone: request.phone });
+  } catch (err) {
+    console.error("customer_ensure_failed", err);
   }
 
   const messageId = normalizeMessageId(email.messageId);

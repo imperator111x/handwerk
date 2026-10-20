@@ -17,6 +17,7 @@ const pathname = Astro.url.pathname;
 const nav = [
   { href: "/admin", label: "Übersicht", icon: "home" },
   { href: "/admin/anfragen", label: "Anfragen", icon: "inbox" },
+  { href: "/admin/kunden", label: "Kunden", icon: "users" },
   { href: "/admin/angebote", label: "Angebote", icon: "file" },
   { href: "/admin/postfach", label: "Postfach", icon: "mail" },
   { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog" },
@@ -40,6 +41,7 @@ const icons: Record<string, string> = {
   inbox:
     "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
   mail: "M4 6h16v12H4z M4 6l8 7 8-7",
+  users: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5",
   calendar:
     "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
@@ -430,7 +432,7 @@ const icons: Record<string, string> = {
           ))
         }
       </div>
-      <ul class="grid grid-cols-4">
+      <ul class="grid grid-cols-3">
         {
           nav.map((item) => {
             const active = item.href === "/admin/einstellungen" ? settingsSection : isCurrent(item.href);

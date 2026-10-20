@@ -1,14 +1,14 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { cfEnv } from "../../../lib/cf";
-import { getContactRequest, getDb, signatureNameForUser } from "../../../lib/db";
-import { decodeHtmlEntities } from "../../../lib/html-entities";
+import { getDb, signatureNameForUser } from "../../../lib/db";
 import {
   berlinTodayIso,
   cleanOffer,
   deleteQuote,
   getQuote,
   offerPdfForQuote,
+  quoteParty,
   sendOfferEmail,
   updateQuote,
   updateQuoteDelivery,
@@ -44,10 +44,9 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const offer = cleanOffer(form, berlinTodayIso(), { allowPast: true });
   if (!offer) return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
 
-  const request = await getContactRequest(db, quote.request_id);
-  if (!request) return ctx.redirect("/admin/angebote?angebot=missing", 303);
-  const customerName = decodeHtmlEntities(request.name);
-  const greeting = greetingFromForm(form, customerName);
+  const party = await quoteParty(db, quote);
+  if (!party) return ctx.redirect("/admin/angebote?angebot=missing", 303);
+  const greeting = greetingFromForm(form, party.name);
   await updateQuote(db, id, offer, greeting);
 
   if (action === "resend") {
@@ -55,14 +54,10 @@ export async function POST(ctx: APIContext): Promise<Response> {
     const authorName = await signatureNameForUser(db, session.userId, session.username);
     const updated = await getQuote(db, id);
     if (!updated) return ctx.redirect("/admin/angebote?angebot=missing", 303);
-    const pdf = offerPdfForQuote(updated, {
-      name: customerName,
-      email: request.email,
-      phone: request.phone,
-    }, authorName);
+    const pdf = offerPdfForQuote(updated, party, authorName);
     const delivery = await sendOfferEmail(env, {
-      to: request.email,
-      recipientName: customerName,
+      to: party.email,
+      recipientName: party.name,
       authorName,
       greeting,
       offer,

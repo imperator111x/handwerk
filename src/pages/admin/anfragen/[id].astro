@@ -17,6 +17,7 @@ import { listFilesForRequest, refreshPendingFiles, type MailFileRow } from "../.
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { formatBerlin } from "../../../lib/time";
+import { findCustomerByEmail } from "../../../lib/customers";
 import { berlinTodayIso, listQuotes } from "../../../lib/offers";
 import {
   OFFER_BANK_LINES,
@@ -69,6 +70,7 @@ const customerFiles = attachedFiles.filter((file) => file.reply_id == null);
 const filesForReply = (replyId: number) => attachedFiles.filter((file) => file.reply_id === replyId);
 const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
 const quotes = db ? await listQuotes(db, id) : [];
+const linkedCustomer = db ? await findCustomerByEmail(db, request.email) : null;
 const offerUntil = new Date(Date.parse(`${berlinTodayIso()}T00:00:00Z`) + 14 * 86_400_000)
   .toISOString()
   .slice(0, 10);
@@ -243,6 +245,14 @@ const redirectPath = Astro.url.pathname;
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-sm">
+        {linkedCustomer && (
+          <a
+            href={`/admin/kunden/${linkedCustomer.id}`}
+            class="rounded-full border border-ink-200 bg-white px-3 py-1.5 font-medium text-ink-800 hover:bg-ink-100 dark:border-white/10 dark:bg-white/5 dark:text-ink-100 dark:hover:bg-white/10"
+          >
+            Zum Kunden
+          </a>
+        )}
         <a
           href={`mailto:${request.email}`}
           class="rounded-full border border-ink-200 bg-white px-3 py-1.5 font-medium text-ink-800 hover:bg-ink-100 dark:border-white/10 dark:bg-white/5 dark:text-ink-100 dark:hover:bg-white/10"
