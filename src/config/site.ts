@@ -30,7 +30,6 @@ export const siteConfig = {
     { label: "Über uns", href: "/#ueber-uns" },
     { label: "Ablauf", href: "/#ablauf" },
     { label: "Referenzen", href: "/#referenzen" },
-    { label: "Fragen", href: "/#fragen" },
     { label: "Kontakt", href: "/#kontakt" },
   ],
 } as const;
