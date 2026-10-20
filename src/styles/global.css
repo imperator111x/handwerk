@@ -115,34 +115,43 @@
 
 @utility btn {
   @apply inline-flex items-center justify-center gap-2 rounded-full
-    px-6 py-3 text-sm font-semibold transition-all duration-200
+    px-6 py-3 text-sm font-semibold touch-manipulation
     focus-visible:outline-2 focus-visible:outline-offset-2;
 }
 
 @utility btn-primary {
   @apply inline-flex items-center justify-center gap-2 rounded-full
-    px-6 py-3 text-sm font-semibold transition-all duration-200
+    px-6 py-3 text-sm font-semibold touch-manipulation
     bg-brand-600 text-white shadow-[var(--shadow-glow)]
-    hover:bg-brand-700 hover:-translate-y-0.5
+    active:bg-brand-700
+    [@media(hover:hover)]:hover:bg-brand-700
     focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600
-    dark:bg-brand-500 dark:hover:bg-brand-400 dark:text-ink-950;
+    dark:bg-brand-500 dark:active:bg-brand-400 dark:text-ink-950
+    [@media(hover:hover)]:dark:hover:bg-brand-400;
 }
 
 @utility btn-secondary {
   @apply inline-flex items-center justify-center gap-2 rounded-full
-    px-6 py-3 text-sm font-semibold transition-all duration-200
+    px-6 py-3 text-sm font-semibold touch-manipulation
     border border-ink-200 bg-white text-ink-900
-    hover:border-brand-300 hover:text-brand-700 hover:-translate-y-0.5
+    active:border-brand-300 active:text-brand-700
+    [@media(hover:hover)]:hover:border-brand-300
+    [@media(hover:hover)]:hover:text-brand-700
     focus-visible:outline-2 focus-visible:outline-offset-2
     dark:border-white/10 dark:bg-white/5 dark:text-ink-50
-    dark:hover:border-brand-300/40 dark:hover:text-brand-200 dark:hover:bg-white/10;
+    dark:active:border-brand-300/40 dark:active:text-brand-200
+    [@media(hover:hover)]:dark:hover:border-brand-300/40
+    [@media(hover:hover)]:dark:hover:text-brand-200
+    [@media(hover:hover)]:dark:hover:bg-white/10;
 }
 
 @utility btn-ghost {
   @apply inline-flex items-center justify-center gap-2 rounded-full
-    px-6 py-3 text-sm font-semibold transition-all duration-200
-    text-ink-700 hover:text-brand-700
-    dark:text-ink-200 dark:hover:text-brand-200;
+    px-6 py-3 text-sm font-semibold touch-manipulation
+    text-ink-700 active:text-brand-700
+    [@media(hover:hover)]:hover:text-brand-700
+    dark:text-ink-200 dark:active:text-brand-200
+    [@media(hover:hover)]:dark:hover:text-brand-200;
 }
 
 @utility card {

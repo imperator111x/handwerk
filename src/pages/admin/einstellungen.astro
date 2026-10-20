@@ -265,7 +265,7 @@ const redirectPath = Astro.url.pathname;
     )}
   </section>
   {session.userId && (
-    <script>
+    <script data-astro-rerun>
       import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
 
       const enroll = document.getElementById("faceid-enroll");

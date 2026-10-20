@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import ThemeToggle from "../components/ThemeToggle.astro";
 import Logo from "../components/Logo.astro";
+import { ClientRouter } from "astro:transitions";
 import type { SessionData } from "../lib/auth";
 
 interface Props {
@@ -40,8 +41,9 @@ const pathname = Astro.url.pathname;
 ---
 
 <!doctype html>
-<html lang="de">
+<html lang="de" transition:animate="none">
   <head>
+    <ClientRouter fallback="swap" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex,nofollow" />
@@ -56,7 +58,7 @@ const pathname = Astro.url.pathname;
     <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" sizes="180x180" />
     <link rel="manifest" href="/admin.webmanifest" />
 
-    <script is:inline>
+    <script is:inline data-astro-rerun>
       (function () {
         try {
           var stored = localStorage.getItem("theme");
@@ -84,9 +86,12 @@ const pathname = Astro.url.pathname;
             root.style.colorScheme = dark ? "dark" : "light";
             window.dispatchEvent(new CustomEvent("themechange"));
           };
-          mql.addEventListener("change", function () {
-            if (!localStorage.getItem("theme")) window.__setTheme("system");
-          });
+          if (!window.__themeBound) {
+            window.__themeBound = true;
+            mql.addEventListener("change", function () {
+              if (!localStorage.getItem("theme")) window.__setTheme("system");
+            });
+          }
         } catch (_err) {}
       })();
     </script>
@@ -153,7 +158,7 @@ const pathname = Astro.url.pathname;
 
       <div class="flex-1 flex flex-col min-w-0">
         <header
-          class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-ink-200 pt-[env(safe-area-inset-top)] dark:bg-ink-950/80 dark:border-white/10"
+          class="sticky top-0 z-10 border-b border-ink-200 bg-white pt-[env(safe-area-inset-top)] dark:border-white/10 dark:bg-ink-950"
         >
           <div class="flex items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
             <div class="min-w-0">
@@ -197,7 +202,7 @@ const pathname = Astro.url.pathname;
           </div>
           <slot />
         </main>
-        <script is:inline>
+        <script is:inline data-astro-rerun>
           (function () {
             if (!("serviceWorker" in navigator)) return;
             navigator.serviceWorker.register("/admin-sw.js").then(function (registration) {
@@ -306,7 +311,7 @@ const pathname = Astro.url.pathname;
     </div>
     <nav
       aria-label="Admin-Navigation"
-      class="admin-mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white/95 shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.35)] backdrop-blur-md pb-[env(safe-area-inset-bottom)] dark:border-white/10 dark:bg-ink-950/95"
+      class="admin-mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.28)] touch-manipulation dark:border-white/10 dark:bg-ink-950"
     >
       <ul class="grid grid-cols-4">
         {
@@ -345,5 +350,136 @@ const pathname = Astro.url.pathname;
         }
       </ul>
     </nav>
+    <style>
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation-duration: 0s;
+      }
+      .admin-mobile-nav a.is-pressed,
+      aside nav a.is-pressed {
+        background-color: var(--color-brand-50);
+        color: var(--color-brand-700);
+      }
+      :where(.dark, [data-theme="dark"]) .admin-mobile-nav a.is-pressed,
+      :where(.dark, [data-theme="dark"]) aside nav a.is-pressed {
+        background-color: rgb(59 130 246 / 0.15);
+        color: var(--color-brand-200);
+      }
+    </style>
+    <script is:inline>
+      (function () {
+        if (window.__adminNavFast) return;
+        window.__adminNavFast = true;
+        var nativeFetch = window.fetch.bind(window);
+        var cache = new Map();
+
+        function keyOf(input) {
+          try {
+            var raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+            var url = new URL(raw, location.href);
+            url.hash = "";
+            return url.href;
+          } catch (_err) {
+            return "";
+          }
+        }
+
+        function warm(href) {
+          var key = keyOf(href);
+          if (!key || cache.has(key) || key === keyOf(location.href)) return;
+          if (!key.startsWith(location.origin + "/admin")) return;
+          cache.set(
+            key,
+            nativeFetch(key, { credentials: "same-origin", headers: { accept: "text/html" } })
+              .then(function (res) {
+                var type = res.headers.get("content-type") || "";
+                if (!res.ok || res.redirected || type.indexOf("text/html") === -1) {
+                  cache.delete(key);
+                  return null;
+                }
+                return res.text();
+              })
+              .catch(function () {
+                cache.delete(key);
+                return null;
+              }),
+          );
+        }
+
+        window.fetch = function (input, init) {
+          var method = ((init && init.method) || "GET").toUpperCase();
+          var key = method === "GET" && init && init.signal ? keyOf(input) : "";
+          var pending = key && cache.get(key);
+          if (!pending) return nativeFetch(input, init);
+          cache.delete(key);
+          return pending.then(function (html) {
+            if (!html) return nativeFetch(input, init);
+            return new Response(html, {
+              status: 200,
+              headers: { "content-type": "text/html; charset=utf-8" },
+            });
+          });
+        };
+
+        function warmNav() {
+          document.querySelectorAll("aside nav a, .admin-mobile-nav a").forEach(function (link) {
+            warm(link.href);
+          });
+        }
+
+        function scheduleWarm() {
+          if ("requestIdleCallback" in window) requestIdleCallback(warmNav, { timeout: 300 });
+          else setTimeout(warmNav, 40);
+        }
+
+        var activeClasses = ["is-pressed", "bg-brand-50", "text-brand-700", "dark:bg-brand-500/15", "dark:text-brand-200"];
+        var idleClasses = ["text-ink-700", "dark:text-ink-200"];
+
+        document.addEventListener(
+          "pointerdown",
+          function (event) {
+            var target = event.target;
+            if (!(target instanceof Element)) return;
+            var link = target.closest("a");
+            if (!(link instanceof HTMLAnchorElement)) return;
+            if (link.origin === location.origin && link.pathname.indexOf("/admin") === 0) warm(link.href);
+            var nav = link.closest("aside nav, .admin-mobile-nav");
+            if (!nav) return;
+            nav.querySelectorAll("a").forEach(function (item) {
+              if (item === link) {
+                activeClasses.forEach(function (name) { item.classList.add(name); });
+                item.setAttribute("aria-current", "page");
+                return;
+              }
+              activeClasses.forEach(function (name) { item.classList.remove(name); });
+              idleClasses.forEach(function (name) { item.classList.add(name); });
+              item.removeAttribute("aria-current");
+            });
+          },
+          { passive: true },
+        );
+
+        document.addEventListener(
+          "submit",
+          function (event) {
+            var form = event.target;
+            if (form instanceof HTMLFormElement) form.setAttribute("data-astro-reload", "");
+          },
+          true,
+        );
+
+        document.addEventListener("astro:before-swap", function (event) {
+          var next = event.newDocument && event.newDocument.documentElement;
+          if (!next) return;
+          var current = document.documentElement;
+          next.classList.toggle("dark", current.classList.contains("dark"));
+          next.setAttribute("data-theme", current.getAttribute("data-theme") || "light");
+          next.style.colorScheme = current.style.colorScheme;
+        });
+
+        document.addEventListener("astro:page-load", scheduleWarm);
+        scheduleWarm();
+      })();
+    </script>
   </body>
 </html>

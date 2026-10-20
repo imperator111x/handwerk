@@ -15,7 +15,7 @@ const { class: className = "", compact = false } = Astro.props;
   <button
     type="button"
     data-theme-choice="light"
-    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} transition hover:bg-ink-100 dark:hover:bg-white/10`}
+    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} touch-manipulation`}
     aria-label="Helles Design"
     title="Helles Design"
   >
@@ -36,7 +36,7 @@ const { class: className = "", compact = false } = Astro.props;
   <button
     type="button"
     data-theme-choice="system"
-    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} transition hover:bg-ink-100 dark:hover:bg-white/10`}
+    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} touch-manipulation`}
     aria-label="System-Design"
     title="System-Design"
   >
@@ -58,7 +58,7 @@ const { class: className = "", compact = false } = Astro.props;
   <button
     type="button"
     data-theme-choice="dark"
-    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} transition hover:bg-ink-100 dark:hover:bg-white/10`}
+    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} touch-manipulation`}
     aria-label="Dunkles Design"
     title="Dunkles Design"
   >
@@ -78,6 +78,17 @@ const { class: className = "", compact = false } = Astro.props;
 </div>
 
 <style>
+  .theme-toggle__btn:active {
+    background-color: var(--color-ink-100);
+  }
+  @media (hover: hover) {
+    .theme-toggle__btn:hover {
+      background-color: var(--color-ink-100);
+    }
+    :where(.dark, [data-theme="dark"]) .theme-toggle__btn:hover {
+      background-color: rgb(255 255 255 / 0.1);
+    }
+  }
   .theme-toggle__btn[aria-pressed="true"] {
     background-color: var(--color-brand-50);
     color: var(--color-brand-700);
