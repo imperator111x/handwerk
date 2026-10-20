@@ -182,33 +182,9 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
                   ${safeSite} · <a class="email-link" href="${safeSiteUrl}" style="color:#64748b;text-decoration:underline;">${displayUrl}</a><br />
                   ${footerNote}
                 </p>
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
-                  <tr>
-                    <td align="center" class="email-muted" style="padding:0 0 8px 0;color:#94a3b8;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;font-weight:700;">
-                      Impressum
-                    </td>
-                  </tr>
-                  <tr>
-                    <td align="center" class="email-text" style="padding:0;color:#0f172a;font-size:13px;font-weight:800;letter-spacing:0.12em;">
-                      ${escapeHtml(MAIL_IMPRESSUM_LINES[0])}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td align="center" class="email-muted" style="padding:4px 0 0 0;color:#334155;font-size:13px;line-height:1.4;">
-                      ${escapeHtml(MAIL_IMPRESSUM_LINES[1])}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td align="center" class="email-muted" style="padding:2px 0 0 0;color:#64748b;font-size:12px;line-height:1.45;">
-                      ${escapeHtml(MAIL_IMPRESSUM_LINES[2])}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td align="center" class="email-muted" style="padding:0;color:#64748b;font-size:12px;line-height:1.45;">
-                      ${escapeHtml(MAIL_IMPRESSUM_LINES[3])}
-                    </td>
-                  </tr>
-                </table>
+                <p class="email-muted" style="margin:10px 0 0 0;color:#94a3b8;font-size:11px;line-height:1.45;">
+                  ${MAIL_IMPRESSUM_LINES.map((line) => escapeHtml(line)).join("<br />")}
+                </p>
               </td>
             </tr>
           </table>

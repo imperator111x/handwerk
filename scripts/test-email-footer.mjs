@@ -33,6 +33,7 @@ for (const line of impressum) {
   assert.ok(next > cursor, line);
   cursor = next + line.length;
 }
+assert.equal(html.includes(">Impressum<"), false);
 assert.equal(text.trimEnd().endsWith(impressum.join("\n")), true);
 
 console.log("email footer checks ok");
