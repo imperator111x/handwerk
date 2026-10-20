@@ -16,7 +16,7 @@ interface InboundMessage {
   forward(rcptTo: string, headers?: Headers): Promise<unknown>;
 }
 
-const MAX_INBOUND_BYTES = 2_000_000;
+const MAX_INBOUND_BYTES = 20_000_000;
 
 function mailboxAddress(address: { address?: string; group?: Array<{ address?: string }> }): string[] {
   if (address.address) return [address.address];
@@ -67,6 +67,7 @@ async function receiveEmail(message: InboundMessage, env: Env, ctx: ExecutionCon
     return;
   }
   if (message.rawSize > MAX_INBOUND_BYTES) {
+    console.log("inbound_too_large", message.rawSize);
     message.setReject("Die Nachricht ist zu groß.");
     return;
   }

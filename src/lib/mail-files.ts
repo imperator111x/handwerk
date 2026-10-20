@@ -150,7 +150,7 @@ export async function readFormUploads(
 }
 
 const INBOUND_MAX_FILES = 12;
-const INBOUND_MAX_BYTES = 1_500_000;
+const INBOUND_MAX_BYTES = 15_000_000;
 
 export interface MailFileRow {
   id: number;
