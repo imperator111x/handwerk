@@ -7,6 +7,7 @@
  */
 
 import type { APIContext } from "astro";
+import { cfEnv } from "./cf";
 import { formatUserSignature } from "./user-name";
 
 export interface UserRow {
@@ -49,9 +50,8 @@ export interface ContactInsert {
   user_agent?: string | null;
 }
 
-export function getDb(ctx: APIContext | { locals: App.Locals }): D1Database | null {
-  const env = ctx.locals.runtime?.env;
-  return env?.DB ?? null;
+export function getDb(_ctx: APIContext | { locals: App.Locals }): D1Database | null {
+  return cfEnv().DB ?? null;
 }
 
 export async function findUserByUsername(

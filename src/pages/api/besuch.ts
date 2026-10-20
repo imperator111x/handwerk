@@ -1,3 +1,4 @@
+import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
 import { getDb } from "../../lib/db";
 import { createHumanPass, HUMAN_COOKIE, HUMAN_MAX_AGE } from "../../lib/human-pass";
@@ -19,7 +20,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     return new Response(null, { status: 400 });
   }
 
-  const env = ctx.locals.runtime?.env;
+  const env = cfEnv();
   const remoteIp = ctx.request.headers.get("cf-connecting-ip") ?? "";
   const passed = await verifyTurnstile(
     env,

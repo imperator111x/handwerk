@@ -4,6 +4,7 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb, listMailboxes } from "../../../lib/db";
 import { mailboxAddress } from "../../../lib/mailbox";
+import { cfEnv } from "../../../lib/cf";
 
 export const prerender = false;
 
@@ -12,7 +13,7 @@ if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
 const session = sessionOrRedirect;
 
 const db = getDb(Astro);
-const domain = Astro.locals.runtime?.env?.REPLY_DOMAIN || "zeus-service.de";
+const domain = cfEnv()?.REPLY_DOMAIN || "zeus-service.de";
 const isAdmin = session.role === "admin";
 const mailboxes = db
   ? await listMailboxes(db, isAdmin ? undefined : session.userId ?? -1)

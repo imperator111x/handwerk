@@ -8,8 +8,9 @@ import Testimonials from "../components/Testimonials.astro";
 import Gallery from "../components/Gallery.astro";
 import Contact from "../components/Contact.astro";
 import { listWorkPhotos } from "../lib/photos";
+import { cfEnv } from "../lib/cf";
 
-const db = Astro.locals.runtime?.env?.DB;
+const db = cfEnv()?.DB;
 const photos = db ? await listWorkPhotos(db).catch(() => []) : [];
 ---
 

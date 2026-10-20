@@ -5,6 +5,7 @@ import { requireSession } from "../../../lib/auth";
 import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { canOpenMailbox, mailboxAddress, mailboxOwnerLabel } from "../../../lib/mailbox";
+import { cfEnv } from "../../../lib/cf";
 
 export const prerender = false;
 
@@ -18,7 +19,7 @@ const mailbox = db && Number.isFinite(id) ? await findMailboxById(db, id) : null
 if (!mailbox) return Astro.redirect("/admin/postfach?mail=not_found");
 if (!canOpenMailbox(session, mailbox)) return Astro.redirect("/admin/postfach?mail=forbidden");
 
-const domain = Astro.locals.runtime?.env?.REPLY_DOMAIN || "zeus-service.de";
+const domain = cfEnv()?.REPLY_DOMAIN || "zeus-service.de";
 const ownAddress = mailboxAddress(mailbox.local_part, domain);
 const threads = db ? await listMailThreads(db, mailbox.id) : [];
 const openId = Number.parseInt(Astro.url.searchParams.get("offen") ?? "", 10);

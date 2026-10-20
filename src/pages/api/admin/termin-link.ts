@@ -1,3 +1,4 @@
+import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import {
   formatSlot,
@@ -49,7 +50,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const openSlots = await listOpenSlots(db);
   if (openSlots.length === 0) return ctx.redirect(`${redirectTo}?termin=no_slots`, 303);
 
-  const env = ctx.locals.runtime?.env;
+  const env = cfEnv();
   const invite = await getOrCreateInvite(db, requestId);
   const siteUrl = (env?.SITE_URL ?? "https://zeus-service.de").replace(/\/$/, "");
   const link = `${siteUrl}/termin/${invite.token}`;

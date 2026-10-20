@@ -1,3 +1,4 @@
+import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
@@ -16,7 +17,7 @@ function json(data: unknown, status = 200): Response {
 export async function GET(ctx: APIContext): Promise<Response> {
   const sessionOrRedirect = await requireSession(ctx);
   if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
-  return json({ publicKey: ctx.locals.runtime?.env?.VAPID_PUBLIC_KEY ?? null });
+  return json({ publicKey: cfEnv()?.VAPID_PUBLIC_KEY ?? null });
 }
 
 export async function POST(ctx: APIContext): Promise<Response> {

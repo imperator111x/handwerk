@@ -1,5 +1,7 @@
 ---
-const sitekey = Astro.locals.runtime?.env?.TURNSTILE_PAGE_SITEKEY ?? "";
+import { cfEnv } from "../lib/cf";
+
+const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
 ---
 
 <section class="grid min-h-screen place-items-center bg-white px-6 py-16 dark:bg-ink-950">

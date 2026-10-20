@@ -1,5 +1,3 @@
-import { App } from "astro/app";
-import type { SSRManifest } from "astro";
 import { handle } from "@astrojs/cloudflare/handler";
 import PostalMime from "postal-mime";
 import { ingestInboundEmail } from "./lib/inbound-mail";
@@ -24,35 +22,27 @@ function mailboxAddress(address: { address?: string; group?: Array<{ address?: s
   return (address.group ?? []).flatMap((member) => (member.address ? [member.address] : []));
 }
 
-export function createExports(manifest: SSRManifest) {
-  const app = new App(manifest);
-  return {
-    default: {
-      async fetch(
-        request: Parameters<typeof handle>[2],
-        env: Env,
-        ctx: Parameters<typeof handle>[4],
-      ) {
-        const url = new URL((request as unknown as Request).url);
-        if (url.hostname === "www.zeus-service.de") {
-          url.hostname = "zeus-service.de";
-          return Response.redirect(url.toString(), 301);
-        }
-        if (url.pathname === "/admin-sw.js") {
-          const asset = await env.ASSETS.fetch(new Request(new URL("/admin-sw.js", url.origin)));
-          const headers = new Headers(asset.headers);
-          headers.set("content-type", "application/javascript; charset=utf-8");
-          headers.set("cache-control", "no-cache");
-          return new Response(asset.body, { status: asset.status, headers });
-        }
-        return handle(manifest, app, request, env, ctx);
-      },
-      async email(message: InboundMessage, env: Env) {
-        await receiveEmail(message, env);
-      },
-    },
-  };
-}
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.hostname === "www.zeus-service.de") {
+      url.hostname = "zeus-service.de";
+      return Response.redirect(url.toString(), 301);
+    }
+    if (url.pathname === "/admin-sw.js") {
+      const asset = await env.ASSETS.fetch(new Request(new URL("/admin-sw.js", url.origin)));
+      const headers = new Headers(asset.headers);
+      headers.set("content-type", "application/javascript; charset=utf-8");
+      headers.set("cache-control", "no-cache");
+      return new Response(asset.body, { status: asset.status, headers });
+    }
+    const response = await handle(request, env, ctx);
+    return response ?? new Response(null, { status: 500 });
+  },
+  async email(message: InboundMessage, env: Env) {
+    await receiveEmail(message, env);
+  },
+} satisfies ExportedHandler<Env>;
 
 async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
   const domain = env.REPLY_DOMAIN || "zeus-service.de";

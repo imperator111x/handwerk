@@ -8,6 +8,7 @@ import PageGuard from "../components/PageGuard.astro";
 import BotGate from "../components/BotGate.astro";
 import CallButton from "../components/CallButton.astro";
 import { humanPassValid } from "../lib/human-pass";
+import { cfEnv } from "../lib/cf";
 
 interface Props {
   title?: string;
@@ -35,7 +36,7 @@ const fullTitle = title
 
 const canonicalUrl =
   canonical ?? new URL(Astro.url.pathname, siteConfig.url).toString();
-const humanAllowed = await humanPassValid(Astro.cookies.get("zs_human")?.value, Astro.locals.runtime?.env);
+const humanAllowed = await humanPassValid(Astro.cookies.get("zs_human")?.value, cfEnv());
 
 const jsonLd = {
   "@context": "https://schema.org",

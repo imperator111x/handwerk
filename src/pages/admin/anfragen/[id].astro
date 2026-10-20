@@ -12,6 +12,7 @@ import {
 } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { berlinTodayIso, formatEuro, listQuotes } from "../../../lib/offers";
+import { cfEnv } from "../../../lib/cf";
 
 export const prerender = false;
 
@@ -26,7 +27,7 @@ if (!Number.isFinite(id) || id <= 0) {
 }
 
 const db = getDb(Astro);
-const env = Astro.locals.runtime?.env;
+const env = cfEnv();
 
 const request = db ? await getContactRequest(db, id) : null;
 if (!request) {

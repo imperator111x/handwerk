@@ -3,8 +3,9 @@ import Logo from "./Logo.astro";
 import ThemeToggle from "./ThemeToggle.astro";
 import { siteConfig } from "../config/site";
 import { countWorkPhotos } from "../lib/photos";
+import { cfEnv } from "../lib/cf";
 
-const db = Astro.locals.runtime?.env?.DB;
+const db = cfEnv()?.DB;
 const showWork = db ? (await countWorkPhotos(db).catch(() => 0)) > 0 : false;
 const nav = showWork
   ? [

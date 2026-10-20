@@ -1,3 +1,4 @@
+import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
 import {
   announceCancellation,
@@ -34,7 +35,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     const booking = await cancelBooking(db, existing.id);
     if (!booking) return redirect(token, "missing");
     try {
-      await announceCancellation(db, ctx.locals.runtime?.env, booking, "customer", "Zeus-Service");
+      await announceCancellation(db, cfEnv(), booking, "customer", "Zeus-Service");
     } catch (err) {
       console.error("appointment_cancel_notice_failed", err);
     }

@@ -17,7 +17,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "zeus-service-web",
-  "main": "./dist/_worker.js/index.js",
+  "main": "./src/worker.ts",
   "workers_dev": true,
   "preview_urls": true,
   "routes": [

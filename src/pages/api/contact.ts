@@ -1,3 +1,4 @@
+import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
 import { verifyTurnstile } from "../../lib/turnstile";
 import { parseContact } from "../../lib/validation";
@@ -26,7 +27,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   }
 
   const turnstileToken = formData.get("cf-turnstile-response");
-  const envForCheck = ctx.locals.runtime?.env;
+  const envForCheck = cfEnv();
   if (
     !(await verifyTurnstile(
       envForCheck,
@@ -48,7 +49,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   }
 
   const payload = parsed.value;
-  const env = ctx.locals.runtime?.env;
+  const env = cfEnv();
 
   const ip =
     ctx.request.headers.get("cf-connecting-ip") ??
@@ -93,7 +94,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       ...notice,
       url: `/admin/anfragen/${persistedId}`,
     });
-    const runtimeCtx = ctx.locals.runtime?.ctx;
+    const runtimeCtx = ctx.locals.cfContext;
     if (runtimeCtx) runtimeCtx.waitUntil(job);
     else await job;
   }

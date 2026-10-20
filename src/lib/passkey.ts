@@ -1,3 +1,4 @@
+import { cfEnv } from "./cf";
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -60,7 +61,7 @@ function challengeKey(challenge: string): string {
 }
 
 async function rememberChallenge(ctx: APIContext, challenge: string, userId: number | null): Promise<void> {
-  const kv = ctx.locals.runtime?.env?.SESSIONS;
+  const kv = cfEnv()?.SESSIONS;
   if (kv) {
     await kv.put(challengeKey(challenge), JSON.stringify({ userId }), { expirationTtl: CHALLENGE_TTL });
   }
@@ -77,7 +78,7 @@ async function takeChallenge(ctx: APIContext): Promise<{ challenge: string; user
   const challenge = ctx.cookies.get(CHALLENGE_COOKIE)?.value;
   ctx.cookies.delete(CHALLENGE_COOKIE, { path: "/" });
   if (!challenge) return null;
-  const kv = ctx.locals.runtime?.env?.SESSIONS;
+  const kv = cfEnv()?.SESSIONS;
   if (!kv) return { challenge, userId: null };
   const raw = await kv.get(challengeKey(challenge));
   await kv.delete(challengeKey(challenge));
@@ -114,7 +115,7 @@ export async function findPasskey(db: D1Database, credentialId: string): Promise
 
 export async function registrationOptions(ctx: APIContext, user: { id: number; username: string }): Promise<unknown> {
   const { rpID } = relyingParty(new URL(ctx.request.url));
-  const db = ctx.locals.runtime?.env?.DB;
+  const db = cfEnv()?.DB;
   const existing = db ? await listPasskeys(db, user.id) : [];
   const options = await generateRegistrationOptions({
     rpName: "Zeus-Service",
@@ -139,7 +140,7 @@ export async function registrationOptions(ctx: APIContext, user: { id: number; u
 }
 
 export async function saveRegistration(ctx: APIContext, userId: number, response: RegistrationResponseJSON): Promise<boolean> {
-  const db = ctx.locals.runtime?.env?.DB;
+  const db = cfEnv()?.DB;
   const pending = await takeChallenge(ctx);
   if (!db || !pending || pending.userId !== userId) return false;
   const { rpID, origins } = relyingParty(new URL(ctx.request.url));
@@ -184,7 +185,7 @@ export async function authenticationOptions(ctx: APIContext): Promise<unknown> {
 }
 
 export async function loginWithPasskey(ctx: APIContext, response: AuthenticationResponseJSON): Promise<boolean> {
-  const db = ctx.locals.runtime?.env?.DB;
+  const db = cfEnv()?.DB;
   const pending = await takeChallenge(ctx);
   if (!db || !pending) return false;
   const row = await findPasskey(db, response.id);

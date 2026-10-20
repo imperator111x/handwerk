@@ -1,3 +1,4 @@
+import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import {
@@ -61,7 +62,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       if (booking) {
         await announceCancellation(
           db,
-          ctx.locals.runtime?.env,
+          cfEnv(),
           booking,
           "admin",
           await signatureNameForUser(db, session.userId, session.username),

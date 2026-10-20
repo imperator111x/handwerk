@@ -8,14 +8,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   site: 'https://zeus-service.de',
   output: 'server',
+  session: false,
   adapter: cloudflare({
     imageService: 'compile',
-    platformProxy: {
-      enabled: true,
-    },
-    workerEntryPoint: {
-      path: 'src/worker.ts',
-    },
   }),
   integrations: [sitemap()],
   vite: {

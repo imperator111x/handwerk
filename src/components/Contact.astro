@@ -1,8 +1,9 @@
 ---
 import { siteConfig } from "../config/site";
 import ObfuscatedEmail from "./ObfuscatedEmail.astro";
+import { cfEnv } from "../lib/cf";
 
-const turnstileSitekey = Astro.locals.runtime?.env?.TURNSTILE_SITEKEY ?? "";
+const turnstileSitekey = cfEnv()?.TURNSTILE_SITEKEY ?? "";
 ---
 
 <section id="kontakt" class="section scroll-mt-24 bg-white dark:bg-ink-950">

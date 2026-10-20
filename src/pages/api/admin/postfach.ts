@@ -1,3 +1,4 @@
+import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
@@ -42,7 +43,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
   const session = sessionOrRedirect;
 
-  const env = ctx.locals.runtime?.env;
+  const env = cfEnv();
   const db = getDb(ctx);
   if (!db) {
     return new Response(JSON.stringify({ ok: false, error: "D1 nicht verbunden." }), {

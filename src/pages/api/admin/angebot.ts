@@ -1,3 +1,4 @@
+import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { getContactRequest, getDb, signatureNameForUser } from "../../../lib/db";
@@ -10,7 +11,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
   const session = sessionOrRedirect;
   const db = getDb(ctx);
-  const env = ctx.locals.runtime?.env;
+  const env = cfEnv();
   const form = await ctx.request.formData();
   const requestId = Number.parseInt(String(form.get("request_id") ?? ""), 10);
   const back = `/admin/anfragen/${Number.isFinite(requestId) ? requestId : ""}`;

@@ -3,6 +3,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
 import { getDb, listUsers, type UserPublic } from "../../lib/db";
 import { listPasskeys } from "../../lib/passkey";
+import { cfEnv } from "../../lib/cf";
 
 export const prerender = false;
 
@@ -10,7 +11,7 @@ const sessionOrRedirect = await requireSession(Astro);
 if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
 const session = sessionOrRedirect;
 
-const env = Astro.locals.runtime?.env;
+const env = cfEnv();
 const db = getDb(Astro);
 const users: UserPublic[] = db ? await listUsers(db) : [];
 const isAdmin = session.role === "admin";

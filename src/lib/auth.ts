@@ -16,6 +16,7 @@
  */
 
 import type { APIContext } from "astro";
+import { cfEnv } from "./cf";
 import { findUserByUsername, touchUserLogin } from "./db";
 
 export const SESSION_COOKIE = "zs_session";
@@ -77,15 +78,8 @@ function getStore(env: Env): SessionStore {
   return env.SESSIONS ? kvStore(env.SESSIONS) : inMemoryStore;
 }
 
-function getEnv(ctx: APIContext | App.Locals): Env {
-  const locals = "locals" in ctx ? ctx.locals : ctx;
-  const runtime = (locals as App.Locals).runtime;
-  if (!runtime?.env) {
-    throw new Error(
-      "Cloudflare runtime nicht verfügbar – läuft der Dev-Server mit platformProxy?",
-    );
-  }
-  return runtime.env;
+function getEnv(_ctx: APIContext | App.Locals): Env {
+  return cfEnv();
 }
 
 function toHex(buffer: ArrayBuffer): string {

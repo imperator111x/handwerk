@@ -3,6 +3,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
 import { formatAddress, formatSlot, nextBookedSlot } from "../../lib/appointments";
 import { countContactRequestsByStatus, countRequestsAwaitingReply, countUnreadMailThreads, getDb } from "../../lib/db";
+import { cfEnv } from "../../lib/cf";
 
 export const prerender = false;
 
@@ -10,7 +11,7 @@ const sessionOrRedirect = await requireSession(Astro);
 if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
 const session = sessionOrRedirect;
 
-const env = Astro.locals.runtime?.env;
+const env = cfEnv();
 const dbReady = Boolean(env?.DB);
 const kvReady = Boolean(env?.SESSIONS);
 const cloudflareMail = Boolean(env?.EMAIL);
