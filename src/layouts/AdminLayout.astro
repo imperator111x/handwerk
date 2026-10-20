@@ -14,14 +14,9 @@ const { title, session } = Astro.props;
 
 const pathname = Astro.url.pathname;
 
-const nav = [
-  { href: "/admin", label: "Übersicht", icon: "home" },
-  { href: "/admin/anfragen", label: "Anfragen", icon: "inbox" },
-  { href: "/admin/kunden", label: "Kunden", icon: "users" },
+const booksNav = [
   { href: "/admin/angebote", label: "Angebote", icon: "file" },
   { href: "/admin/rechnungen", label: "Rechnungen", icon: "receipt" },
-  { href: "/admin/postfach", label: "Postfach", icon: "mail" },
-  { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog" },
 ];
 
 const settingsNav = [
@@ -31,10 +26,21 @@ const settingsNav = [
   { href: "/admin/arbeiten", label: "Arbeiten", icon: "image" },
 ];
 
+const nav = [
+  { href: "/admin", label: "Übersicht", icon: "home", menu: "" },
+  { href: "/admin/anfragen", label: "Anfragen", icon: "inbox", menu: "" },
+  { href: "/admin/kunden", label: "Kunden", icon: "users", menu: "" },
+  { href: "", label: "Buchhaltung", icon: "ledger", menu: "books" },
+  { href: "/admin/postfach", label: "Postfach", icon: "mail", menu: "" },
+  { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog", menu: "settings" },
+];
+
 const isCurrent = (href: string) =>
   pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
 const settingsSection =
   isCurrent("/admin/einstellungen") || settingsNav.some((item) => isCurrent(item.href));
+const booksSection = booksNav.some((item) => isCurrent(item.href));
+const childNav = (menu: string) => (menu === "settings" ? settingsNav : menu === "books" ? booksNav : []);
 
 const icons: Record<string, string> = {
   home: "M3 12l9-9 9 9 M5 10v10h14V10",
@@ -45,6 +51,7 @@ const icons: Record<string, string> = {
   users: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5",
   receipt: "M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22z M9 7h6 M9 11h6 M9 15h4",
+  ledger: "M4 4h16v16H4z M4 9h16 M10 9v11",
   calendar:
     "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
@@ -128,34 +135,51 @@ const icons: Record<string, string> = {
         <nav class="flex-1 overflow-y-auto p-4 space-y-1 text-sm">
           {
             nav.map((item) => {
-              const active = item.href === "/admin/einstellungen" ? settingsSection : isCurrent(item.href);
+              const active = item.menu === "settings" ? settingsSection : item.menu === "books" ? booksSection : isCurrent(item.href);
+              const children = childNav(item.menu);
+              const itemClass = `flex items-center gap-3 rounded-xl px-3 py-2 font-medium ${
+                active
+                  ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                  : "text-ink-700 dark:text-ink-200"
+              }`;
               return (
                 <div>
-                  <a
-                    href={item.href}
-                    class={`flex items-center gap-3 rounded-xl px-3 py-2 font-medium transition ${
-                      active
-                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
-                        : "text-ink-700 hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/10"
-                    }`}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      class="h-4 w-4"
-                      aria-hidden="true"
-                    >
-                      <path d={icons[item.icon]} />
-                    </svg>
-                    {item.label}
-                  </a>
-                  {item.href === "/admin/einstellungen" && (
+                  {item.href ? (
+                    <a href={item.href} class={`${itemClass}${active ? "" : " transition hover:bg-ink-100 dark:hover:bg-white/10"}`}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d={icons[item.icon]} />
+                      </svg>
+                      {item.label}
+                    </a>
+                  ) : (
+                    <div class={itemClass}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d={icons[item.icon]} />
+                      </svg>
+                      {item.label}
+                    </div>
+                  )}
+                  {children.length > 0 && (
                     <div class="mt-1 space-y-1 border-l border-ink-200 pl-3 ml-5 dark:border-white/10">
-                      {settingsNav.map((child) => {
+                      {children.map((child) => {
                         const childActive = isCurrent(child.href);
                         return (
                           <a
@@ -380,6 +404,39 @@ const icons: Record<string, string> = {
       </button>
       <div id="admin-mobile-links" data-nav-links>
       <div
+        id="admin-books-menu"
+        data-books-menu
+        hidden
+        class="absolute inset-x-2 bottom-full mb-2 rounded-2xl border border-ink-200 bg-white p-2 shadow-[0_-12px_32px_-16px_rgb(15_23_42/0.45)] dark:border-white/10 dark:bg-ink-950"
+      >
+        {
+          booksNav.map((item) => (
+            <a
+              href={item.href}
+              class={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${
+                isCurrent(item.href)
+                  ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                  : "text-ink-800 dark:text-ink-100"
+              }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path d={icons[item.icon]} />
+              </svg>
+              {item.label}
+            </a>
+          ))
+        }
+      </div>
+      <div
         id="admin-settings-menu"
         data-settings-menu
         hidden
@@ -437,15 +494,16 @@ const icons: Record<string, string> = {
       <ul class="grid grid-cols-3">
         {
           nav.map((item) => {
-            const active = item.href === "/admin/einstellungen" ? settingsSection : isCurrent(item.href);
-            if (item.href === "/admin/einstellungen") {
+            const active = item.menu === "settings" ? settingsSection : item.menu === "books" ? booksSection : isCurrent(item.href);
+            if (item.menu === "settings" || item.menu === "books") {
+              const menuId = item.menu === "books" ? "admin-books-menu" : "admin-settings-menu";
               return (
                 <li>
                   <button
                     type="button"
-                    data-settings-toggle
+                    data-menu-toggle={item.menu}
                     aria-expanded="false"
-                    aria-controls="admin-settings-menu"
+                    aria-controls={menuId}
                     class={`flex min-h-16 w-full flex-col items-center justify-center gap-1 px-1 py-2 text-center text-[11px] font-semibold leading-tight tracking-tight touch-manipulation ${
                       active
                         ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
@@ -522,7 +580,7 @@ const icons: Record<string, string> = {
       }
       @media (max-width: 1023px) {
         .admin-main {
-          padding-bottom: calc(16rem + env(safe-area-inset-bottom));
+          padding-bottom: calc(11rem + env(safe-area-inset-bottom));
         }
         html[data-admin-nav="closed"] .admin-main {
           padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
@@ -668,30 +726,42 @@ const icons: Record<string, string> = {
           }
           root.setAttribute("data-admin-nav", "closed");
           collapse.setAttribute("aria-expanded", "false");
-          var menu = document.querySelector("[data-settings-menu]");
-          if (menu instanceof HTMLElement) menu.setAttribute("hidden", "");
-          var settings = document.querySelector("[data-settings-toggle]");
-          if (settings instanceof HTMLElement) settings.setAttribute("aria-expanded", "false");
+          ["books", "settings"].forEach(function (name) {
+            var menu = document.querySelector("[data-" + name + "-menu]");
+            if (menu instanceof HTMLElement) menu.setAttribute("hidden", "");
+            var button = document.querySelector('[data-menu-toggle="' + name + '"]');
+            if (button instanceof HTMLElement) button.setAttribute("aria-expanded", "false");
+          });
           try { localStorage.setItem("zs-admin-nav", "closed"); } catch (_err) {}
         });
 
         document.addEventListener("click", function (event) {
           var target = event.target;
           if (!(target instanceof Element)) return;
-          var toggle = target.closest("[data-settings-toggle]");
-          var menu = document.querySelector("[data-settings-menu]");
-          if (!(menu instanceof HTMLElement)) return;
+          var toggle = target.closest("[data-menu-toggle]");
           if (toggle instanceof HTMLElement) {
+            var name = toggle.getAttribute("data-menu-toggle") || "";
+            var menu = document.querySelector("[data-" + name + "-menu]");
+            if (!(menu instanceof HTMLElement)) return;
             var open = menu.hasAttribute("hidden");
+            ["books", "settings"].forEach(function (other) {
+              if (other === name) return;
+              var otherMenu = document.querySelector("[data-" + other + "-menu]");
+              if (otherMenu instanceof HTMLElement) otherMenu.setAttribute("hidden", "");
+              var otherButton = document.querySelector('[data-menu-toggle="' + other + '"]');
+              if (otherButton instanceof HTMLElement) otherButton.setAttribute("aria-expanded", "false");
+            });
             menu.toggleAttribute("hidden", !open);
             toggle.setAttribute("aria-expanded", open ? "true" : "false");
             return;
           }
-          if (!menu.hasAttribute("hidden") && !target.closest("[data-settings-menu]")) {
+          ["books", "settings"].forEach(function (name) {
+            var menu = document.querySelector("[data-" + name + "-menu]");
+            if (!(menu instanceof HTMLElement) || menu.hasAttribute("hidden") || target.closest("[data-" + name + "-menu]")) return;
             menu.setAttribute("hidden", "");
-            var button = document.querySelector("[data-settings-toggle]");
+            var button = document.querySelector('[data-menu-toggle="' + name + '"]');
             if (button instanceof HTMLElement) button.setAttribute("aria-expanded", "false");
-          }
+          });
         });
 
         function syncNavButton() {
