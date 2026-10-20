@@ -67,6 +67,7 @@ const flags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
   bad_file: { kind: "err", text: "Eine Datei ist zu groß oder nicht erlaubt." },
   bad_to: { kind: "err", text: "Bitte eine gültige Empfängeradresse eintragen." },
   db_error: { kind: "err", text: "Die Mail konnte nicht gespeichert werden." },
+  deleted: { kind: "ok", text: "Der Mailverlauf ist gelöscht." },
 };
 const notice = flag ? flags[flag] : null;
 const formatDate = (ts: number) => formatBerlin(ts);
@@ -139,10 +140,24 @@ const previewText = (value: string) =>
               ← Zurück zur Liste
             </a>
             <div>
-              <p class="text-sm text-ink-500 dark:text-ink-400">
-                {ownAddress} ↔ {openThread.peer_name ? `${openThread.peer_name} · ` : ""}{openThread.peer_email}
-              </p>
-              <h3 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{openThread.subject}</h3>
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm text-ink-500 dark:text-ink-400">
+                    {ownAddress} ↔ {openThread.peer_name ? `${openThread.peer_name} · ` : ""}{openThread.peer_email}
+                  </p>
+                  <h3 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{openThread.subject}</h3>
+                </div>
+                <form method="POST" action="/api/admin/postfach" onsubmit="return confirm('Diesen Mailverlauf wirklich löschen?')">
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="thread_id" value={openThread.id} />
+                  <button
+                    type="submit"
+                    class="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-800 hover:bg-rose-100 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100"
+                  >
+                    Verlauf löschen
+                  </button>
+                </form>
+              </div>
               {sperreText && (
                 <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">{sperreText}</p>
               )}

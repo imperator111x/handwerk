@@ -209,6 +209,30 @@ export async function deleteContactRequest(
     .run();
 }
 
+/** Löscht die gespeicherten Antworten einer Anfrage. Die Anfrage selbst bleibt. */
+export async function deleteRequestMailHistory(
+  db: D1Database,
+  requestId: number,
+): Promise<string[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT storage_key FROM mail_files
+        WHERE reply_id IN (SELECT id FROM contact_replies WHERE request_id = ?)`,
+    )
+    .bind(requestId)
+    .all<{ storage_key: string }>();
+  await db.batch([
+    db
+      .prepare(
+        `DELETE FROM mail_files
+          WHERE reply_id IN (SELECT id FROM contact_replies WHERE request_id = ?)`,
+      )
+      .bind(requestId),
+    db.prepare(`DELETE FROM contact_replies WHERE request_id = ?`).bind(requestId),
+  ]);
+  return (results ?? []).map((row) => row.storage_key);
+}
+
 export async function getContactRequest(
   db: D1Database,
   id: number,
@@ -835,6 +859,39 @@ export async function countUnreadMailThreads(db: D1Database): Promise<number> {
     )
     .first<{ n: number }>();
   return Number(row?.n ?? 0);
+}
+
+/** Löscht einen Postfach-Verlauf samt Nachrichten. Anhänge-Schlüssel zum Entfernen aus dem Speicher. */
+export async function deleteMailThread(
+  db: D1Database,
+  threadId: number,
+  mailboxId: number,
+): Promise<string[] | null> {
+  const owned = await db
+    .prepare(`SELECT id FROM mail_threads WHERE id = ? AND mailbox_id = ? LIMIT 1`)
+    .bind(threadId, mailboxId)
+    .first<{ id: number }>();
+  if (!owned) return null;
+  const { results } = await db
+    .prepare(
+      `SELECT f.storage_key
+         FROM mail_files f
+         JOIN mail_messages m ON m.id = f.mail_message_id
+        WHERE m.thread_id = ?`,
+    )
+    .bind(threadId)
+    .all<{ storage_key: string }>();
+  await db.batch([
+    db
+      .prepare(
+        `DELETE FROM mail_files
+          WHERE mail_message_id IN (SELECT id FROM mail_messages WHERE thread_id = ?)`,
+      )
+      .bind(threadId),
+    db.prepare(`DELETE FROM mail_messages WHERE thread_id = ?`).bind(threadId),
+    db.prepare(`DELETE FROM mail_threads WHERE id = ? AND mailbox_id = ?`).bind(threadId, mailboxId),
+  ]);
+  return (results ?? []).map((row) => row.storage_key);
 }
 
 export async function markThreadInboundSeen(db: D1Database, threadId: number): Promise<void> {

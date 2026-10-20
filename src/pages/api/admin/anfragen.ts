@@ -1,11 +1,14 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
+import { cfEnv } from "../../../lib/cf";
 import {
   deleteContactRequest,
+  deleteRequestMailHistory,
   getDb,
   updateContactStatus,
   type ContactStatus,
 } from "../../../lib/db";
+import { removeStoredFiles } from "../../../lib/mail-files";
 
 export const prerender = false;
 
@@ -62,6 +65,12 @@ export async function POST(ctx: APIContext): Promise<Response> {
       await updateContactStatus(db, id, status);
     } else if (action === "delete") {
       await deleteContactRequest(db, id);
+    } else if (action === "delete_history") {
+      const keys = await deleteRequestMailHistory(db, id);
+      await removeStoredFiles(cfEnv(), keys);
+      const url = new URL(redirectTo, "https://zeus-service.de");
+      url.searchParams.set("verlauf", "deleted");
+      return ctx.redirect(`${url.pathname}${url.search}`, 303);
     } else {
       return new Response(
         JSON.stringify({ ok: false, error: "Unbekannte Aktion." }),

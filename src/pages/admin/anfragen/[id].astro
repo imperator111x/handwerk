@@ -146,6 +146,7 @@ const sperreFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
   db: { kind: "err", text: "Die Sperre konnte nicht gespeichert werden." },
 };
 const sperreMessage = sperreFlag ? sperreFlags[sperreFlag] : null;
+const verlaufDeleted = Astro.url.searchParams.get("verlauf") === "deleted";
 const terminFlag = Astro.url.searchParams.get("termin");
 const terminFlags: Record<string, string> = {
   sent: "Der Terminlink wurde per E-Mail verschickt.",
@@ -172,6 +173,12 @@ const redirectPath = Astro.url.pathname;
       Zurück zur Liste
     </a>
   </nav>
+
+  {verlaufDeleted && (
+    <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-100">
+      Der Mailverlauf ist gelöscht. Die Anfrage bleibt erhalten.
+    </p>
+  )}
 
   {sperreMessage && (
     <p
@@ -456,9 +463,22 @@ const redirectPath = Astro.url.pathname;
   <!-- Reply-Thread -->
   {replies.length > 0 && (
     <section class="space-y-3">
-      <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">
-        Verlauf ({replies.length})
-      </h3>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">
+          Verlauf ({replies.length})
+        </h3>
+        <form method="POST" action="/api/admin/anfragen" onsubmit="return confirm('Diesen Mailverlauf wirklich löschen? Die Anfrage bleibt erhalten.')">
+          <input type="hidden" name="id" value={request.id} />
+          <input type="hidden" name="action" value="delete_history" />
+          <input type="hidden" name="redirect" value={redirectPath} />
+          <button
+            type="submit"
+            class="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:bg-rose-500/5 dark:text-rose-200"
+          >
+            Verlauf löschen
+          </button>
+        </form>
+      </div>
       {replies.map((r) => (
         <article
           class:list={[

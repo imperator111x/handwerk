@@ -414,5 +414,18 @@ export function fileHref(id: number): string {
   return `/api/admin/datei?id=${id}`;
 }
 
+export async function removeStoredFiles(env: Env | undefined, keys: string[]): Promise<void> {
+  if (!env?.FILES || keys.length === 0) return;
+  await Promise.all(
+    keys.map(async (key) => {
+      try {
+        await env.FILES?.delete(key);
+      } catch (err) {
+        console.error("file_delete_failed", err);
+      }
+    }),
+  );
+}
+
 export { canOpenScan };
 

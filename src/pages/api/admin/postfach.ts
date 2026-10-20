@@ -2,6 +2,7 @@ import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
+import { removeStoredFiles } from "../../../lib/mail-files";
 import { greetingFromForm } from "../../../lib/salutation";
 import {
   countMailboxes,
@@ -10,6 +11,7 @@ import {
   findMailboxByLocalPart,
   findUserById,
   getDb,
+  deleteMailThread,
   getMailThread,
   insertMailMessage,
   latestInboundMailMessageId,
@@ -82,6 +84,19 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (memberIds === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
     await setMailboxMembers(db, mailbox.id, memberIds);
     return ctx.redirect(`${redirectBase}?mail=assigned`, 303);
+  }
+
+  if (action === "delete") {
+    const threadId = Number.parseInt(String(form.get("thread_id") ?? ""), 10);
+    const thread = Number.isFinite(threadId) && threadId > 0 ? await getMailThread(db, threadId) : null;
+    if (!thread) return ctx.redirect(`${redirectBase}?mail=not_found`, 303);
+    const mailbox = await findMailboxById(db, thread.mailbox_id);
+    if (!mailbox) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    if (!canOpenMailbox(session, mailbox)) return ctx.redirect("/admin/postfach?mail=forbidden", 303);
+    const keys = await deleteMailThread(db, thread.id, mailbox.id);
+    if (!keys) return ctx.redirect(`/admin/postfach/${mailbox.id}?mail=not_found`, 303);
+    await removeStoredFiles(env, keys);
+    return ctx.redirect(`/admin/postfach/${mailbox.id}?mail=deleted`, 303);
   }
 
   const domain = env?.REPLY_DOMAIN || DEFAULT_REPLY_DOMAIN;
