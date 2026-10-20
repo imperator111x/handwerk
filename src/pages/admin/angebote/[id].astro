@@ -8,6 +8,7 @@ import {
   OFFER_BANK_LINES,
   OFFER_PAYMENT_TERMS,
   OFFER_SCOPE_NOTE,
+  OFFER_TAX_NOTE,
   OFFER_UNIT_LABELS,
   OFFER_UNITS,
   formatEuro,
@@ -126,6 +127,7 @@ const euroField = (cents: number) =>
         ))}
       </div>
       <p class="text-sm text-ink-800 dark:text-ink-100">Festpreis <strong id="offer-total">{formatEuro(quote.price_cents)}</strong></p>
+      <p class="text-sm text-ink-600 dark:text-ink-300">{OFFER_TAX_NOTE}</p>
       <p class="text-sm text-ink-600 dark:text-ink-300">{OFFER_PAYMENT_TERMS} {OFFER_SCOPE_NOTE}</p>
       <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
       <div class="grid gap-3 sm:grid-cols-2">

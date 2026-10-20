@@ -5,6 +5,7 @@ import {
   OFFER_DEFAULT_INTRO,
   OFFER_PAYMENT_TERMS,
   OFFER_SCOPE_NOTE,
+  OFFER_TAX_NOTE,
   OFFER_UNIT_LABELS,
   formatEuroAmount,
   formatQuantity,
@@ -209,14 +210,17 @@ function layoutPages(input: OfferPdfInput): string[] {
   y -= 32;
 
   const notes = [
+    OFFER_TAX_NOTE,
     OFFER_PAYMENT_TERMS,
     OFFER_SCOPE_NOTE,
     `Dieses Angebot ist gültig bis ${input.validUntilLabel}.`,
   ];
   for (const note of notes) {
-    need(14);
-    textAt(LEFT, y, 10, "F1", note);
-    y -= 14;
+    for (const line of wrap(note, 88)) {
+      need(14);
+      textAt(LEFT, y, 10, "F1", line);
+      y -= 14;
+    }
   }
   y -= 16;
 

@@ -1,4 +1,3 @@
-import { getContactRequest } from "./db";
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { decodeHtmlEntities } from "./html-entities";
 import { buildOfferPdf, type OfferPdfInput } from "./offer-pdf";
@@ -166,7 +165,10 @@ export async function quoteParty(db: D1Database, quote: QuoteRow): Promise<Offer
     }
   }
   if (quote.request_id) {
-    const request = await getContactRequest(db, quote.request_id);
+    const request = await db
+      .prepare(`SELECT name, email, phone FROM contact_requests WHERE id = ?`)
+      .bind(quote.request_id)
+      .first<{ name: string; email: string; phone: string | null }>();
     if (request) {
       return {
         name: decodeHtmlEntities(request.name),

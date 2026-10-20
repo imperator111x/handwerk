@@ -6,6 +6,8 @@ export const OFFER_BANK_LINES = [
 ] as const;
 export const OFFER_SCOPE_NOTE =
   "Der Festpreis gilt für die aufgeführten Positionen. Weitere Arbeiten nur nach Absprache.";
+export const OFFER_TAX_NOTE =
+  "Hinweis zur Kleinunternehmerregelung: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.";
 export const OFFER_DEFAULT_INTRO =
   "für die besprochene Leistung bieten wir Ihnen folgende Positionen zum Festpreis an.";
 export const MAX_OFFER_LINES = 12;
@@ -221,6 +223,7 @@ export function offerPlainText(input: {
     ...rows,
     "",
     `Festpreis: ${formatEuro(offerTotalCents(input.lines))}`,
+    OFFER_TAX_NOTE,
     OFFER_PAYMENT_TERMS,
     ...OFFER_BANK_LINES,
     OFFER_SCOPE_NOTE,
