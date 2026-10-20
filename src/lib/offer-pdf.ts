@@ -72,12 +72,15 @@ function layoutPages(input: OfferPdfInput): string[] {
     if (started) pages.push(ops);
     started = true;
     ops = [];
+    paint(`${RULE} RG`);
+    paint(`0.6 w ${LEFT} 62 m ${RIGHT} 62 l S`);
     fill(MUTED);
     useFont("F1", 8);
-    paint(`BT 1 0 0 1 ${LEFT} 34 Tm ${pdfText("ZEUS-SERVICE · Leon Lütcke · Berliner Allee 44a · 22850 Norderstedt")} Tj ET`);
-    paint(`BT 1 0 0 1 ${LEFT} 22 Tm ${pdfText(`${siteConfig.contact.phone} · ${siteConfig.contact.email} · zeus-service.de`)} Tj ET`);
-    paint(`${RULE} RG`);
-    paint(`0.6 w ${LEFT} 46 m ${RIGHT} 46 l S`);
+    paint(`BT 1 0 0 1 ${LEFT} 46 Tm ${pdfText("ZEUS-SERVICE · Leon Lütcke · Berliner Allee 44a · 22850 Norderstedt")} Tj ET`);
+    paint(`BT 1 0 0 1 ${LEFT} 34 Tm ${pdfText(`${siteConfig.contact.phone} · ${siteConfig.contact.email} · zeus-service.de`)} Tj ET`);
+    OFFER_BANK_LINES.forEach((line, index) => {
+      textRight(RIGHT, 46 - index * 12, 8, "F1", line, MUTED);
+    });
     if (continued) {
       const smallW = 120;
       const smallH = (smallW * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
@@ -97,7 +100,7 @@ function layoutPages(input: OfferPdfInput): string[] {
   };
 
   const need = (height: number) => {
-    if (y - height < 64) startPage(true);
+    if (y - height < 78) startPage(true);
   };
 
   startPage(false);
@@ -166,7 +169,7 @@ function layoutPages(input: OfferPdfInput): string[] {
   input.lines.forEach((line, index) => {
     const wrapped = wrap(line.label, 34);
     const rowHeight = Math.max(18, wrapped.length * 12 + 6);
-    if (y - rowHeight < 64) {
+    if (y - rowHeight < 78) {
       startPage(true);
       drawTableHead();
     }
@@ -195,7 +198,6 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   const notes = [
     OFFER_PAYMENT_TERMS,
-    ...OFFER_BANK_LINES,
     OFFER_SCOPE_NOTE,
     `Dieses Angebot ist gültig bis ${input.validUntilLabel}.`,
   ];
