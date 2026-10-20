@@ -1,4 +1,9 @@
 export const OFFER_PAYMENT_TERMS = "Zahlbar innerhalb von 14 Tagen nach Ausführung.";
+export const OFFER_BANK_LINES = [
+  "Kontoinhaber: ZEUS-SERVICE",
+  "IBAN: DE38 1001 4000 1598 1684 18",
+  "SWIFT: SWNB DE BB",
+] as const;
 export const OFFER_SCOPE_NOTE =
   "Der Festpreis gilt für die aufgeführten Positionen. Weitere Arbeiten nur nach Absprache.";
 export const OFFER_DEFAULT_INTRO =
@@ -212,6 +217,7 @@ export function offerPlainText(input: {
     "",
     `Festpreis: ${formatEuro(offerTotalCents(input.lines))}`,
     OFFER_PAYMENT_TERMS,
+    ...OFFER_BANK_LINES,
     OFFER_SCOPE_NOTE,
     `Gültig bis: ${formatOfferDate(input.validUntil)}`,
     "",

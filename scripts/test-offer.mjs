@@ -62,6 +62,8 @@ const plain = quote.offerPlainText({
 });
 assert.match(plain, /Stundenlohn/);
 assert.match(plain, /Zahlbar innerhalb von 14 Tagen nach Ausführung/);
+assert.match(plain, /IBAN: DE38 1001 4000 1598 1684 18/);
+assert.match(plain, /SWIFT: SWNB DE BB/);
 assert.match(plain, /112,50/);
 
 const pdf = buildOfferPdf({
@@ -95,6 +97,9 @@ assert.match(text, /112,50 EUR/);
 assert.match(text, /8,40 EUR/);
 assert.match(text, /120,90 EUR/);
 assert.match(text, /Zahlbar innerhalb von 14 Tagen nach Ausführung/);
+assert.match(text, /Kontoinhaber: ZEUS-SERVICE/);
+assert.match(text, /IBAN: DE38 1001 4000 1598 1684 18/);
+assert.match(text, /SWIFT: SWNB DE BB/);
 assert.match(text, /Leon Lütcke/);
 const start = Number(raw.match(/startxref\n(\d+)/)?.[1]);
 assert.equal(raw.slice(start, start + 4), "xref");

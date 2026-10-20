@@ -1,6 +1,7 @@
 import { siteConfig } from "../config/site";
 import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_WIDTH } from "./offer-logo";
 import {
+  OFFER_BANK_LINES,
   OFFER_DEFAULT_INTRO,
   OFFER_PAYMENT_TERMS,
   OFFER_SCOPE_NOTE,
@@ -194,6 +195,7 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   const notes = [
     OFFER_PAYMENT_TERMS,
+    ...OFFER_BANK_LINES,
     OFFER_SCOPE_NOTE,
     `Dieses Angebot ist gültig bis ${input.validUntilLabel}.`,
   ];
