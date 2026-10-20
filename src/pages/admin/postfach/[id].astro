@@ -5,6 +5,7 @@ import { requireSession } from "../../../lib/auth";
 import { findMailboxById, getDb, getMailThread, listMailMessages, listMailThreads, markThreadInboundSeen } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { canOpenMailbox, mailboxAddress, mailboxOwnerLabel } from "../../../lib/mailbox";
+import { formatBerlin } from "../../../lib/time";
 import { cfEnv } from "../../../lib/cf";
 
 export const prerender = false;
@@ -41,8 +42,7 @@ const flags: Record<string, { kind: "ok" | "warn" | "err"; text: string }> = {
   db_error: { kind: "err", text: "Die Mail konnte nicht gespeichert werden." },
 };
 const notice = flag ? flags[flag] : null;
-const formatDate = (ts: number) =>
-  new Date(ts * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" });
+const formatDate = (ts: number) => formatBerlin(ts);
 const previewText = (value: string) =>
   value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim().slice(0, 90);
 ---

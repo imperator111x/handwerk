@@ -11,6 +11,7 @@ import {
   type ContactStatus,
 } from "../../../lib/db";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
+import { formatBerlin } from "../../../lib/time";
 import { berlinTodayIso, formatEuro, listQuotes } from "../../../lib/offers";
 import { cfEnv } from "../../../lib/cf";
 
@@ -66,11 +67,7 @@ const topicLabels: Record<string, string> = {
   sonstiges: "Sonstiges",
 };
 
-const formatDate = (ts: number) =>
-  new Date(ts * 1000).toLocaleString("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+const formatDate = (ts: number) => formatBerlin(ts);
 
 const siteName = env?.SITE_NAME ?? "Zeus-Service";
 const defaultSubject = `Ihre Anfrage bei ${siteName} – ${topicLabels[request.topic] ?? request.topic}`;

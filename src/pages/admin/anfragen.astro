@@ -7,6 +7,7 @@ import {
   listContactRequests,
   type ContactStatus,
 } from "../../lib/db";
+import { formatBerlin } from "../../lib/time";
 
 export const prerender = false;
 
@@ -47,11 +48,7 @@ const nextStatus: Record<ContactStatus, ContactStatus> = {
   archived: "new",
 };
 
-const formatDate = (ts: number) =>
-  new Date(ts * 1000).toLocaleString("de-DE", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
+const formatDate = (ts: number) => formatBerlin(ts);
 
 const topicLabels: Record<string, string> = {
   reparatur: "Reparatur",
