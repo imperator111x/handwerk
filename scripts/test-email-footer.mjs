@@ -12,7 +12,7 @@ registerHooks({
 
 const { renderReplyEmailHtml, renderReplyEmailText } = await import("../src/lib/email.ts");
 
-const impressum = "ZEUS-SERVICE Leon Lütcke, Berliner Allee 44a, 22850 Norderstedt";
+const impressum = ["ZEUS-SERVICE", "Leon Lütcke", "Berliner Allee 44a", "22850 Norderstedt"];
 const input = {
   siteName: "Zeus-Service",
   siteUrl: "https://zeus-service.de",
@@ -26,8 +26,13 @@ const input = {
 const html = renderReplyEmailHtml(input);
 const text = renderReplyEmailText(input);
 assert.equal(html.trimEnd().endsWith("</html>"), true);
-assert.ok(html.includes(impressum));
-assert.ok(html.indexOf("Mit freundlichen Grüßen") < html.indexOf(impressum));
-assert.equal(text.trimEnd().endsWith(impressum), true);
+let cursor = html.indexOf("Mit freundlichen Grüßen");
+assert.ok(cursor > 0);
+for (const line of impressum) {
+  const next = html.indexOf(line, cursor);
+  assert.ok(next > cursor, line);
+  cursor = next + line.length;
+}
+assert.equal(text.trimEnd().endsWith(impressum.join("\n")), true);
 
 console.log("email footer checks ok");
