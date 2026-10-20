@@ -4,6 +4,7 @@ import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { invoiceNumber } from "../../../lib/invoice";
 import { listInvoices } from "../../../lib/invoices";
+import { paymentStatusLabel } from "../../../lib/stripe-pay";
 import { formatEuro, formatOfferDate } from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
 
@@ -48,6 +49,7 @@ const notices: Record<string, string> = {
               </a>
               <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
                 {row.buyer_name} · {formatOfferDate(row.invoice_date)} · {formatEuro(row.price_cents)}
+                · {paymentStatusLabel(row.payment_status)}{row.payment_method ? ` per ${row.payment_method}` : ""}
                 {row.sent_at ? ` · Gesendet ${formatBerlin(row.sent_at)}` : ""}
               </p>
             </div>

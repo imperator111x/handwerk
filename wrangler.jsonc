@@ -14,6 +14,8 @@
  *   # npx wrangler secret put CONTACT_TO_EMAIL
  *   # npx wrangler secret put RESEND_API_KEY
  *   npx wrangler secret put VIRUSTOTAL_API_KEY
+ *   npx wrangler secret put STRIPE_SECRET_KEY
+ *   npx wrangler secret put STRIPE_WEBHOOK_SECRET
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",

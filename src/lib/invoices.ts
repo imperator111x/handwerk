@@ -2,6 +2,7 @@ import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
 import { invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
 import { formatOfferDate, serializeOffer, type StoredOffer } from "./quote";
+import { applyOnlinePayment, applyRefund, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
 export interface InvoiceRow {
   id: number;
@@ -23,11 +24,19 @@ export interface InvoiceRow {
   created_at: number;
   sent_at: number | null;
   email_status: string | null;
+  payment_status: string;
+  paid_at: number | null;
+  payment_method: string | null;
+  payment_reference: string | null;
+  payment_url: string | null;
+  payment_link_id: string | null;
+  payment_note: string | null;
 }
 
 const COLUMNS = `id, customer_id, quote_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
   tax_number, buyer_name, buyer_email, buyer_phone, buyer_street, buyer_postal_code, buyer_city,
-  created_at, sent_at, email_status`;
+  created_at, sent_at, email_status, payment_status, paid_at, payment_method, payment_reference,
+  payment_url, payment_link_id, payment_note`;
 
 export async function getTaxNumber(db: D1Database): Promise<string> {
   const row = await db.prepare(`SELECT tax_number FROM business_profile WHERE id = 1`).first<{ tax_number: string }>();
@@ -116,6 +125,108 @@ export async function updateInvoiceDelivery(db: D1Database, id: number, sentAt: 
   await db.prepare(`UPDATE invoices SET sent_at = COALESCE(?, sent_at), email_status = ? WHERE id = ?`).bind(sentAt, emailStatus, id).run();
 }
 
+export function paymentRow(row: InvoiceRow): PaymentRow {
+  return {
+    priceCents: row.price_cents,
+    status: row.payment_status,
+    reference: row.payment_reference,
+    method: row.payment_method,
+    paidAt: row.paid_at,
+    note: row.payment_note,
+  };
+}
+
+export async function saveInvoicePaymentLink(db: D1Database, id: number, url: string, linkId: string): Promise<void> {
+  await db
+    .prepare(`UPDATE invoices SET payment_url = ?, payment_link_id = ? WHERE id = ? AND payment_url IS NULL`)
+    .bind(url, linkId, id)
+    .run();
+}
+
+export async function applyInvoicePayment(db: D1Database, id: number, update: PaymentUpdate, reference = ""): Promise<PaymentUpdate["kind"]> {
+  if (update.kind === "paid") {
+    const result = await db
+      .prepare(
+        `UPDATE invoices
+         SET payment_status = 'bezahlt', paid_at = ?, payment_method = ?, payment_reference = ?, payment_note = ?
+         WHERE id = ? AND payment_status = 'offen'`,
+      )
+      .bind(update.paidAt, update.method, update.reference, update.note, id)
+      .run();
+    if (typeof result.meta.changes === "number") return result.meta.changes > 0 ? "paid" : "unchanged";
+    const current = await getInvoice(db, id);
+    return current?.payment_status === "bezahlt" && current.payment_reference === update.reference ? "paid" : "unchanged";
+  }
+  if (update.kind === "noted") {
+    await db.prepare(`UPDATE invoices SET payment_note = ? WHERE id = ?`).bind(update.note, id).run();
+    return "noted";
+  }
+  if (update.kind === "refunded") {
+    const result = await db
+      .prepare(
+        `UPDATE invoices SET payment_status = 'erstattet'
+         WHERE id = ? AND payment_status = 'bezahlt' AND payment_reference = ?`,
+      )
+      .bind(id, reference)
+      .run();
+    if (typeof result.meta.changes === "number") return result.meta.changes > 0 ? "refunded" : "unchanged";
+    const current = await getInvoice(db, id);
+    return current?.payment_status === "erstattet" ? "refunded" : "unchanged";
+  }
+  return update.kind;
+}
+
+export async function recordOnlinePayment(
+  db: D1Database,
+  id: number,
+  incoming: { amountCents: number; reference: string; method: string; paidAt: number },
+): Promise<PaymentUpdate["kind"] | "missing"> {
+  const row = await getInvoice(db, id);
+  if (!row) return "missing";
+  const update = applyOnlinePayment(paymentRow(row), incoming);
+  return applyInvoicePayment(db, id, update);
+}
+
+export async function recordRefund(db: D1Database, id: number, reference: string, full: boolean): Promise<PaymentUpdate["kind"] | "missing"> {
+  const row = await getInvoice(db, id);
+  if (!row) return "missing";
+  const update = applyRefund(paymentRow(row), { reference, full });
+  return applyInvoicePayment(db, id, update, reference);
+}
+
+export async function findInvoiceIdByPaymentReference(db: D1Database, reference: string): Promise<number | null> {
+  const row = await db
+    .prepare(`SELECT id FROM invoices WHERE payment_reference = ? LIMIT 1`)
+    .bind(reference)
+    .first<{ id: number }>();
+  return row?.id ?? null;
+}
+
+export async function recordTransferPayment(db: D1Database, id: number, paidAt: number): Promise<PaymentUpdate["kind"] | "missing"> {
+  const row = await getInvoice(db, id);
+  if (!row) return "missing";
+  return applyInvoicePayment(db, id, applyTransferPayment(paymentRow(row), paidAt));
+}
+
+export async function clearTransferPayment(db: D1Database, id: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `UPDATE invoices
+       SET payment_status = 'offen', paid_at = NULL, payment_method = NULL, payment_reference = NULL,
+           payment_note = CASE WHEN payment_note = 'Der Zahlungslink ließ sich nicht schließen.' THEN NULL ELSE payment_note END
+       WHERE id = ? AND payment_status = 'bezahlt' AND payment_reference LIKE 'ueberweisung-%'`,
+    )
+    .bind(id)
+    .run();
+  if (typeof result.meta.changes === "number") return result.meta.changes > 0;
+  const current = await getInvoice(db, id);
+  return current?.payment_status === "offen";
+}
+
+export async function noteInvoicePayment(db: D1Database, id: number, note: string): Promise<void> {
+  await db.prepare(`UPDATE invoices SET payment_note = ? WHERE id = ?`).bind(note, id).run();
+}
+
 export function invoicePdfInput(row: InvoiceRow, stored: StoredOffer, authorName: string): InvoicePdfInput {
   return {
     number: invoiceNumber(row.id, row.invoice_date),
@@ -157,6 +268,8 @@ export async function sendInvoiceEmail(
     filename: string;
     pdf: Uint8Array;
     number: string;
+    paymentUrl?: string | null;
+    paymentStatus?: string | null;
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const plain = invoicePlainText({
@@ -171,7 +284,13 @@ export async function sendInvoiceEmail(
   });
   const subject = `Rechnung ${input.number}: ${input.invoice.title}`;
   const from = "info@zeus-service.de";
-  const footerNote = `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Sie können direkt auf diese E-Mail antworten.`;
+  const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
+  const paymentUrl = paid ? "" : input.paymentUrl?.trim() || "";
+  const footerNote = paid
+    ? "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten."
+    : paymentUrl
+      ? `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Der Knopf öffnet die Zahlung per Karte, Apple Pay, Google Pay, PayPal oder SEPA-Lastschrift. Eine Überweisung auf die IBAN bleibt möglich. Sie können direkt auf diese E-Mail antworten.`
+      : `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Sie können direkt auf diese E-Mail antworten.`;
   const result = await sendEmail(env, {
     from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",
     fromName: env.SITE_NAME ?? "Zeus-Service",
@@ -190,6 +309,8 @@ export async function sendInvoiceEmail(
       eyebrow: "Rechnung",
       greeting: input.greeting,
       footerNote,
+      ctaUrl: paymentUrl || null,
+      ctaLabel: "Jetzt bezahlen",
     }),
     text: renderReplyEmailText({
       siteName: env.SITE_NAME ?? "Zeus-Service",
@@ -202,6 +323,8 @@ export async function sendInvoiceEmail(
       replyToEmail: from,
       greeting: input.greeting,
       footerNote,
+      ctaUrl: paymentUrl || null,
+      ctaLabel: "Jetzt bezahlen",
     }),
     attachments: [{ filename: input.filename, type: "application/pdf", disposition: "attachment", content: input.pdf }],
   });

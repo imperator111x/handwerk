@@ -3,6 +3,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
 import { getDb, listUsers, type UserPublic } from "../../lib/db";
 import { getTaxNumber } from "../../lib/invoices";
+import { stripePaymentsReady } from "../../lib/stripe-pay";
 import { listPasskeys } from "../../lib/passkey";
 import { cfEnv } from "../../lib/cf";
 
@@ -87,6 +88,25 @@ const redirectPath = Astro.url.pathname;
       </div>
       <button type="submit" class="btn-primary">Speichern</button>
     </form>
+    <div id="online-zahlung" class="border-t border-ink-100 pt-4 dark:border-white/10">
+      <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">Online-Zahlung</h3>
+      <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
+        In der Rechnungsmail steht der Knopf „Jetzt bezahlen“. Karte, Apple Pay, Google Pay, PayPal und SEPA-Lastschrift laufen über Stripe.
+        Es gibt keine Monatsgebühr. Eine Standardkarte aus dem Europäischen Wirtschaftsraum kostet 1,5 % plus 0,25 €, Apple Pay und Google Pay denselben Satz.
+        SEPA-Lastschrift kostet 0,35 €. PayPal kommt dazu und kostet mehr, weil PayPal eine eigene Gebühr berechnet und Stripe dafür 0,2 % plus 0,10 € aufschlägt.
+        Nach der Zahlung setzt sich die Rechnung von selbst auf Bezahlt. Bei SEPA-Lastschrift erst, wenn die Bank die Zahlung bestätigt.
+        Eine Überweisung auf die IBAN lässt sich auf der Rechnung von Hand speichern, dann schließt sich der Zahlungslink.
+      </p>
+      <p class="mt-2 text-sm font-semibold text-ink-800 dark:text-ink-100">
+        {stripePaymentsReady(env ?? {}) ? "Stripe ist verbunden." : "Stripe ist noch nicht verbunden. Der Knopf erscheint, sobald das Konto hinterlegt ist."}
+      </p>
+      <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
+        Webhook-Adresse: https://zeus-service.de/api/stripe/webhook
+        <br />
+        Ereignisse: checkout.session.completed, checkout.session.async_payment_succeeded, charge.refunded.
+        Im Stripe-Dashboard Karte, Apple Pay, Google Pay, PayPal und SEPA-Lastschrift einschalten. Klarna bleibt besser aus, die Gebühr liegt höher.
+      </p>
+    </div>
   </section>
   <section class="rounded-3xl border border-ink-200 bg-white p-8 space-y-5 dark:border-white/10 dark:bg-ink-900">
     <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">

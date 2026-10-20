@@ -33,6 +33,8 @@ interface Env {
   VAPID_PRIVATE_JWK?: string;
   INFO_FORWARD_TO?: string;
   VIRUSTOTAL_API_KEY?: string;
+  STRIPE_SECRET_KEY?: string;
+  STRIPE_WEBHOOK_SECRET?: string;
 
   // Static Assets Fetcher (automatisch durch `assets.binding` erzeugt)
   ASSETS: Fetcher;

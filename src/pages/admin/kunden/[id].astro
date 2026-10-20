@@ -8,6 +8,7 @@ import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { invoiceNumber } from "../../../lib/invoice";
 import { listInvoicesForCustomer } from "../../../lib/invoices";
+import { paymentStatusLabel } from "../../../lib/stripe-pay";
 import { berlinTodayIso, listQuotesForCustomer, offerValidity } from "../../../lib/offers";
 import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
@@ -160,7 +161,7 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
               {invoiceNumber(row.id, row.invoice_date)} · {row.title}
             </a>
             <p class="mt-1 text-ink-600 dark:text-ink-300">
-              {formatEuro(row.price_cents)} · {formatOfferDate(row.invoice_date)}
+              {formatEuro(row.price_cents)} · {formatOfferDate(row.invoice_date)} · {paymentStatusLabel(row.payment_status)}
             </p>
           </li>
         ))}
