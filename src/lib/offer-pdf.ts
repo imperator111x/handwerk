@@ -216,13 +216,15 @@ function layoutPages(input: OfferPdfInput): string[] {
     `Dieses Angebot ist gültig bis ${input.validUntilLabel}.`,
   ];
   for (const note of notes) {
-    for (const line of wrap(note, 88)) {
+    const lines = wrapToWidth(note, WIDTH, 10);
+    for (const line of lines) {
       need(14);
       textAt(LEFT, y, 10, "F1", line);
       y -= 14;
     }
+    y -= 10;
   }
-  y -= 16;
+  y -= 6;
 
   need(56);
   paint(`${BLACK} RG`);
@@ -235,6 +237,24 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   if (started) pages.push(ops);
   return pages.map((page) => page.join("\n"));
+}
+
+function wrapToWidth(text: string, maxWidth: number, size: number): string[] {
+  const words = text.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (words.length === 0) return [];
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (textWidth(next, size, false) > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines;
 }
 
 function wrap(text: string, max: number): string[] {

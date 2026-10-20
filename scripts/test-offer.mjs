@@ -81,6 +81,10 @@ assert.match(plain, /Zahlbar innerhalb von 14 Tagen nach Ausführung/);
 assert.match(plain, /Kleinunternehmerregelung/);
 assert.match(plain, /§ 19 UStG/);
 assert.match(plain, /keine Umsatzsteuer berechnet/);
+assert.match(
+  plain,
+  /Hinweis zur Kleinunternehmerregelung: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet\.\n\nZahlbar innerhalb von 14 Tagen nach Ausführung\.\n\nDer Festpreis gilt für die aufgeführten Positionen\. Weitere Arbeiten nur nach Absprache\.\n\nDieses Angebot ist gültig bis 3\. November 2026\./,
+);
 assert.match(plain, /IBAN: DE38 1001 4000 1598 1684 18/);
 assert.match(plain, /SWIFT: SWNB DE BB/);
 assert.match(plain, /112,50/);
@@ -119,6 +123,17 @@ assert.match(text, /Zahlbar innerhalb von 14 Tagen nach Ausführung/);
 assert.match(text, /Kleinunternehmerregelung/);
 assert.match(text, /19 UStG/);
 assert.match(text, /keine Umsatzsteuer/);
+assert.match(text, /Der Festpreis gilt für die aufgeführten Positionen/);
+assert.match(text, /Dieses Angebot ist gültig bis 3\. November 2026/);
+const noteBaselines = [...text.matchAll(/1 0 0 1 [\d.]+ ([\d.]+) Tm \(([^)]*)\) Tj/g)]
+  .map((match) => ({ y: Number(match[1]), value: match[2] }))
+  .filter((item) =>
+    /Kleinunternehmerregelung|Zahlbar innerhalb|aufgeführten Positionen|gültig bis 3\. November/.test(item.value),
+  );
+assert.equal(noteBaselines.length, 4);
+for (let index = 1; index < noteBaselines.length; index += 1) {
+  assert.ok(noteBaselines[index - 1].y - noteBaselines[index].y >= 20);
+}
 assert.match(text, /Angebotsnummer: A-2026-0007/);
 assert.match(text, /Bei Zahlung bitte angeben/);
 assert.match(text, /Kontoinhaber: ZEUS-SERVICE/);
