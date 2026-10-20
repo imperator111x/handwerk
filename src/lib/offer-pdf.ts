@@ -127,17 +127,11 @@ function layoutPages(input: OfferPdfInput): string[] {
 
   y = addressTop - 92;
   const customerLines = [input.customerName, input.customerEmail, input.customerPhone?.trim() || ""].filter(Boolean);
-  const boxHeight = 28 + customerLines.length * 14;
-  const boxBottom = y - boxHeight + 14;
-  paint(`${BLACK} rg`);
-  paint(`${LEFT} ${round(boxBottom)} 4 ${boxHeight} re f`);
-  paint(`${BAND} rg`);
-  paint(`${LEFT + 4} ${round(boxBottom)} 250 ${boxHeight} re f`);
-  textAt(LEFT + 16, y, 8, "F2", "An", MUTED);
+  textAt(LEFT, y, 8, "F2", "An", MUTED);
   customerLines.forEach((line, index) => {
-    textAt(LEFT + 16, y - 16 - index * 14, 11, index === 0 ? "F2" : "F1", line);
+    textAt(LEFT, y - 14 - index * 14, 11, index === 0 ? "F2" : "F1", line);
   });
-  y -= boxHeight + 24;
+  y -= 14 + customerLines.length * 14 + 22;
 
   need(36);
   textAt(LEFT, y, 13, "F2", input.title, BLACK);
@@ -203,17 +197,12 @@ function layoutPages(input: OfferPdfInput): string[] {
     OFFER_SCOPE_NOTE,
     `Dieses Angebot ist gültig bis ${input.validUntilLabel}.`,
   ];
-  const noteHeight = notes.length * 14 + 18;
-  need(noteHeight + 8);
-  const noteBottom = y - noteHeight + 12;
-  paint(`${BAND} rg`);
-  paint(`${LEFT} ${round(noteBottom)} ${WIDTH} ${noteHeight} re f`);
-  paint(`${BLACK} rg`);
-  paint(`${LEFT} ${round(noteBottom)} 4 ${noteHeight} re f`);
-  notes.forEach((note, index) => {
-    textAt(LEFT + 16, y - index * 14, 10, "F1", note);
-  });
-  y -= noteHeight + 20;
+  for (const note of notes) {
+    need(14);
+    textAt(LEFT, y, 10, "F1", note);
+    y -= 14;
+  }
+  y -= 16;
 
   need(56);
   paint(`${BLACK} RG`);
