@@ -1,4 +1,4 @@
-export const SALUTATIONS = ["herr", "frau", "hallo_vorname", "hallo_name"] as const;
+export const SALUTATIONS = ["herr", "frau", "herren_damen", "hallo_vorname", "hallo_name"] as const;
 
 export type Salutation = (typeof SALUTATIONS)[number];
 
@@ -19,6 +19,7 @@ export function greetingChoices(rawName: string): Array<{ value: Salutation; lab
   return [
     { value: "herr", label: last ? `Sehr geehrter Herr ${last}` : "Sehr geehrter Herr …" },
     { value: "frau", label: last ? `Sehr geehrte Frau ${last}` : "Sehr geehrte Frau …" },
+    { value: "herren_damen", label: "Sehr geehrte Herren und Damen" },
     { value: "hallo_vorname", label: first ? `Hallo ${first}` : "Hallo Vorname" },
     { value: "hallo_name", label: full ? `Hallo ${full}` : "Hallo Name" },
   ];
@@ -30,6 +31,7 @@ export function greetingFor(kind: string, rawName: string): string | null {
   const { first, last, full } = splitPersonName(rawName);
   if (choice === "herr") return `Sehr geehrter Herr${last ? ` ${last}` : ""},`;
   if (choice === "frau") return `Sehr geehrte Frau${last ? ` ${last}` : ""},`;
+  if (choice === "herren_damen") return "Sehr geehrte Herren und Damen,";
   if (choice === "hallo_vorname") return first ? `Hallo ${first},` : null;
   return full ? `Hallo ${full},` : null;
 }
