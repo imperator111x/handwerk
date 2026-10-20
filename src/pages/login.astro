@@ -18,6 +18,7 @@ const errorMessages: Record<string, string> = {
   credentials: "Benutzername oder Passwort ist falsch.",
   missing: "Bitte geben Sie Benutzername und Passwort ein.",
   invalid: "Die Anfrage konnte nicht verarbeitet werden.",
+  passkey: "Face ID hat nicht geklappt. Bitte mit Passwort anmelden.",
 };
 const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
 ---
@@ -65,6 +66,21 @@ const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
         </div>
       </div>
 
+      <div
+        id="faceid-box"
+        data-next={next}
+        hidden
+        class="rounded-3xl border border-ink-200 bg-white p-8 shadow-[var(--shadow-soft)] space-y-4 dark:border-white/10 dark:bg-ink-900"
+      >
+        <button type="button" id="faceid-login" class="btn-primary w-full justify-center">
+          Mit Face ID anmelden
+        </button>
+        <p id="faceid-status" class="text-sm text-rose-800 dark:text-rose-200" hidden></p>
+        <p class="text-center text-xs text-ink-500 dark:text-ink-400">
+          Auf dem iPhone öffnet sich Face ID. Danach geht es auch mit Benutzername und Passwort.
+        </p>
+      </div>
+
       <form
         method="POST"
         action="/api/auth/login"
@@ -110,4 +126,52 @@ const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
       </form>
     </div>
   </section>
+  <script>
+    import { browserSupportsWebAuthn, platformAuthenticatorIsAvailable, startAuthentication } from "@simplewebauthn/browser";
+
+    const box = document.getElementById("faceid-box");
+    const button = document.getElementById("faceid-login");
+    const status = document.getElementById("faceid-status");
+
+    function showStatus(text: string) {
+      if (!status) return;
+      status.hidden = false;
+      status.textContent = text;
+    }
+
+    if (box && button instanceof HTMLButtonElement && browserSupportsWebAuthn()) {
+      const next = box.dataset.next || "/admin";
+      platformAuthenticatorIsAvailable()
+        .then((available) => {
+          if (available) box.hidden = false;
+        })
+        .catch(() => {});
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        if (status) status.hidden = true;
+        try {
+          const optionsResponse = await fetch("/api/auth/passkey", { headers: { accept: "application/json" } });
+          if (!optionsResponse.ok) throw new Error("options");
+          const options = (await optionsResponse.json()) as Parameters<typeof startAuthentication>[0]["optionsJSON"];
+          const credential = await startAuthentication({ optionsJSON: options });
+          const result = (await fetch("/api/auth/passkey", {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "application/json" },
+            body: JSON.stringify({ response: credential, next }),
+          }).then((response) => response.json())) as { ok?: boolean; redirect?: string };
+          if (!result.ok || typeof result.redirect !== "string" || !result.redirect.startsWith("/") || result.redirect.startsWith("//")) {
+            showStatus("Face ID hat nicht geklappt. Bitte mit Passwort anmelden.");
+            return;
+          }
+          window.location.assign(result.redirect);
+        } catch (err) {
+          const name = err instanceof Error ? err.name : "";
+          showStatus(name === "NotAllowedError" ? "Face ID wurde abgebrochen." : "Face ID hat nicht geklappt. Bitte mit Passwort anmelden.");
+        } finally {
+          button.disabled = false;
+        }
+      });
+    }
+  </script>
 </Layout>

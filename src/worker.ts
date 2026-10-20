@@ -3,6 +3,7 @@ import type { SSRManifest } from "astro";
 import { handle } from "@astrojs/cloudflare/handler";
 import PostalMime from "postal-mime";
 import { ingestInboundEmail } from "./lib/inbound-mail";
+import { isExternalMailboxAddress } from "./lib/mailbox";
 import { mailNotice, replyNotice, requestNotice } from "./lib/notice-copy";
 import { notifyStaff } from "./lib/notify";
 
@@ -13,6 +14,7 @@ interface InboundMessage {
   readonly raw: ReadableStream<Uint8Array>;
   readonly rawSize: number;
   setReject(reason: string): void;
+  forward(rcptTo: string, headers?: Headers): Promise<unknown>;
 }
 
 const MAX_INBOUND_BYTES = 2_000_000;
@@ -53,6 +55,22 @@ export function createExports(manifest: SSRManifest) {
 }
 
 async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
+  const domain = env.REPLY_DOMAIN || "zeus-service.de";
+  if (isExternalMailboxAddress(message.to, domain)) {
+    const target = env.INFO_FORWARD_TO?.trim();
+    if (!target) {
+      message.setReject("info@ ist gerade nicht erreichbar.");
+      return;
+    }
+    try {
+      await message.forward(target);
+      console.log("info_forwarded");
+    } catch (err) {
+      console.error("info_forward_failed", err);
+      message.setReject("info@ ist gerade nicht erreichbar.");
+    }
+    return;
+  }
   if (!env.DB) {
     message.setReject("Postfach vorübergehend nicht erreichbar.");
     return;
@@ -96,7 +114,7 @@ async function receiveEmail(message: InboundMessage, env: Env): Promise<void> {
     html: typeof parsed.html === "string" ? parsed.html : null,
     fromName: fromMailbox?.name || null,
     autoSubmitted: message.headers.get("auto-submitted"),
-  }, env.REPLY_DOMAIN || "zeus-service.de");
+  }, domain);
 
   if (result.action === "reject") {
     message.setReject(result.reason);

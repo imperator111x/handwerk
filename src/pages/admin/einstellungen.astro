@@ -2,6 +2,7 @@
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
 import { getDb, listUsers, type UserPublic } from "../../lib/db";
+import { listPasskeys } from "../../lib/passkey";
 
 export const prerender = false;
 
@@ -13,6 +14,7 @@ const env = Astro.locals.runtime?.env;
 const db = getDb(Astro);
 const users: UserPublic[] = db ? await listUsers(db) : [];
 const isAdmin = session.role === "admin";
+const passkeys = db && session.userId ? await listPasskeys(db, session.userId) : [];
 
 const pwFlag = Astro.url.searchParams.get("pw");
 const userFlag = Astro.url.searchParams.get("user");
@@ -187,6 +189,101 @@ const redirectPath = Astro.url.pathname;
       </form>
     )}
   </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-8 space-y-4 dark:border-white/10 dark:bg-ink-900">
+    <div>
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        Face ID
+      </h2>
+      <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+        Einmal auf dem iPhone einschalten, danach öffnet die Admin-App beim
+        Login Face ID. Das Passwort bleibt zusätzlich gültig. Gespeichert wird
+        nur ein Schlüssel des Geräts, nicht das Gesicht.
+      </p>
+    </div>
+    {!session.userId ? (
+      <p class="text-sm text-ink-600 dark:text-ink-300">
+        Face ID geht erst mit einem richtigen Benutzerkonto, nicht mit dem alten Fallback-Login.
+      </p>
+    ) : (
+      <>
+        <p id="faceid-settings-status" class="text-sm text-ink-700 dark:text-ink-200">
+          {passkeys.length > 0
+            ? "Face ID ist eingeschaltet. Auf dem Login steht „Mit Face ID anmelden“."
+            : "Face ID ist noch nicht eingeschaltet."}
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <button type="button" id="faceid-enroll" class="btn-primary w-fit">
+            {passkeys.length > 0 ? "Weiteres Gerät einschalten" : "Face ID einschalten"}
+          </button>
+          {passkeys.length > 0 && (
+            <button type="button" id="faceid-remove" class="btn-secondary w-fit">
+              Face ID entfernen
+            </button>
+          )}
+        </div>
+      </>
+    )}
+  </section>
+  {session.userId && (
+    <script>
+      import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
+
+      const enroll = document.getElementById("faceid-enroll");
+      const remove = document.getElementById("faceid-remove");
+      const status = document.getElementById("faceid-settings-status");
+
+      function setStatus(text: string) {
+        if (status) status.textContent = text;
+      }
+
+      if (enroll instanceof HTMLButtonElement) {
+        enroll.addEventListener("click", async () => {
+          if (!browserSupportsWebAuthn()) {
+            setStatus("Dieses Gerät kann Face ID hier nicht verwenden. Bitte die Admin-App auf dem iPhone öffnen.");
+            return;
+          }
+          enroll.disabled = true;
+          try {
+            const prepared = await fetch("/api/admin/passkey", { headers: { accept: "application/json" } });
+            if (!prepared.ok) throw new Error("options");
+            const payload = (await prepared.json()) as { options: Parameters<typeof startRegistration>[0]["optionsJSON"] };
+            const credential = await startRegistration({ optionsJSON: payload.options });
+            const saved = await fetch("/api/admin/passkey", {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json" },
+              body: JSON.stringify({ response: credential }),
+            });
+            if (!saved.ok) throw new Error("save");
+            window.location.assign("/admin/einstellungen");
+          } catch (err) {
+            const name = err instanceof Error ? err.name : "";
+            setStatus(
+              name === "NotAllowedError"
+                ? "Face ID wurde abgebrochen."
+                : "Face ID konnte nicht eingeschaltet werden. Bitte die Seite in der Admin-App auf dem iPhone öffnen.",
+            );
+          } finally {
+            enroll.disabled = false;
+          }
+        });
+      }
+
+      if (remove instanceof HTMLButtonElement) {
+        remove.addEventListener("click", async () => {
+          if (!window.confirm("Face ID für dieses Konto wirklich entfernen?")) return;
+          remove.disabled = true;
+          const response = await fetch("/api/admin/passkey", { method: "DELETE" });
+          if (!response.ok) {
+            setStatus("Face ID konnte nicht entfernt werden.");
+            remove.disabled = false;
+            return;
+          }
+          window.location.assign("/admin/einstellungen");
+        });
+      }
+    </script>
+  )}
 
   <!-- ================================================================= -->
   <!-- Admin-Benutzer verwalten -->

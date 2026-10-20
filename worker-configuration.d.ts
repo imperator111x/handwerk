@@ -31,6 +31,7 @@ interface Env {
   TURNSTILE_SECRET?: string;
   TURNSTILE_PAGE_SECRET?: string;
   VAPID_PRIVATE_JWK?: string;
+  INFO_FORWARD_TO?: string;
 
   // Static Assets Fetcher (automatisch durch `assets.binding` erzeugt)
   ASSETS: Fetcher;

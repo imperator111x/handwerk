@@ -28,7 +28,7 @@ const flags: Record<string, { kind: "ok" | "err"; text: string }> = {
   exists: { kind: "err", text: "Diese Adresse gibt es schon." },
   bad_address: {
     kind: "err",
-    text: "Die Adresse darf Buchstaben, Zahlen, Punkte und Bindestriche enthalten, zum Beispiel vor.nachname.",
+    text: "Die Adresse darf Buchstaben, Zahlen, Punkte und Bindestriche enthalten, zum Beispiel vor.nachname. info@ bleibt außerhalb des Panels.",
   },
   bad_user: { kind: "err", text: "Der gewählte Benutzer wurde nicht gefunden." },
   forbidden: { kind: "err", text: "Dieses Postfach ist dir nicht zugeordnet." },
@@ -109,7 +109,7 @@ const userLabel = (person: { first_name: string; last_name: string; username: st
   <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
     <h2 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Neue Adresse</h2>
     <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
-      Zum Beispiel info@{domain} oder vor.nachname@{domain}. Das Postfach öffnet sich danach wie ein Webmail.
+      Zum Beispiel vor.nachname@{domain}. Das Postfach öffnet sich danach wie ein Webmail. info@{domain} bleibt ein normales Postfach außerhalb des Panels.
     </p>
     <form method="POST" action="/api/admin/postfach" class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
       <input type="hidden" name="action" value="create" />

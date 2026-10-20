@@ -21,7 +21,7 @@ import {
   updateContactStatus,
   upsertMailThread,
 } from "./db";
-import { MAIL_DOMAIN, matchMailboxLocalPart } from "./mailbox";
+import { MAIL_DOMAIN, isExternalLocalPart, matchMailboxLocalPart } from "./mailbox";
 import {
   collectAddresses,
   extractMessageIds,
@@ -66,6 +66,10 @@ export async function ingestInboundEmail(
   }
   if (isAutomated(from, email.autoSubmitted ?? null, email.subject ?? "")) {
     return { action: "ignore", reason: "automatische Nachricht" };
+  }
+  const envelopeLocal = matchMailboxLocalPart([email.recipients[0]], domain);
+  if (envelopeLocal && isExternalLocalPart(envelopeLocal)) {
+    return { action: "ignore", reason: "externe Adresse" };
   }
 
   let requestId = await resolveRequestId(db, secret, email);

@@ -8,7 +8,11 @@ const RESERVED = new Set([
   "noreply",
   "no-reply",
   "website",
+  "info",
 ]);
+
+/** Adressen, die außerhalb des Panels als normales Postfach laufen. */
+const EXTERNAL = new Set(["info"]);
 
 const LOCAL_PART = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
@@ -38,6 +42,15 @@ export function localPartFromName(firstName: string, lastName: string): string |
   const last = fold(lastName);
   if (!first || !last) return null;
   return cleanLocalPart(`${first}.${last}`);
+}
+
+export function isExternalLocalPart(localPart: string): boolean {
+  return EXTERNAL.has(localPart.trim().toLowerCase());
+}
+
+export function isExternalMailboxAddress(address: string, domain = MAIL_DOMAIN): boolean {
+  const local = matchMailboxLocalPart([address], domain);
+  return local != null && isExternalLocalPart(local);
 }
 
 export function mailboxAddress(localPart: string, domain = MAIL_DOMAIN): string {

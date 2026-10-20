@@ -3,12 +3,17 @@ import {
   canOpenMailbox,
   cleanLocalPart,
   cleanRecipient,
+  isExternalLocalPart,
+  isExternalMailboxAddress,
   localPartFromName,
   mailboxOwnerLabel,
   matchMailboxLocalPart,
 } from "../src/lib/mailbox.ts";
 
-assert.equal(cleanLocalPart("Info"), "info");
+assert.equal(cleanLocalPart("Info"), null);
+assert.equal(isExternalLocalPart("info"), true);
+assert.equal(isExternalMailboxAddress("Info <info@zeus-service.de>"), true);
+assert.equal(isExternalMailboxAddress("leon.luetcke@zeus-service.de"), false);
 assert.equal(cleanLocalPart("leon.luetcke"), "leon.luetcke");
 assert.equal(cleanLocalPart("vor.nachname"), "vor.nachname");
 assert.equal(cleanLocalPart("website"), null);
