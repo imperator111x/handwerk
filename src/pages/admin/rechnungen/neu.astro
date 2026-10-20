@@ -1,0 +1,97 @@
+---
+import InvoiceComposer from "../../../components/InvoiceComposer.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { getCustomer, listCustomers } from "../../../lib/customers";
+import { getDb } from "../../../lib/db";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
+import { getTaxNumber } from "../../../lib/invoices";
+import { berlinTodayIso, getQuote } from "../../../lib/offers";
+import { readStoredOffer } from "../../../lib/quote";
+import { salutationFromGreeting } from "../../../lib/salutation";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const db = getDb(Astro);
+const today = berlinTodayIso();
+const flag = Astro.url.searchParams.get("rechnung");
+const messages: Record<string, string> = {
+  bad: "Bitte Positionen, Preise und die Daten prüfen. Das Rechnungsdatum darf nicht in der Zukunft liegen, das Leistungsdatum nicht danach.",
+  address: "Für die Rechnung braucht der Kunde Straße, Postleitzahl und Ort.",
+  tax: "Bitte zuerst die Steuernummer unter Einstellungen speichern.",
+  missing: "Der Kunde wurde nicht gefunden.",
+  db: "Die Rechnung konnte nicht gespeichert werden.",
+};
+
+const quoteId = Number.parseInt(Astro.url.searchParams.get("angebot") ?? "", 10);
+const quote = db && Number.isFinite(quoteId) && quoteId > 0 ? await getQuote(db, quoteId) : null;
+const requestedCustomer = Number.parseInt(Astro.url.searchParams.get("kunde") ?? "", 10);
+const customerId = quote?.customer_id ?? (Number.isFinite(requestedCustomer) ? requestedCustomer : 0);
+const customer = db && customerId > 0 ? await getCustomer(db, customerId) : null;
+const customers = db && !customer ? await listCustomers(db) : [];
+const taxNumber = db ? await getTaxNumber(db) : "";
+const stored = quote ? readStoredOffer(quote.lines_json, "") : null;
+const name = customer ? decodeHtmlEntities(customer.name) : "";
+const addressReady = Boolean(customer?.street?.trim() && customer.postal_code?.trim() && customer.city?.trim());
+---
+
+<AdminLayout title="Neue Rechnung" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">ZUGFeRD</p>
+    <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Neue Rechnung</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Dasselbe Seitenbild wie das Angebot, mit Kleinunternehmerhinweis und Aufbewahrungssatz. Die PDF enthält die Rechnungsdaten als ZUGFeRD.
+    </p>
+    {flag && messages[flag] && (
+      <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+        {messages[flag]}
+      </p>
+    )}
+    {!taxNumber && (
+      <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
+        Die Steuernummer fehlt noch. <a class="font-semibold underline" href="/admin/einstellungen#steuernummer">Unter Einstellungen eintragen</a>.
+      </p>
+    )}
+    {!customer && (
+      <form class="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]" method="GET">
+        <label class="label sm:col-span-2" for="kunde">Kunde</label>
+        <select class="input" id="kunde" name="kunde" required>
+          <option value="">Bitte wählen</option>
+          {customers.map((entry) => <option value={entry.id}>{decodeHtmlEntities(entry.name)} · {entry.email}</option>)}
+        </select>
+        <button class="btn-primary" type="submit">Weiter</button>
+      </form>
+    )}
+    {customer && !addressReady && (
+      <p class="mt-4 text-sm text-ink-700 dark:text-ink-200">
+        {name} hat noch keine vollständige Adresse.
+        <a class="font-semibold underline" href={`/admin/kunden/${customer.id}`}>Adresse ergänzen</a>
+      </p>
+    )}
+    {customer && addressReady && taxNumber && (
+      <div class="mt-5">
+        <p class="text-sm text-ink-700 dark:text-ink-200">
+          {name} · {customer.street}, {customer.postal_code} {customer.city} · Steuernummer {taxNumber}
+        </p>
+        <div class="mt-4">
+          <InvoiceComposer
+            customerName={name}
+            title={quote?.title ?? ""}
+            intro={stored?.intro ?? ""}
+            invoiceDate={today}
+            serviceDate={today}
+            lines={stored?.lines}
+            salutation={salutationFromGreeting(stored?.greeting ?? null, name)}
+            hidden={[
+              { name: "customer_id", value: String(customer.id) },
+              ...(quote ? [{ name: "quote_id", value: String(quote.id) }] : []),
+            ]}
+          />
+        </div>
+      </div>
+    )}
+  </section>
+</AdminLayout>

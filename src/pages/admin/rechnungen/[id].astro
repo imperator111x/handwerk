@@ -1,0 +1,105 @@
+---
+import InvoiceNotes from "../../../components/InvoiceNotes.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { getDb } from "../../../lib/db";
+import { invoiceNumber } from "../../../lib/invoice";
+import { getInvoice } from "../../../lib/invoices";
+import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, formatEuro, formatOfferDate, formatQuantity, lineTotalCents, readStoredOffer } from "../../../lib/quote";
+import { formatBerlin } from "../../../lib/time";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const id = Number.parseInt(Astro.params.id ?? "", 10);
+if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/rechnungen");
+const db = getDb(Astro);
+const row = db ? await getInvoice(db, id) : null;
+if (!row) return Astro.redirect("/admin/rechnungen?rechnung=missing");
+const stored = readStoredOffer(row.lines_json, "");
+const number = invoiceNumber(row.id, row.invoice_date);
+const flag = Astro.url.searchParams.get("rechnung");
+const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  sent: { kind: "ok", text: "Die Rechnung ist als ZUGFeRD-PDF verschickt." },
+  saved: { kind: "ok", text: "Die Rechnung ist festgeschrieben. Der Versand ist nicht bestätigt." },
+  failed: { kind: "bad", text: "Die Rechnung ist festgeschrieben, der Versand ist aber fehlgeschlagen." },
+};
+const notice = flag ? notices[flag] : undefined;
+---
+
+<AdminLayout title={`Rechnung ${number}`} session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">Festgeschrieben</p>
+        <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{number}</h2>
+        <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+          {row.buyer_name} · {row.buyer_street}, {row.buyer_postal_code} {row.buyer_city} · {row.buyer_email}
+        </p>
+      </div>
+      <span class="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700 dark:bg-white/10 dark:text-ink-200">
+        {row.sent_at ? `Gesendet ${formatBerlin(row.sent_at)}` : "Noch nicht gesendet"}
+      </span>
+    </div>
+    {notice && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          notice.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {notice.text}
+      </p>
+    )}
+    <dl class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+      <div>
+        <dt class="text-ink-500 dark:text-ink-400">Betreff</dt>
+        <dd class="font-semibold text-ink-900 dark:text-ink-50">{row.title}</dd>
+      </div>
+      <div>
+        <dt class="text-ink-500 dark:text-ink-400">Steuernummer</dt>
+        <dd class="font-semibold text-ink-900 dark:text-ink-50">{row.tax_number}</dd>
+      </div>
+      <div>
+        <dt class="text-ink-500 dark:text-ink-400">Rechnungsdatum</dt>
+        <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatOfferDate(row.invoice_date)}</dd>
+      </div>
+      <div>
+        <dt class="text-ink-500 dark:text-ink-400">Leistungsdatum</dt>
+        <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatOfferDate(row.service_date)}</dd>
+      </div>
+      <div>
+        <dt class="text-ink-500 dark:text-ink-400">Fällig am</dt>
+        <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatOfferDate(row.due_date)}</dd>
+      </div>
+    </dl>
+    {stored.greeting && <p class="mt-5 text-sm text-ink-800 dark:text-ink-100">{stored.greeting}</p>}
+    {stored.intro && <p class="mt-2 whitespace-pre-line text-sm text-ink-800 dark:text-ink-100">{stored.intro}</p>}
+    <ul class="mt-4 space-y-2 text-sm text-ink-800 dark:text-ink-100">
+      {stored.lines.map((line) => (
+        <li>
+          {line.label}: {formatQuantity(line.quantity)} {OFFER_UNIT_LABELS[line.unit]} × {formatEuro(line.unitCents)} = {formatEuro(lineTotalCents(line))}
+        </li>
+      ))}
+    </ul>
+    <p class="mt-4 text-sm font-semibold text-ink-900 dark:text-ink-50">Rechnungsbetrag {formatEuro(row.price_cents)}</p>
+    <InvoiceNotes />
+    <p class="mt-3 text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
+    <div class="mt-5 flex flex-wrap gap-2">
+      <a href={`/api/admin/rechnung-pdf?id=${row.id}`} target="_blank" class="btn-primary">PDF ansehen</a>
+      <form method="POST" action="/api/admin/rechnung">
+        <input type="hidden" name="action" value="resend" />
+        <input type="hidden" name="id" value={row.id} />
+        <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Erneut senden</button>
+      </form>
+      {row.customer_id && (
+        <a href={`/admin/kunden/${row.customer_id}`} class="rounded-full px-4 py-2 text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zum Kunden</a>
+      )}
+      <a href="/admin/rechnungen" class="rounded-full px-4 py-2 text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zurück zur Liste</a>
+    </div>
+  </section>
+</AdminLayout>

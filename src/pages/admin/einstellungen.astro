@@ -2,6 +2,7 @@
 import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
 import { getDb, listUsers, type UserPublic } from "../../lib/db";
+import { getTaxNumber } from "../../lib/invoices";
 import { listPasskeys } from "../../lib/passkey";
 import { cfEnv } from "../../lib/cf";
 
@@ -14,6 +15,7 @@ const session = sessionOrRedirect;
 const env = cfEnv();
 const db = getDb(Astro);
 const users: UserPublic[] = db ? await listUsers(db) : [];
+const taxNumber = db ? await getTaxNumber(db) : "";
 const isAdmin = session.role === "admin";
 const passkeys = db && session.userId ? await listPasskeys(db, session.userId) : [];
 
@@ -27,6 +29,7 @@ function formatPasskeyDate(unix: number): string {
 
 const pwFlag = Astro.url.searchParams.get("pw");
 const userFlag = Astro.url.searchParams.get("user");
+const steuerFlag = Astro.url.searchParams.get("steuer");
 
 const pwFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
   ok: { kind: "ok", text: "Passwort erfolgreich geändert." },
@@ -66,6 +69,25 @@ const redirectPath = Astro.url.pathname;
 ---
 
 <AdminLayout title="Einstellungen" session={session}>
+  <section id="steuernummer" class="rounded-3xl border border-ink-200 bg-white p-8 space-y-4 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Rechnung</h2>
+    <p class="text-sm text-ink-600 dark:text-ink-300">
+      Die Steuernummer steht auf jeder neuen Rechnung und in der ZUGFeRD-Datei. Bereits festgeschriebene Rechnungen behalten die Nummer, die beim Erstellen galt.
+    </p>
+    {steuerFlag === "saved" && (
+      <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100">Steuernummer gespeichert.</p>
+    )}
+    {steuerFlag === "bad" && (
+      <p class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">Bitte eine Steuernummer mit 10 bis 13 Ziffern angeben.</p>
+    )}
+    <form method="POST" action="/api/admin/steuernummer" class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div>
+        <label class="label" for="tax-number">Steuernummer</label>
+        <input class="input" id="tax-number" name="tax_number" required maxlength="20" value={taxNumber} placeholder="12/345/67890" />
+      </div>
+      <button type="submit" class="btn-primary">Speichern</button>
+    </form>
+  </section>
   <section class="rounded-3xl border border-ink-200 bg-white p-8 space-y-5 dark:border-white/10 dark:bg-ink-900">
     <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
       Umgebung

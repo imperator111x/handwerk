@@ -19,6 +19,7 @@ const nav = [
   { href: "/admin/anfragen", label: "Anfragen", icon: "inbox" },
   { href: "/admin/kunden", label: "Kunden", icon: "users" },
   { href: "/admin/angebote", label: "Angebote", icon: "file" },
+  { href: "/admin/rechnungen", label: "Rechnungen", icon: "receipt" },
   { href: "/admin/postfach", label: "Postfach", icon: "mail" },
   { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog" },
 ];
@@ -43,6 +44,7 @@ const icons: Record<string, string> = {
   mail: "M4 6h16v12H4z M4 6l8 7 8-7",
   users: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5",
+  receipt: "M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22z M9 7h6 M9 11h6 M9 15h4",
   calendar:
     "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
@@ -520,7 +522,7 @@ const icons: Record<string, string> = {
       }
       @media (max-width: 1023px) {
         .admin-main {
-          padding-bottom: calc(11rem + env(safe-area-inset-bottom));
+          padding-bottom: calc(16rem + env(safe-area-inset-bottom));
         }
         html[data-admin-nav="closed"] .admin-main {
           padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
