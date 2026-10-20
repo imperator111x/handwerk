@@ -48,9 +48,7 @@ const notices: Record<string, string> = {
                 {invoiceNumber(row.id, row.invoice_date)} · {row.title}
               </a>
               <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
-                {row.buyer_name} · {formatOfferDate(row.invoice_date)} · {formatEuro(row.price_cents)}
-                · {paymentStatusLabel(row.payment_status)}{row.payment_method ? ` per ${row.payment_method}` : ""}
-                {row.sent_at ? ` · Gesendet ${formatBerlin(row.sent_at)}` : ""}
+                {`${row.buyer_name} · ${formatOfferDate(row.invoice_date)} · ${formatEuro(row.price_cents)} · ${paymentStatusLabel(row.payment_status)}${row.payment_method ? ` per ${row.payment_method}` : ""}${row.sent_at ? ` · Gesendet ${formatBerlin(row.sent_at)}` : ""}`}
               </p>
             </div>
             <a href={`/api/admin/rechnung-pdf?id=${row.id}`} target="_blank" class="text-sm font-semibold text-brand-700 underline dark:text-brand-200">PDF</a>
