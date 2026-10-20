@@ -17,6 +17,14 @@ const users: UserPublic[] = db ? await listUsers(db) : [];
 const isAdmin = session.role === "admin";
 const passkeys = db && session.userId ? await listPasskeys(db, session.userId) : [];
 
+function formatPasskeyDate(unix: number): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(new Date(unix * 1000));
+}
+
 const pwFlag = Astro.url.searchParams.get("pw");
 const userFlag = Astro.url.searchParams.get("user");
 
@@ -199,7 +207,8 @@ const redirectPath = Astro.url.pathname;
       <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
         Einmal auf dem iPhone einschalten, danach öffnet die Admin-App beim
         Login Face ID. Das Passwort bleibt zusätzlich gültig. Gespeichert wird
-        nur ein Schlüssel des Geräts, nicht das Gesicht.
+        nur ein Schlüssel des Geräts, nicht das Gesicht. Jedes Gerät lässt sich
+        einzeln entfernen.
       </p>
     </div>
     {!session.userId ? (
@@ -213,15 +222,38 @@ const redirectPath = Astro.url.pathname;
             ? "Face ID ist eingeschaltet. Auf dem Login steht „Mit Face ID anmelden“."
             : "Face ID ist noch nicht eingeschaltet."}
         </p>
+        {passkeys.length > 0 && (
+          <ul class="divide-y divide-ink-200/80 rounded-2xl border border-ink-200 dark:divide-white/10 dark:border-white/10">
+            {passkeys.map((device) => {
+              const name = device.label.trim() || "Gerät";
+              return (
+                <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">{name}</p>
+                    <p class="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
+                      Eingerichtet am {formatPasskeyDate(device.created_at)}
+                      {device.last_used_at
+                        ? ` · Zuletzt am ${formatPasskeyDate(device.last_used_at)}`
+                        : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-secondary px-4 py-2"
+                    data-remove-passkey={device.id}
+                    data-device-name={name}
+                  >
+                    Entfernen
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <div class="flex flex-wrap gap-3">
           <button type="button" id="faceid-enroll" class="btn-primary w-fit">
             {passkeys.length > 0 ? "Weiteres Gerät einschalten" : "Face ID einschalten"}
           </button>
-          {passkeys.length > 0 && (
-            <button type="button" id="faceid-remove" class="btn-secondary w-fit">
-              Face ID entfernen
-            </button>
-          )}
         </div>
       </>
     )}
@@ -231,7 +263,6 @@ const redirectPath = Astro.url.pathname;
       import { browserSupportsWebAuthn, startRegistration } from "@simplewebauthn/browser";
 
       const enroll = document.getElementById("faceid-enroll");
-      const remove = document.getElementById("faceid-remove");
       const status = document.getElementById("faceid-settings-status");
 
       function setStatus(text: string) {
@@ -270,13 +301,16 @@ const redirectPath = Astro.url.pathname;
         });
       }
 
-      if (remove instanceof HTMLButtonElement) {
+      for (const remove of document.querySelectorAll("[data-remove-passkey]")) {
+        if (!(remove instanceof HTMLButtonElement)) continue;
         remove.addEventListener("click", async () => {
-          if (!window.confirm("Face ID für dieses Konto wirklich entfernen?")) return;
+          const id = remove.dataset.removePasskey ?? "";
+          const name = remove.dataset.deviceName || "Dieses Gerät";
+          if (!window.confirm(`${name} wirklich entfernen? Face ID geht dort danach nicht mehr.`)) return;
           remove.disabled = true;
-          const response = await fetch("/api/admin/passkey", { method: "DELETE" });
+          const response = await fetch(`/api/admin/passkey?id=${encodeURIComponent(id)}`, { method: "DELETE" });
           if (!response.ok) {
-            setStatus("Face ID konnte nicht entfernt werden.");
+            setStatus("Das Gerät konnte nicht entfernt werden.");
             remove.disabled = false;
             return;
           }

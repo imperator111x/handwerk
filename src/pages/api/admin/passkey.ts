@@ -2,7 +2,7 @@ import type { APIContext } from "astro";
 import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { getSession } from "../../../lib/auth";
 import { findUserById, getDb } from "../../../lib/db";
-import { deletePasskeys, listPasskeys, registrationOptions, saveRegistration } from "../../../lib/passkey";
+import { deletePasskey, listPasskeys, registrationOptions, saveRegistration } from "../../../lib/passkey";
 
 export const prerender = false;
 
@@ -48,6 +48,9 @@ export async function DELETE(ctx: APIContext): Promise<Response> {
   const session = await getSession(ctx);
   const db = getDb(ctx);
   if (!session?.userId || !db) return json({ ok: false }, 401);
-  await deletePasskeys(db, session.userId);
+  const raw = new URL(ctx.request.url).searchParams.get("id") ?? "";
+  if (!/^[1-9]\d*$/.test(raw)) return json({ ok: false }, 400);
+  const removed = await deletePasskey(db, session.userId, Number(raw));
+  if (!removed) return json({ ok: false }, 404);
   return json({ ok: true });
 }

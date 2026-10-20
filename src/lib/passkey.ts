@@ -13,6 +13,7 @@ import type {
 import type { APIContext } from "astro";
 import { createSession } from "./auth";
 import { findUserById } from "./db";
+import { passkeyDeviceLabel } from "./passkey-label";
 import { bytesFromBase64Url, bytesToBase64Url } from "./web-push";
 
 const CHALLENGE_COOKIE = "zs_passkey";
@@ -43,6 +44,9 @@ export interface PasskeyRow {
   public_key: string;
   counter: number;
   transports: string;
+  label: string;
+  created_at: number;
+  last_used_at: number | null;
 }
 
 export function relyingParty(url: URL): { rpID: string; origins: string[] } {
@@ -94,7 +98,7 @@ async function takeChallenge(ctx: APIContext): Promise<{ challenge: string; user
 export async function listPasskeys(db: D1Database, userId: number): Promise<PasskeyRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, user_id, credential_id, public_key, counter, transports
+      `SELECT id, user_id, credential_id, public_key, counter, transports, label, created_at, last_used_at
          FROM passkeys WHERE user_id = ? ORDER BY created_at DESC`,
     )
     .bind(userId)
@@ -105,7 +109,7 @@ export async function listPasskeys(db: D1Database, userId: number): Promise<Pass
 export async function findPasskey(db: D1Database, credentialId: string): Promise<PasskeyRow | null> {
   const row = await db
     .prepare(
-      `SELECT id, user_id, credential_id, public_key, counter, transports
+      `SELECT id, user_id, credential_id, public_key, counter, transports, label, created_at, last_used_at
          FROM passkeys WHERE credential_id = ? LIMIT 1`,
     )
     .bind(credentialId)
@@ -155,12 +159,13 @@ export async function saveRegistration(ctx: APIContext, userId: number, response
   const credential = verified.registrationInfo.credential;
   await db
     .prepare(
-      `INSERT INTO passkeys (user_id, credential_id, public_key, counter, transports)
-       VALUES (?, ?, ?, ?, ?)
+      `INSERT INTO passkeys (user_id, credential_id, public_key, counter, transports, label)
+       VALUES (?, ?, ?, ?, ?, ?)
        ON CONFLICT(credential_id) DO UPDATE SET
          public_key = excluded.public_key,
          counter = excluded.counter,
-         transports = excluded.transports`,
+         transports = excluded.transports,
+         label = excluded.label`,
     )
     .bind(
       userId,
@@ -168,6 +173,7 @@ export async function saveRegistration(ctx: APIContext, userId: number, response
       bytesToBase64Url(credential.publicKey.slice()),
       credential.counter,
       (credential.transports ?? ["internal"]).join(","),
+      passkeyDeviceLabel(ctx.request.headers.get("user-agent") ?? ""),
     )
     .run();
   return true;
@@ -208,13 +214,14 @@ export async function loginWithPasskey(ctx: APIContext, response: Authentication
   });
   if (!verified.verified) return false;
   await db
-    .prepare(`UPDATE passkeys SET counter = ? WHERE id = ?`)
+    .prepare(`UPDATE passkeys SET counter = ?, last_used_at = unixepoch() WHERE id = ?`)
     .bind(verified.authenticationInfo.newCounter, row.id)
     .run();
   await createSession(ctx, { username: user.username, userId: user.id, role: user.role });
   return true;
 }
 
-export async function deletePasskeys(db: D1Database, userId: number): Promise<void> {
-  await db.prepare(`DELETE FROM passkeys WHERE user_id = ?`).bind(userId).run();
+export async function deletePasskey(db: D1Database, userId: number, id: number): Promise<boolean> {
+  const result = await db.prepare(`DELETE FROM passkeys WHERE id = ? AND user_id = ?`).bind(id, userId).run();
+  return (result.meta.changes ?? 0) > 0;
 }
