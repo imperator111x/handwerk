@@ -108,7 +108,7 @@ export async function saveInvoice(
       input.customerId,
       input.quoteId,
       input.invoice.title,
-      serializeOffer({ greeting: input.greeting, intro: input.invoice.intro, lines: input.invoice.lines }),
+      serializeOffer({ greeting: input.greeting, intro: input.invoice.intro, lines: input.invoice.lines, billing: "fest" }),
       input.invoice.priceCents,
       input.invoice.invoiceDate,
       input.invoice.serviceDate,

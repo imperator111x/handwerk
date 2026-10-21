@@ -1,18 +1,33 @@
 ---
-import { OFFER_PAYMENT_TERMS, OFFER_SCOPE_NOTE, OFFER_TAX_NOTE, formatOfferDate } from "../lib/quote";
+import {
+  OFFER_HOURLY_SCOPE_NOTE,
+  OFFER_PAYMENT_TERMS,
+  OFFER_SCOPE_NOTE,
+  OFFER_TAX_NOTE,
+  formatOfferDate,
+  offerBilling,
+  offerScopeNote,
+} from "../lib/quote";
 
 interface Props {
   validUntil: string;
+  billing?: "fest" | "stunden";
 }
 
 const { validUntil } = Astro.props;
+const billing = offerBilling(Astro.props.billing);
 const untilLabel = /^\d{4}-\d{2}-\d{2}$/.test(validUntil) ? formatOfferDate(validUntil) : validUntil;
 ---
 
-<div class="mt-3 space-y-3 text-sm text-ink-700 dark:text-ink-200" data-offer-notes>
+<div
+  class="mt-3 space-y-3 text-sm text-ink-700 dark:text-ink-200"
+  data-offer-notes
+  data-scope-fest={OFFER_SCOPE_NOTE}
+  data-scope-stunden={OFFER_HOURLY_SCOPE_NOTE}
+>
   <p>{OFFER_TAX_NOTE}</p>
   <p>{OFFER_PAYMENT_TERMS}</p>
-  <p>{OFFER_SCOPE_NOTE}</p>
+  <p data-offer-scope>{offerScopeNote(billing)}</p>
   <p>Dieses Angebot ist gültig bis <span data-offer-until-label>{untilLabel}</span>.</p>
 </div>
 
@@ -34,12 +49,19 @@ const untilLabel = /^\d{4}-\d{2}-\d{2}$/.test(validUntil) ? formatOfferDate(vali
       const input = root.closest("form")?.querySelector("input[name='valid_until']");
       if (!(label instanceof HTMLElement) || !(input instanceof HTMLInputElement)) return;
       root.dataset.bound = "1";
+      const scope = root.querySelector("[data-offer-scope]");
       const paint = () => {
         const next = formatIso(input.value);
         if (next) label.textContent = next;
+        const selected = root.closest("form")?.querySelector("input[name='billing']:checked");
+        const mode = selected instanceof HTMLInputElement && selected.value === "stunden" ? "stunden" : "fest";
+        if (scope) scope.textContent = mode === "stunden" ? root.dataset.scopeStunden || "" : root.dataset.scopeFest || "";
       };
       input.addEventListener("input", paint);
       input.addEventListener("change", paint);
+      root.closest("form")?.querySelectorAll("input[name='billing']").forEach((radio) => {
+        radio.addEventListener("change", paint);
+      });
     });
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindNotes, { once: true });
