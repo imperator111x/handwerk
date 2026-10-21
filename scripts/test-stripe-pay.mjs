@@ -183,9 +183,13 @@ const invoiceHtml = email.renderReplyEmailHtml({
   ctaUrl: link,
   ctaLabel: "Jetzt bezahlen",
   ctaFirst: true,
+  ctaTone: "green",
   hideCtaUrl: true,
 });
 assert.match(invoiceHtml, /font-size:32px/);
+assert.match(invoiceHtml, /#16a34a/);
+assert.match(invoiceHtml, /td\.email-cta-green/);
+assert.doesNotMatch(invoiceHtml, /bgcolor="#2563eb"/);
 assert.match(invoiceHtml, /127,50 €/);
 assert.match(invoiceHtml, /Rollladen einstellen/);
 assert.doesNotMatch(invoiceHtml, /Stundenlohn/);

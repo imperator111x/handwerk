@@ -434,6 +434,7 @@ export async function sendInvoiceEmail(
     ctaUrl: paymentUrl || null,
     ctaLabel: "Jetzt bezahlen",
     ctaFirst: Boolean(paymentUrl),
+    ctaTone: "green",
     hideCtaUrl: true,
   };
   const result = await sendEmail(env, {

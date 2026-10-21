@@ -40,6 +40,8 @@ export interface ReplyEmailInput {
   summaryAmount?: string | null;
   /** In der HTML-Mail nur den Knopf zeigen. Die Adresse bleibt im Text. */
   hideCtaUrl?: boolean | null;
+  /** Zahlungsknopf in Grün, damit er auf dunklem Grund sichtbar bleibt. */
+  ctaTone?: "green" | null;
 }
 
 export interface EmailAttachment {
@@ -117,11 +119,14 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
       : `<p class="email-muted" style="margin:0 0 4px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${escapeHtml(summaryLabel)}</p>
        <p class="email-text" style="margin:0 0 18px 0;color:#0f172a;font-size:32px;line-height:1.15;font-weight:800;">${escapeHtml(summaryAmount)}</p>`
     : "";
+  const ctaGreen = input.ctaTone === "green";
+  const ctaBackground = ctaGreen ? "#16a34a" : "#2563eb";
+  const ctaClass = ctaGreen ? "email-cta email-cta-green" : "email-cta";
   const ctaHtml = ctaUrl
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;">
          <tr>
-           <td bgcolor="#2563eb" style="border-radius:999px;background-color:#2563eb;">
-             <a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">${ctaLabel}</a>
+           <td class="${ctaClass}" bgcolor="${ctaBackground}" style="border-radius:999px;background-color:${ctaBackground};">
+             <a class="${ctaClass}" href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;color:#ffffff;background-color:${ctaBackground};font-size:15px;font-weight:700;text-decoration:none;-webkit-text-fill-color:#ffffff;">${ctaLabel}</a>
            </td>
          </tr>
        </table>
@@ -153,6 +158,10 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
         .email-link { color: #bfdbfe !important; }
         .email-footer, .email-footer p, .email-footer a { color: #cbd5e1 !important; }
         .email-rule { border-top-color: #334155 !important; }
+        .email-outer td.email-cta { background-color: #2563eb !important; }
+        .email-outer td.email-cta-green,
+        .email-outer a.email-cta-green { background-color: #16a34a !important; }
+        .email-outer a.email-cta { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
       }
     </style>
   </head>
