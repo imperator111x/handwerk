@@ -1,11 +1,9 @@
 import { siteConfig } from "../config/site";
 import {
   OFFER_TAX_NOTE,
-  OFFER_UNIT_LABELS,
   formatEuro,
   formatEuroAmount,
   formatOfferDate,
-  formatQuantity,
   isOfferUnit,
   lineTotalCents,
   offerTotalCents,
@@ -122,50 +120,32 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
   };
 }
 
+/** Kurzer Mailtext. Positionen, Steuerhinweis und Bankdaten bleiben im PDF. */
 export function invoicePlainText(input: {
-  number: string;
-  title: string;
-  intro: string;
-  lines: OfferLine[];
-  invoiceDate: string;
-  serviceDate: string;
+  priceCents: number;
   dueDate: string;
-  taxNumber: string;
   storno?: boolean;
+  settled?: boolean;
 }): string {
-  const rows = input.lines.map((line, index) => {
-    const total = lineTotalCents(line);
-    return `${index + 1}. ${line.label} — ${formatQuantity(line.quantity)} ${OFFER_UNIT_LABELS[line.unit]} × ${formatEuro(line.unitCents)} = ${formatEuro(total)}`;
-  });
-  const paymentTerms = input.storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS;
+  const amount = formatEuro(input.priceCents);
+  if (input.storno) {
+    return [
+      `Gesamtbetrag: ${amount}`,
+      "",
+      "Es ist kein Betrag zu zahlen.",
+      "",
+      "Die Positionen stehen in der angehängten Stornorechnung.",
+    ].join("\n");
+  }
+  if (input.settled) {
+    return [`Gesamtbetrag: ${amount}`, "", "Die Positionen stehen in der angehängten Rechnung."].join("\n");
+  }
   return [
-    `${input.storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
-    input.title,
+    `Gesamtbetrag: ${amount}`,
     "",
-    input.intro.trim() || INVOICE_DEFAULT_INTRO,
+    `Fällig am ${formatOfferDate(input.dueDate)}.`,
     "",
-    ...rows,
-    "",
-    `Rechnungsbetrag: ${formatEuro(offerTotalCents(input.lines))}`,
-    `Nettobetrag: ${formatEuro(offerTotalCents(input.lines))}`,
-    "Umsatzsteuer: 0,00 €",
-    "",
-    OFFER_TAX_NOTE,
-    "",
-    paymentTerms,
-    "",
-    INVOICE_RETENTION_NOTE,
-    "",
-    `Rechnungsdatum: ${formatOfferDate(input.invoiceDate)}`,
-    `Leistungsdatum: ${formatOfferDate(input.serviceDate)}`,
-    `Fällig am: ${formatOfferDate(input.dueDate)}`,
-    `Steuernummer: ${input.taxNumber}`,
-    "",
-    `IBAN: ${SELLER.iban}`,
-    `BIC: ${SELLER.bic}`,
-    `Kontoinhaber: ${SELLER.accountName}`,
-    "",
-    input.storno ? "Die Stornorechnung hängt als ZUGFeRD-PDF an." : "Die Rechnung hängt als ZUGFeRD-PDF an.",
+    "Die Positionen stehen in der angehängten Rechnung.",
   ].join("\n");
 }
 

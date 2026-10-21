@@ -67,21 +67,20 @@ future.append("line_price", "45,00");
 assert.equal(invoice.parseInvoiceForm(future, "2026-10-20"), null);
 
 const plain = invoice.invoicePlainText({
-  number: "R-2026-0007",
-  title: "Rollladen einstellen",
-  intro: parsed.intro,
-  lines: parsed.lines,
-  invoiceDate: parsed.invoiceDate,
-  serviceDate: parsed.serviceDate,
+  priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
-  taxNumber: "12/345/67890",
 });
-assert.match(
-  plain,
-  /Hinweis zur Kleinunternehmerregelung: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet\.\n\nZahlbar innerhalb von 14 Tagen ohne Abzug\.\n\nDer Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren\./,
-);
-assert.match(plain, /Steuernummer: 12\/345\/67890/);
-assert.match(plain, /127,50/);
+assert.match(plain, /^Gesamtbetrag: 127,50\s€\n\nFällig am 3\. November 2026\.\n\nDie Positionen stehen in der angehängten Rechnung\.$/);
+assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung|IBAN/);
+const stornoMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  storno: true,
+});
+assert.match(stornoMail, /Gesamtbetrag: 127,50\s€/);
+assert.match(stornoMail, /Es ist kein Betrag zu zahlen\./);
+assert.match(stornoMail, /angehängten Stornorechnung/);
+assert.doesNotMatch(stornoMail, /Stundenlohn/);
 
 const xml = invoice.buildInvoiceXml({
   number: "R-2026-0007",

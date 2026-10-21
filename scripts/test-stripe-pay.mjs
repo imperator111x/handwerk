@@ -169,6 +169,47 @@ const payFirst = email.renderReplyEmailText({
   ctaFirst: true,
 });
 assert.ok(payFirst.indexOf("Jetzt bezahlen:") < payFirst.indexOf("Rechnungstext"));
+const invoiceHtml = email.renderReplyEmailHtml({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001: Rollladen einstellen",
+  heading: "Rollladen einstellen",
+  bodyText: "Fällig am 3. November 2026.\n\nDie Positionen stehen in der angehängten Rechnung.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Gesamtbetrag",
+  summaryAmount: "127,50 €",
+  ctaUrl: link,
+  ctaLabel: "Jetzt bezahlen",
+  ctaFirst: true,
+  hideCtaUrl: true,
+});
+assert.match(invoiceHtml, /font-size:32px/);
+assert.match(invoiceHtml, /127,50 €/);
+assert.match(invoiceHtml, /Rollladen einstellen/);
+assert.doesNotMatch(invoiceHtml, /Stundenlohn/);
+assert.doesNotMatch(invoiceHtml, /word-break:break-all/);
+assert.match(invoiceHtml, /href="https:\/\/buy\.stripe\.com\//);
+assert.match(invoiceHtml, /Jetzt bezahlen/);
+const invoiceText = email.renderReplyEmailText({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001: Rollladen einstellen",
+  bodyText: "Fällig am 3. November 2026.\n\nDie Positionen stehen in der angehängten Rechnung.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Gesamtbetrag",
+  summaryAmount: "127,50 €",
+  ctaUrl: link,
+  ctaLabel: "Jetzt bezahlen",
+  ctaFirst: true,
+});
+assert.ok(invoiceText.indexOf("Gesamtbetrag:") < invoiceText.indexOf("Jetzt bezahlen:"));
+assert.ok(invoiceText.indexOf("Jetzt bezahlen:") < invoiceText.indexOf("Fällig am"));
+assert.match(invoiceText, /buy\.stripe\.com/);
+assert.equal(invoiceText.split("Gesamtbetrag:").length, 2);
 
 console.log("stripe payment checks ok");
 
