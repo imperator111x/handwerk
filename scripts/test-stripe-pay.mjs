@@ -40,6 +40,7 @@ const paid = pay.decideStripeEvent({
       payment_intent: "pi_123",
       payment_link: "plink_123",
       metadata: { invoice_id: "7" },
+      livemode: true,
     },
   },
 });
@@ -48,19 +49,37 @@ if (paid.kind === "paid") {
   assert.equal(paid.invoiceId, 7);
   assert.equal(paid.amountCents, 12750);
   assert.equal(paid.reference, "pi_123");
+  assert.equal(paid.test, false);
 }
+const testPay = pay.decideStripeEvent({
+  type: "checkout.session.completed",
+  data: {
+    object: {
+      id: "cs_test_1",
+      payment_status: "paid",
+      currency: "eur",
+      amount_total: 12750,
+      payment_intent: "pi_test",
+      payment_link: "plink_test",
+      metadata: { invoice_id: "7" },
+      livemode: false,
+    },
+  },
+});
+assert.equal(testPay.kind, "paid");
+if (testPay.kind === "paid") assert.equal(testPay.test, true);
 
 assert.equal(
   pay.decideStripeEvent({
     type: "checkout.session.completed",
-    data: { object: { id: "cs_test_123", payment_status: "unpaid", currency: "eur", amount_total: 12750, payment_intent: "pi_123", metadata: { invoice_id: "7" } } },
+    data: { object: { id: "cs_test_123", payment_status: "unpaid", currency: "eur", amount_total: 12750, payment_intent: "pi_123", metadata: { invoice_id: "7" }, livemode: true } },
   }).kind,
   "ignore",
 );
 
 const later = pay.decideStripeEvent({
   type: "checkout.session.async_payment_succeeded",
-  data: { object: { id: "cs_test_9", payment_status: "paid", currency: "eur", amount_total: 5000, payment_intent: { id: "pi_sepa" }, metadata: { invoice_id: 3 } } },
+  data: { object: { id: "cs_test_9", payment_status: "paid", currency: "eur", amount_total: 5000, payment_intent: { id: "pi_sepa" }, metadata: { invoice_id: 3 }, livemode: true } },
 });
 assert.equal(later.kind, "paid");
 if (later.kind === "paid") assert.equal(later.reference, "pi_sepa");
@@ -98,8 +117,15 @@ assert.equal(
 );
 assert.equal(pay.labelPaymentMethod({ payment_intent: { payment_method: { type: "paypal" } } }), "PayPal");
 assert.equal(pay.labelPaymentMethod({ payment_intent: { payment_method: { type: "sepa_debit" } } }), "SEPA-Lastschrift");
+const exercise = pay.applyTestPayment(open, { amountCents: 12750, reference: "pi_test", method: "Karte", paidAt: now });
+assert.equal(exercise.kind, "test");
+if (exercise.kind === "test") assert.match(exercise.note, /kein Geld/);
+assert.equal(pay.applyTestPayment({ ...open, status: "bezahlt", reference: "pi_123" }, { amountCents: 12750, reference: "pi_test", method: "Karte", paidAt: now }).kind, "unchanged");
+assert.equal(pay.stripeKeyMode("sk_test_abc"), "test");
+assert.equal(pay.stripeKeyMode("sk_live_abc"), "live");
 assert.equal(pay.paymentStatusLabel("offen"), "Offen");
 assert.equal(pay.paymentStatusLabel("bezahlt"), "Bezahlt");
+assert.equal(pay.paymentStatusLabel("test"), "Testzahlung");
 
 const link = pay.paymentLinkForMail("https://buy.stripe.com/test_abc", "kunde@example.com");
 assert.match(link, /^https:\/\/buy\.stripe\.com\/test_abc\?/);

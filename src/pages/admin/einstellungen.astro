@@ -3,7 +3,7 @@ import AdminLayout from "../../layouts/AdminLayout.astro";
 import { requireSession } from "../../lib/auth";
 import { getDb, listUsers, type UserPublic } from "../../lib/db";
 import { getTaxNumber } from "../../lib/invoices";
-import { stripePaymentsReady } from "../../lib/stripe-pay";
+import { stripeKeyMode, stripePaymentsReady } from "../../lib/stripe-pay";
 import { listPasskeys } from "../../lib/passkey";
 import { cfEnv } from "../../lib/cf";
 
@@ -67,6 +67,14 @@ const formatDate = (ts: number | null) =>
   ts ? new Date(ts * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) : "–";
 
 const redirectPath = Astro.url.pathname;
+
+function stripeConnectionText(source: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHOOK_SECRET?: string }): string {
+  if (!stripePaymentsReady(source)) return "Stripe ist noch nicht verbunden. Der Knopf erscheint, sobald das Konto hinterlegt ist.";
+  if (stripeKeyMode(source.STRIPE_SECRET_KEY) === "test") {
+    return "Stripe-Testmodus ist verbunden. Es kommt kein echtes Geld an. Für echte Zahlungen werden die Live-Schlüssel gebraucht.";
+  }
+  return "Stripe ist verbunden.";
+}
 ---
 
 <AdminLayout title="Einstellungen" session={session}>
@@ -98,7 +106,7 @@ const redirectPath = Astro.url.pathname;
         Eine Überweisung auf die IBAN lässt sich auf der Rechnung von Hand speichern, dann schließt sich der Zahlungslink.
       </p>
       <p class="mt-2 text-sm font-semibold text-ink-800 dark:text-ink-100">
-        {stripePaymentsReady(env ?? {}) ? "Stripe ist verbunden." : "Stripe ist noch nicht verbunden. Der Knopf erscheint, sobald das Konto hinterlegt ist."}
+        {stripeConnectionText(env ?? {})}
       </p>
       <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
         Webhook-Adresse: https://zeus-service.de/api/stripe/webhook

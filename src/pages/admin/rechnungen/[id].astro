@@ -6,7 +6,7 @@ import { getDb } from "../../../lib/db";
 import { cfEnv } from "../../../lib/cf";
 import { invoiceNumber } from "../../../lib/invoice";
 import { getInvoice } from "../../../lib/invoices";
-import { paymentLinkForMail, paymentStatusLabel, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
+import { paymentLinkForMail, paymentStatusLabel, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
 import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, formatEuro, formatOfferDate, formatQuantity, lineTotalCents, readStoredOffer } from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
 
@@ -31,7 +31,9 @@ const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
   "transfer-clear": { kind: "ok", text: "Die Rechnung steht wieder auf offen." },
   "transfer-kept": { kind: "bad", text: "Der Zahlungsstatus blieb unverändert." },
 };
-const stripeReady = stripePaymentsReady(cfEnv());
+const stripeEnv = cfEnv();
+const stripeReady = stripePaymentsReady(stripeEnv);
+const stripeMode = stripeKeyMode(stripeEnv.STRIPE_SECRET_KEY);
 const payUrl = row.payment_url ? paymentLinkForMail(row.payment_url, row.buyer_email) : "";
 const paid = row.payment_status === "bezahlt" || row.payment_status === "erstattet";
 const notice = flag ? notices[flag] : undefined;
@@ -53,7 +55,7 @@ const notice = flag ? notices[flag] : undefined;
             "rounded-full px-3 py-1 text-xs font-semibold",
             row.payment_status === "bezahlt"
               ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100"
-              : row.payment_status === "erstattet"
+              : row.payment_status === "erstattet" || row.payment_status === "test"
                 ? "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-100"
                 : "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200",
           ]}
@@ -114,6 +116,11 @@ const notice = flag ? notices[flag] : undefined;
     {row.payment_note && (
       <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
         {row.payment_note}
+      </p>
+    )}
+    {stripeMode === "test" && !paid && (
+      <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
+        Testmodus: Der Zahlungslink bucht kein echtes Geld ab. Eine Übung erscheint als Testzahlung.
       </p>
     )}
     {!paid && payUrl && (

@@ -1,7 +1,7 @@
 import type { APIContext } from "astro";
 import { cfEnv } from "../../../lib/cf";
 import { invoiceNumber } from "../../../lib/invoice";
-import { findInvoiceIdByPaymentReference, getInvoice, recordOnlinePayment, recordRefund } from "../../../lib/invoices";
+import { findInvoiceIdByPaymentReference, getInvoice, recordOnlinePayment, recordRefund, recordTestPayment } from "../../../lib/invoices";
 import { notifyStaff } from "../../../lib/notify";
 import { formatEuro } from "../../../lib/quote";
 import { decideStripeEvent, readCheckoutPaymentMethod, setStripePaymentLinkActive, verifyStripeSignature } from "../../../lib/stripe-pay";
@@ -39,6 +39,20 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const method = env.STRIPE_SECRET_KEY
     ? await readCheckoutPaymentMethod(env.STRIPE_SECRET_KEY, decision.sessionId)
     : "Online";
+  if (decision.test) {
+    const result = await recordTestPayment(db, decision.invoiceId, {
+      amountCents: decision.amountCents,
+      reference: decision.reference,
+      method,
+      paidAt: Math.floor(Date.now() / 1000),
+    });
+    if (result === "test") {
+      const row = await getInvoice(db, decision.invoiceId);
+      const number = row ? invoiceNumber(row.id, row.invoice_date) : String(decision.invoiceId);
+      await notifyPayment(ctx, env, decision.invoiceId, "Testzahlung", `${number}: Testzahlung per ${method}. Es ist kein Geld eingegangen.`);
+    }
+    return json({ received: true, result });
+  }
   const result = await recordOnlinePayment(db, decision.invoiceId, {
     amountCents: decision.amountCents,
     reference: decision.reference,

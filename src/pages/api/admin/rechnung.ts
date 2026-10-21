@@ -19,7 +19,7 @@ import {
   updateInvoiceDelivery,
   type InvoiceRow,
 } from "../../../lib/invoices";
-import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive, stripePaymentsReady } from "../../../lib/stripe-pay";
+import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive, stripeKeyMode, stripePaymentsReady } from "../../../lib/stripe-pay";
 import { berlinTodayIso, getQuote } from "../../../lib/offers";
 import { formatOfferDate, readStoredOffer } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
@@ -100,6 +100,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       number,
       paymentUrl,
       paymentStatus: row.payment_status,
+      paymentMode: stripeKeyMode(env.STRIPE_SECRET_KEY),
     });
     await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
     const flag = delivery.sentAt ? "sent" : "failed";
@@ -186,6 +187,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     number,
     paymentUrl,
     paymentStatus: row.payment_status,
+    paymentMode: stripeKeyMode(env.STRIPE_SECRET_KEY),
   });
   await updateInvoiceDelivery(db, id, delivery.sentAt, delivery.emailStatus);
   const flag = delivery.sentAt ? "sent" : "saved";
@@ -194,7 +196,9 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
 async function ensurePaymentUrl(env: Env, db: D1Database, row: InvoiceRow, number: string): Promise<string | null> {
   if (row.payment_status === "bezahlt" || row.payment_status === "erstattet") return null;
-  if (row.payment_url) return paymentLinkForMail(row.payment_url, row.buyer_email) || null;
+  const mode = stripeKeyMode(env.STRIPE_SECRET_KEY);
+  const replaceTestLink = Boolean(row.payment_url?.includes("/test_")) && mode === "live";
+  if (row.payment_url && !replaceTestLink) return paymentLinkForMail(row.payment_url, row.buyer_email) || null;
   if (!stripePaymentsReady(env) || !env.STRIPE_SECRET_KEY || row.price_cents < 50) return null;
   try {
     const link = await createStripePaymentLink(env.STRIPE_SECRET_KEY, {
@@ -204,7 +208,7 @@ async function ensurePaymentUrl(env: Env, db: D1Database, row: InvoiceRow, numbe
       amountCents: row.price_cents,
       email: row.buyer_email,
     });
-    await saveInvoicePaymentLink(db, row.id, link.url, link.id);
+    await saveInvoicePaymentLink(db, row.id, link.url, link.id, replaceTestLink);
     return paymentLinkForMail(link.url, row.buyer_email) || null;
   } catch (err) {
     console.error("invoice_payment_link_failed", err instanceof Error ? err.message : "error");

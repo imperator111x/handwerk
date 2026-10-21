@@ -2,7 +2,7 @@ import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
 import { invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
 import { formatOfferDate, serializeOffer, type StoredOffer } from "./quote";
-import { applyOnlinePayment, applyRefund, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
+import { applyOnlinePayment, applyRefund, applyTestPayment, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
 export interface InvoiceRow {
   id: number;
@@ -136,11 +136,9 @@ export function paymentRow(row: InvoiceRow): PaymentRow {
   };
 }
 
-export async function saveInvoicePaymentLink(db: D1Database, id: number, url: string, linkId: string): Promise<void> {
-  await db
-    .prepare(`UPDATE invoices SET payment_url = ?, payment_link_id = ? WHERE id = ? AND payment_url IS NULL`)
-    .bind(url, linkId, id)
-    .run();
+export async function saveInvoicePaymentLink(db: D1Database, id: number, url: string, linkId: string, replace = false): Promise<void> {
+  const where = replace ? "WHERE id = ?" : "WHERE id = ? AND payment_url IS NULL";
+  await db.prepare(`UPDATE invoices SET payment_url = ?, payment_link_id = ? ${where}`).bind(url, linkId, id).run();
 }
 
 export async function applyInvoicePayment(db: D1Database, id: number, update: PaymentUpdate, reference = ""): Promise<PaymentUpdate["kind"]> {
@@ -149,13 +147,26 @@ export async function applyInvoicePayment(db: D1Database, id: number, update: Pa
       .prepare(
         `UPDATE invoices
          SET payment_status = 'bezahlt', paid_at = ?, payment_method = ?, payment_reference = ?, payment_note = ?
-         WHERE id = ? AND payment_status = 'offen'`,
+         WHERE id = ? AND payment_status IN ('offen', 'test')`,
       )
       .bind(update.paidAt, update.method, update.reference, update.note, id)
       .run();
     if (typeof result.meta.changes === "number") return result.meta.changes > 0 ? "paid" : "unchanged";
     const current = await getInvoice(db, id);
     return current?.payment_status === "bezahlt" && current.payment_reference === update.reference ? "paid" : "unchanged";
+  }
+  if (update.kind === "test") {
+    const result = await db
+      .prepare(
+        `UPDATE invoices
+         SET payment_status = 'test', paid_at = ?, payment_method = ?, payment_reference = ?, payment_note = ?
+         WHERE id = ? AND payment_status NOT IN ('bezahlt', 'erstattet')`,
+      )
+      .bind(update.paidAt, update.method, update.reference, update.note, id)
+      .run();
+    if (typeof result.meta.changes === "number") return result.meta.changes > 0 ? "test" : "unchanged";
+    const current = await getInvoice(db, id);
+    return current?.payment_status === "test" && current.payment_reference === update.reference ? "test" : "unchanged";
   }
   if (update.kind === "noted") {
     await db.prepare(`UPDATE invoices SET payment_note = ? WHERE id = ?`).bind(update.note, id).run();
@@ -185,6 +196,16 @@ export async function recordOnlinePayment(
   if (!row) return "missing";
   const update = applyOnlinePayment(paymentRow(row), incoming);
   return applyInvoicePayment(db, id, update);
+}
+
+export async function recordTestPayment(
+  db: D1Database,
+  id: number,
+  incoming: { amountCents: number; reference: string; method: string; paidAt: number },
+): Promise<PaymentUpdate["kind"] | "missing"> {
+  const row = await getInvoice(db, id);
+  if (!row) return "missing";
+  return applyInvoicePayment(db, id, applyTestPayment(paymentRow(row), incoming));
 }
 
 export async function recordRefund(db: D1Database, id: number, reference: string, full: boolean): Promise<PaymentUpdate["kind"] | "missing"> {
@@ -270,6 +291,7 @@ export async function sendInvoiceEmail(
     number: string;
     paymentUrl?: string | null;
     paymentStatus?: string | null;
+    paymentMode?: "test" | "live" | "off" | null;
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const plain = invoicePlainText({
@@ -286,10 +308,11 @@ export async function sendInvoiceEmail(
   const from = "info@zeus-service.de";
   const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
   const paymentUrl = paid ? "" : input.paymentUrl?.trim() || "";
+  const testPay = !paid && Boolean(paymentUrl) && input.paymentMode === "test";
   const footerNote = paid
     ? "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten."
     : paymentUrl
-      ? `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Der Knopf öffnet die Zahlung per Karte, Apple Pay, Google Pay, PayPal oder SEPA-Lastschrift. Eine Überweisung auf die IBAN bleibt möglich. Sie können direkt auf diese E-Mail antworten.`
+      ? `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Der Knopf öffnet die Zahlung per Karte, Apple Pay, Google Pay, PayPal oder SEPA-Lastschrift.${testPay ? " Testmodus: Es wird kein Geld abgebucht." : ""} Eine Überweisung auf die IBAN bleibt möglich. Sie können direkt auf diese E-Mail antworten.`
       : `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Sie können direkt auf diese E-Mail antworten.`;
   const result = await sendEmail(env, {
     from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",

@@ -19,9 +19,12 @@ export interface PaymentRow {
 export type PaymentUpdate =
   | { kind: "unchanged" }
   | { kind: "paid"; paidAt: number; method: string; reference: string; note: string | null }
+  | { kind: "test"; paidAt: number; method: string; reference: string; note: string }
   | { kind: "noted"; note: string }
   | { kind: "refunded" }
   | { kind: "mismatch" };
+
+export const TEST_PAYMENT_NOTE = "Stripe-Testmodus: Es ist kein Geld eingegangen.";
 
 export interface PaidEvent {
   kind: "paid";
@@ -30,6 +33,7 @@ export interface PaidEvent {
   reference: string;
   sessionId: string;
   paymentLinkId: string;
+  test: boolean;
 }
 
 export interface RefundEvent {
@@ -48,9 +52,17 @@ export function stripePaymentsReady(env: {
   return stripeSecretUsable(env.STRIPE_SECRET_KEY) && webhookSecretUsable(env.STRIPE_WEBHOOK_SECRET);
 }
 
+export function stripeKeyMode(secret?: string): "test" | "live" | "off" {
+  const value = secret?.trim() ?? "";
+  if (value.startsWith("sk_test_") || value.startsWith("rk_test_")) return "test";
+  if (value.startsWith("sk_live_") || value.startsWith("rk_live_")) return "live";
+  return "off";
+}
+
 export function paymentStatusLabel(status: string): string {
   if (status === "bezahlt") return "Bezahlt";
   if (status === "erstattet") return "Erstattet";
+  if (status === "test") return "Testzahlung";
   return "Offen";
 }
 
@@ -85,13 +97,29 @@ export function applyOnlinePayment(
   };
 }
 
+export function applyTestPayment(
+  row: PaymentRow,
+  incoming: { amountCents: number; reference: string; method: string; paidAt: number },
+): PaymentUpdate {
+  if (incoming.amountCents !== row.priceCents) return { kind: "mismatch" };
+  if (row.status === "bezahlt" || row.status === "erstattet") return { kind: "unchanged" };
+  if (row.status === "test" && row.reference === incoming.reference) return { kind: "unchanged" };
+  return {
+    kind: "test",
+    paidAt: incoming.paidAt,
+    method: incoming.method,
+    reference: incoming.reference,
+    note: TEST_PAYMENT_NOTE,
+  };
+}
+
 export function applyRefund(row: PaymentRow, incoming: { reference: string; full: boolean }): PaymentUpdate {
   if (!incoming.full || row.status !== "bezahlt" || row.reference !== incoming.reference) return { kind: "unchanged" };
   return { kind: "refunded" };
 }
 
 export function applyTransferPayment(row: PaymentRow, paidAt: number): PaymentUpdate {
-  if (row.status !== "offen") return { kind: "unchanged" };
+  if (row.status !== "offen" && row.status !== "test") return { kind: "unchanged" };
   return {
     kind: "paid",
     paidAt,
@@ -120,7 +148,8 @@ export function decideStripeEvent(event: unknown): StripeDecision {
     if (!invoiceId || typeof amount !== "number" || !Number.isInteger(amount) || !reference || !sessionId.startsWith("cs_")) {
       return { kind: "ignore" };
     }
-    return { kind: "paid", invoiceId, amountCents: amount, reference, sessionId, paymentLinkId };
+    const test = object.livemode !== true && root?.livemode !== true;
+    return { kind: "paid", invoiceId, amountCents: amount, reference, sessionId, paymentLinkId, test };
   }
   if (type === "charge.refunded") {
     const reference = paymentIntentId(object.payment_intent);
@@ -198,7 +227,7 @@ export async function createStripePaymentLink(
   ];
   let lastMessage = "Zahlungslink fehlgeschlagen";
   for (const methods of methodSets) {
-    const params = paymentLinkParams(input, priceId, methods);
+    const params = paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test");
     const result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-${methods.join("-")}`);
     if (result.ok) {
       const id = typeof asRecord(result.body)?.id === "string" ? String(asRecord(result.body)?.id) : "";
@@ -233,22 +262,24 @@ function paymentLinkParams(
   input: { invoiceId: number; number: string; email: string },
   priceId: string,
   methods: string[],
+  testMode: boolean,
 ): URLSearchParams {
   const params = new URLSearchParams({
     "line_items[0][price]": priceId,
     "line_items[0][quantity]": "1",
     "metadata[invoice_id]": String(input.invoiceId),
     "metadata[invoice_number]": input.number,
-    "restrictions[completed_sessions][limit]": "1",
     "after_completion[type]": "hosted_confirmation",
-    "after_completion[hosted_confirmation][custom_message]":
-      "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt.",
+    "after_completion[hosted_confirmation][custom_message]": testMode
+      ? "Testmodus: Es wird kein Geld abgebucht."
+      : "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt.",
     inactive_message: "Diese Rechnung ist bereits bezahlt.",
     "payment_intent_data[description]": `Rechnung ${input.number}`.slice(0, 500),
     "payment_intent_data[metadata][invoice_id]": String(input.invoiceId),
     "automatic_tax[enabled]": "false",
     submit_type: "pay",
   });
+  if (!testMode) params.set("restrictions[completed_sessions][limit]", "1");
   methods.forEach((method, index) => params.append(`payment_method_types[${index}]`, method));
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
     params.set("payment_intent_data[receipt_email]", input.email);
