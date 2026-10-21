@@ -1,5 +1,6 @@
 import { siteConfig } from "../config/site";
 import {
+  OFFER_BANK_LINES,
   OFFER_TAX_NOTE,
   formatEuro,
   formatEuroAmount,
@@ -123,10 +124,11 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
 export const INVOICE_MAIL_LEAD = "Hiermit übersende ich Ihnen die Rechnung in Höhe von:";
 export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:";
 
-/** Kurzer Mailtext. Positionen, Steuerhinweis und Bankdaten bleiben im PDF. */
+/** Kurzer Mailtext. Positionen und Steuerhinweis bleiben im PDF. */
 export function invoicePlainText(input: {
   priceCents: number;
   dueDate: string;
+  number: string;
   storno?: boolean;
   settled?: boolean;
 }): string {
@@ -136,7 +138,15 @@ export function invoicePlainText(input: {
     ? ["Es ist kein Betrag zu zahlen.", "", "Die Positionen stehen in der angehängten Stornorechnung."]
     : input.settled
       ? ["Die Positionen stehen in der angehängten Rechnung."]
-      : [`Fällig am ${formatOfferDate(input.dueDate)}.`, "", "Die Positionen stehen in der angehängten Rechnung."];
+      : [
+          `Fällig am ${formatOfferDate(input.dueDate)}.`,
+          "",
+          "Bei einer Überweisung bitte angeben:",
+          `Verwendungszweck: ${input.number}`,
+          ...OFFER_BANK_LINES,
+          "",
+          "Die Positionen stehen in der angehängten Rechnung.",
+        ];
   return [lead, amount, "", ...tail].join("\n");
 }
 

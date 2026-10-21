@@ -401,6 +401,7 @@ export async function sendInvoiceEmail(
   const plain = invoicePlainText({
     priceCents: input.invoice.priceCents,
     dueDate: input.invoice.dueDate,
+    number: input.number,
     storno,
     settled: paid || cancelled,
   });

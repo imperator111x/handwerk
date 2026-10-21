@@ -69,19 +69,30 @@ assert.equal(invoice.parseInvoiceForm(future, "2026-10-20"), null);
 const plain = invoice.invoicePlainText({
   priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
+  number: "R-2026-0007",
 });
 assert.equal(invoice.INVOICE_MAIL_LEAD, "Hiermit übersende ich Ihnen die Rechnung in Höhe von:");
-assert.match(plain, /^Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50\s€\n\nFällig am 3\. November 2026\.\n\nDie Positionen stehen in der angehängten Rechnung\.$/);
-assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung|IBAN/);
+assert.match(plain, /^Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50\s€\n\nFällig am 3\. November 2026\./);
+assert.match(plain, /Bei einer Überweisung bitte angeben:\nVerwendungszweck: R-2026-0007\nKontoinhaber: ZEUS-SERVICE\nIBAN: DE38 1001 4000 1598 1684 18\nSWIFT: SWNB DE BB/);
+assert.match(plain, /Die Positionen stehen in der angehängten Rechnung\.$/);
+assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung/);
 const stornoMail = invoice.invoicePlainText({
   priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
+  number: "R-2026-0008",
   storno: true,
 });
 assert.match(stornoMail, /^Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:\n127,50\s€/);
 assert.match(stornoMail, /Es ist kein Betrag zu zahlen\./);
 assert.match(stornoMail, /angehängten Stornorechnung/);
-assert.doesNotMatch(stornoMail, /Stundenlohn/);
+assert.doesNotMatch(stornoMail, /Stundenlohn|IBAN|Verwendungszweck/);
+const paidMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0007",
+  settled: true,
+});
+assert.doesNotMatch(paidMail, /IBAN|Verwendungszweck/);
 
 const xml = invoice.buildInvoiceXml({
   number: "R-2026-0007",
