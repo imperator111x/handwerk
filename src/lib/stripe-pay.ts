@@ -62,8 +62,14 @@ export function stripeKeyMode(secret?: string): "test" | "live" | "off" {
 export function paymentStatusLabel(status: string): string {
   if (status === "bezahlt") return "Bezahlt";
   if (status === "erstattet") return "Erstattet";
+  if (status === "storniert") return "Storniert";
   if (status === "test") return "Testzahlung";
   return "Offen";
+}
+
+export function invoiceStatusLabel(status: string, kind?: string | null): string {
+  if (kind === "storno") return "Stornorechnung";
+  return paymentStatusLabel(status);
 }
 
 export function paymentLinkForMail(url: string, email: string): string {
@@ -85,6 +91,7 @@ export function applyOnlinePayment(
 ): PaymentUpdate {
   if (incoming.amountCents !== row.priceCents) return { kind: "mismatch" };
   if (row.status === "bezahlt" && row.reference === incoming.reference) return { kind: "unchanged" };
+  if (row.status === "storniert") return { kind: "noted", note: "Zahlung auf eine stornierte Rechnung." };
   if (row.status === "bezahlt" || row.status === "erstattet") {
     return { kind: "noted", note: "Weitere Online-Zahlung eingegangen." };
   }
@@ -102,7 +109,7 @@ export function applyTestPayment(
   incoming: { amountCents: number; reference: string; method: string; paidAt: number },
 ): PaymentUpdate {
   if (incoming.amountCents !== row.priceCents) return { kind: "mismatch" };
-  if (row.status === "bezahlt" || row.status === "erstattet") return { kind: "unchanged" };
+  if (row.status === "bezahlt" || row.status === "erstattet" || row.status === "storniert") return { kind: "unchanged" };
   if (row.status === "test" && row.reference === incoming.reference) return { kind: "unchanged" };
   return {
     kind: "test",
@@ -208,14 +215,7 @@ export async function createStripePaymentLink(
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_AMOUNT_CENTS) {
     throw new Error("Betrag liegt unter dem Stripe-Minimum");
   }
-  const priceParams = new URLSearchParams({
-    currency: "eur",
-    unit_amount: String(input.amountCents),
-    "product_data[name]": `Rechnung ${input.number}`.slice(0, 250),
-  });
-  const title = input.title.trim();
-  if (title) priceParams.set("product_data[description]", title.slice(0, 500));
-  const price = await stripeForm(secret, "prices", priceParams, `invoice-${input.invoiceId}-price`);
+  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v2`);
   const priceId = typeof price.id === "string" ? price.id : "";
   if (!priceId.startsWith("price_")) throw new Error("Stripe hat keinen Preis angelegt");
 
@@ -228,7 +228,15 @@ export async function createStripePaymentLink(
   let lastMessage = "Zahlungslink fehlgeschlagen";
   for (const methods of methodSets) {
     const params = paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test");
-    const result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-${methods.join("-")}`);
+    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-v3-${methods.join("-")}`);
+    if (!result.ok && canDropIntent(result.body)) {
+      result = await stripePost(
+        secret,
+        "payment_links",
+        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false),
+        `invoice-${input.invoiceId}-link-v4-${methods.join("-")}`,
+      );
+    }
     if (result.ok) {
       const id = typeof asRecord(result.body)?.id === "string" ? String(asRecord(result.body)?.id) : "";
       const url = typeof asRecord(result.body)?.url === "string" ? String(asRecord(result.body)?.url) : "";
@@ -258,11 +266,20 @@ export async function readCheckoutPaymentMethod(secret: string, sessionId: strin
   return labelPaymentMethod(body);
 }
 
+export function stripePriceParams(number: string, amountCents: number): URLSearchParams {
+  return new URLSearchParams({
+    currency: "eur",
+    unit_amount: String(amountCents),
+    "product_data[name]": `Rechnung ${number}`.slice(0, 250),
+  });
+}
+
 function paymentLinkParams(
   input: { invoiceId: number; number: string; email: string },
   priceId: string,
   methods: string[],
   testMode: boolean,
+  withIntent = true,
 ): URLSearchParams {
   const params = new URLSearchParams({
     "line_items[0][price]": priceId,
@@ -274,17 +291,25 @@ function paymentLinkParams(
       ? "Testmodus: Es wird kein Geld abgebucht."
       : "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt.",
     inactive_message: "Diese Rechnung ist bereits bezahlt.",
-    "payment_intent_data[description]": `Rechnung ${input.number}`.slice(0, 500),
-    "payment_intent_data[metadata][invoice_id]": String(input.invoiceId),
     "automatic_tax[enabled]": "false",
     submit_type: "pay",
   });
+  if (withIntent) {
+    params.set("payment_intent_data[description]", `Rechnung ${input.number}`.slice(0, 500));
+    params.set("payment_intent_data[metadata][invoice_id]", String(input.invoiceId));
+  }
   if (!testMode) params.set("restrictions[completed_sessions][limit]", "1");
   methods.forEach((method, index) => params.append(`payment_method_types[${index}]`, method));
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) {
-    params.set("payment_intent_data[receipt_email]", input.email);
-  }
   return params;
+}
+
+function canDropIntent(body: unknown): boolean {
+  const error = asRecord(asRecord(body)?.error);
+  const code = error?.code;
+  const param = typeof error?.param === "string" ? error.param : "";
+  if (code === "parameter_unknown" && param.includes("payment_intent")) return true;
+  const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
+  return message.includes("payment_intent");
 }
 
 async function stripeForm(

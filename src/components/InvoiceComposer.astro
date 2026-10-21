@@ -12,9 +12,24 @@ interface Props {
   lines?: OfferLine[];
   salutation?: string;
   hidden?: Array<{ name: string; value: string }>;
+  submitLabel?: string;
+  hint?: string;
+  confirmMessage?: string;
 }
 
-const { customerName, title = "", intro = "", invoiceDate, serviceDate, lines = [], salutation, hidden = [] } = Astro.props;
+const {
+  customerName,
+  title = "",
+  intro = "",
+  invoiceDate,
+  serviceDate,
+  lines = [],
+  salutation,
+  hidden = [],
+  submitLabel = "Rechnung festschreiben und senden",
+  hint = "Nach dem Festschreiben bleibt diese Rechnung stehen. Eine Korrektur läuft über Stornieren oder Anpassen und legt eine neue Rechnung an.",
+  confirmMessage = "",
+} = Astro.props;
 const initial = lines.length
   ? lines
   : [{ label: "Stundenlohn", quantity: 0, unit: "stunde" as const, unitCents: 0 }];
@@ -24,7 +39,7 @@ const euroField = (cents: number) =>
     : "";
 ---
 
-<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid gap-4">
+<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid gap-4" onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
   {hidden.map((field) => <input type="hidden" name={field.name} value={field.value} />)}
   <div>
     <label class="label" for="invoice-title">Betreff</label>
@@ -83,9 +98,9 @@ const euroField = (cents: number) =>
     <label class="label" for="invoice-intro">Anschreiben</label>
     <textarea class="input" id="invoice-intro" name="intro" maxlength="2000" rows="3" placeholder="für die ausgeführte Leistung berechnen wir Ihnen folgende Positionen.">{intro}</textarea>
   </div>
-  <p class="text-sm text-ink-600 dark:text-ink-300">Nach dem Festschreiben bleibt die Rechnung unverändert. Löschen ist nicht möglich.</p>
+  <p class="text-sm text-ink-600 dark:text-ink-300">{hint}</p>
   <div class="flex flex-wrap gap-2">
-    <button type="submit" class="btn-primary">Rechnung festschreiben und senden</button>
+    <button type="submit" class="btn-primary">{submitLabel}</button>
     <button type="submit" name="preview" value="1" formtarget="_blank" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">PDF ansehen</button>
   </div>
 </form>

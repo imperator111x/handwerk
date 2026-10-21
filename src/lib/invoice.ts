@@ -131,13 +131,15 @@ export function invoicePlainText(input: {
   serviceDate: string;
   dueDate: string;
   taxNumber: string;
+  storno?: boolean;
 }): string {
   const rows = input.lines.map((line, index) => {
     const total = lineTotalCents(line);
     return `${index + 1}. ${line.label} — ${formatQuantity(line.quantity)} ${OFFER_UNIT_LABELS[line.unit]} × ${formatEuro(line.unitCents)} = ${formatEuro(total)}`;
   });
+  const paymentTerms = input.storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS;
   return [
-    `Rechnung ${input.number}`,
+    `${input.storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
     input.title,
     "",
     input.intro.trim() || INVOICE_DEFAULT_INTRO,
@@ -150,7 +152,7 @@ export function invoicePlainText(input: {
     "",
     OFFER_TAX_NOTE,
     "",
-    INVOICE_PAYMENT_TERMS,
+    paymentTerms,
     "",
     INVOICE_RETENTION_NOTE,
     "",
@@ -163,7 +165,7 @@ export function invoicePlainText(input: {
     `BIC: ${SELLER.bic}`,
     `Kontoinhaber: ${SELLER.accountName}`,
     "",
-    "Die Rechnung hängt als ZUGFeRD-PDF an.",
+    input.storno ? "Die Stornorechnung hängt als ZUGFeRD-PDF an." : "Die Rechnung hängt als ZUGFeRD-PDF an.",
   ].join("\n");
 }
 
@@ -180,7 +182,23 @@ export function buildInvoiceXml(input: {
   buyerStreet: string;
   buyerPostalCode: string;
   buyerCity: string;
+  typeCode?: "380" | "381";
+  referenceNumber?: string;
+  referenceDate?: string;
+  paymentTerms?: string;
 }): string {
+  const typeCode = input.typeCode === "381" ? "381" : "380";
+  const paymentTerms = input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS;
+  const reference =
+    input.referenceNumber && input.referenceDate
+      ? `
+      <ram:InvoiceReferencedDocument>
+        <ram:IssuerAssignedID>${xml(input.referenceNumber)}</ram:IssuerAssignedID>
+        <ram:FormattedIssueDateTime>
+          <qdt:DateTimeString format="102">${isoCompact(input.referenceDate)}</qdt:DateTimeString>
+        </ram:FormattedIssueDateTime>
+      </ram:InvoiceReferencedDocument>`
+      : "";
   const net = offerTotalCents(input.lines);
   const lines = input.lines
     .map((line, index) => {
@@ -216,7 +234,7 @@ export function buildInvoiceXml(input: {
     .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100">
+<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100" xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100">
   <rsm:ExchangedDocumentContext>
     <ram:GuidelineSpecifiedDocumentContextParameter>
       <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:en16931</ram:ID>
@@ -224,7 +242,7 @@ export function buildInvoiceXml(input: {
   </rsm:ExchangedDocumentContext>
   <rsm:ExchangedDocument>
     <ram:ID>${xml(input.number)}</ram:ID>
-    <ram:TypeCode>380</ram:TypeCode>
+    <ram:TypeCode>${typeCode}</ram:TypeCode>
     <ram:IssueDateTime>
       <udt:DateTimeString format="102">${isoCompact(input.invoiceDate)}</udt:DateTimeString>
     </ram:IssueDateTime>
@@ -232,7 +250,7 @@ export function buildInvoiceXml(input: {
       <ram:Content>${xml(OFFER_TAX_NOTE)}</ram:Content>
     </ram:IncludedNote>
     <ram:IncludedNote>
-      <ram:Content>${xml(INVOICE_PAYMENT_TERMS)}</ram:Content>
+      <ram:Content>${xml(paymentTerms)}</ram:Content>
     </ram:IncludedNote>
     <ram:IncludedNote>
       <ram:Content>${xml(INVOICE_RETENTION_NOTE)}</ram:Content>
@@ -290,7 +308,7 @@ export function buildInvoiceXml(input: {
       <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
       <ram:SpecifiedTradeSettlementPaymentMeans>
         <ram:TypeCode>58</ram:TypeCode>
-        <ram:Information>${xml(INVOICE_PAYMENT_TERMS)}</ram:Information>
+        <ram:Information>${xml(paymentTerms)}</ram:Information>
         <ram:PayeePartyCreditorFinancialAccount>
           <ram:IBANID>${SELLER.iban}</ram:IBANID>
           <ram:AccountName>${xml(SELLER.accountName)}</ram:AccountName>
@@ -308,7 +326,7 @@ export function buildInvoiceXml(input: {
         <ram:RateApplicablePercent>0</ram:RateApplicablePercent>
       </ram:ApplicableTradeTax>
       <ram:SpecifiedTradePaymentTerms>
-        <ram:Description>${xml(INVOICE_PAYMENT_TERMS)}</ram:Description>
+        <ram:Description>${xml(paymentTerms)}</ram:Description>
         <ram:DueDateDateTime>
           <udt:DateTimeString format="102">${isoCompact(input.dueDate)}</udt:DateTimeString>
         </ram:DueDateDateTime>
@@ -319,7 +337,7 @@ export function buildInvoiceXml(input: {
         <ram:TaxTotalAmount currencyID="EUR">0.00</ram:TaxTotalAmount>
         <ram:GrandTotalAmount>${money(net)}</ram:GrandTotalAmount>
         <ram:DuePayableAmount>${money(net)}</ram:DuePayableAmount>
-      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>
+      </ram:SpecifiedTradeSettlementHeaderMonetarySummation>${reference}
     </ram:ApplicableHeaderTradeSettlement>
   </rsm:SupplyChainTradeTransaction>
 </rsm:CrossIndustryInvoice>

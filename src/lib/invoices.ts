@@ -1,7 +1,7 @@
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
 import { invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
-import { formatOfferDate, serializeOffer, type StoredOffer } from "./quote";
+import { formatOfferDate, offerTotalCents, readStoredOffer, serializeOffer, type StoredOffer } from "./quote";
 import { applyOnlinePayment, applyRefund, applyTestPayment, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
 export interface InvoiceRow {
@@ -31,12 +31,14 @@ export interface InvoiceRow {
   payment_url: string | null;
   payment_link_id: string | null;
   payment_note: string | null;
+  document_kind: string;
+  related_invoice_id: number | null;
 }
 
 const COLUMNS = `id, customer_id, quote_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
   tax_number, buyer_name, buyer_email, buyer_phone, buyer_street, buyer_postal_code, buyer_city,
   created_at, sent_at, email_status, payment_status, paid_at, payment_method, payment_reference,
-  payment_url, payment_link_id, payment_note`;
+  payment_url, payment_link_id, payment_note, document_kind, related_invoice_id`;
 
 export async function getTaxNumber(db: D1Database): Promise<string> {
   const row = await db.prepare(`SELECT tax_number FROM business_profile WHERE id = 1`).first<{ tax_number: string }>();
@@ -75,7 +77,7 @@ export async function getInvoice(db: D1Database, id: number): Promise<InvoiceRow
 export async function saveInvoice(
   db: D1Database,
   input: {
-    customerId: number;
+    customerId: number | null;
     quoteId: number | null;
     invoice: ParsedInvoice;
     greeting: string | null;
@@ -89,6 +91,9 @@ export async function saveInvoice(
       city: string;
     };
     createdAt: number;
+    documentKind?: "rechnung" | "storno";
+    relatedInvoiceId?: number | null;
+    paymentStatus?: string;
   },
 ): Promise<number> {
   const result = await db
@@ -96,8 +101,8 @@ export async function saveInvoice(
       `INSERT INTO invoices (
          customer_id, quote_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
          tax_number, buyer_name, buyer_email, buyer_phone, buyer_street, buyer_postal_code, buyer_city,
-         created_at, sent_at, email_status
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending')`,
+         created_at, sent_at, email_status, document_kind, related_invoice_id, payment_status
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', ?, ?, ?)`,
     )
     .bind(
       input.customerId,
@@ -116,9 +121,72 @@ export async function saveInvoice(
       input.buyer.postalCode,
       input.buyer.city,
       input.createdAt,
+      input.documentKind ?? "rechnung",
+      input.relatedInvoiceId ?? null,
+      input.paymentStatus ?? "offen",
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
+}
+
+export async function beginStorno(db: D1Database, original: InvoiceRow, today: string, createdAt: number): Promise<number | null> {
+  if (original.document_kind === "storno" || original.payment_status === "storniert") return null;
+  const stored = readStoredOffer(original.lines_json, "");
+  if (!stored.lines.length || offerTotalCents(stored.lines) !== original.price_cents) return null;
+  const serviceDate = original.service_date <= today ? original.service_date : today;
+  const marked = await db
+    .prepare(
+      `UPDATE invoices SET payment_status = 'storniert'
+       WHERE id = ? AND payment_status != 'storniert' AND document_kind = 'rechnung'`,
+    )
+    .bind(original.id)
+    .run();
+  if (typeof marked.meta.changes === "number") {
+    if (marked.meta.changes < 1) return null;
+  } else {
+    const current = await getInvoice(db, original.id);
+    if (current?.payment_status !== "storniert") return null;
+  }
+  const originalNumber = invoiceNumber(original.id, original.invoice_date);
+  const id = await saveInvoice(db, {
+    customerId: original.customer_id,
+    quoteId: original.quote_id,
+    invoice: {
+      title: original.title,
+      intro: `Diese Stornorechnung hebt die Rechnung ${originalNumber} vom ${formatOfferDate(original.invoice_date)} vollständig auf.`,
+      lines: stored.lines,
+      invoiceDate: today,
+      serviceDate,
+      dueDate: today,
+      priceCents: original.price_cents,
+    },
+    greeting: stored.greeting,
+    taxNumber: original.tax_number,
+    buyer: {
+      name: original.buyer_name,
+      email: original.buyer_email,
+      phone: original.buyer_phone,
+      street: original.buyer_street,
+      postalCode: original.buyer_postal_code,
+      city: original.buyer_city,
+    },
+    createdAt,
+    documentKind: "storno",
+    relatedInvoiceId: original.id,
+    paymentStatus: "storniert",
+  });
+  if (!id) return null;
+  const paid = original.payment_method ? `Die Zahlung per ${original.payment_method} bleibt vermerkt. ` : "";
+  await noteInvoicePayment(db, original.id, `${paid}Aufgehoben durch Stornorechnung ${invoiceNumber(id, today)}.`);
+  return id;
+}
+
+export async function listRelatedInvoices(db: D1Database, id: number): Promise<InvoiceRow[]> {
+  const { results } = await db
+    .prepare(`SELECT ${COLUMNS} FROM invoices WHERE related_invoice_id = ? ORDER BY id`)
+    .bind(id)
+    .all<InvoiceRow>();
+  return results ?? [];
 }
 
 export async function updateInvoiceDelivery(db: D1Database, id: number, sentAt: number | null, emailStatus: string): Promise<void> {
@@ -138,7 +206,15 @@ export function paymentRow(row: InvoiceRow): PaymentRow {
 
 export async function saveInvoicePaymentLink(db: D1Database, id: number, url: string, linkId: string, replace = false): Promise<void> {
   const where = replace ? "WHERE id = ?" : "WHERE id = ? AND payment_url IS NULL";
-  await db.prepare(`UPDATE invoices SET payment_url = ?, payment_link_id = ? ${where}`).bind(url, linkId, id).run();
+  await db
+    .prepare(
+      `UPDATE invoices
+       SET payment_url = ?, payment_link_id = ?,
+           payment_note = CASE WHEN payment_note = 'Der Zahlungslink konnte nicht angelegt werden. Bitte erneut senden.' THEN NULL ELSE payment_note END
+       ${where}`,
+    )
+    .bind(url, linkId, id)
+    .run();
 }
 
 export async function applyInvoicePayment(db: D1Database, id: number, update: PaymentUpdate, reference = ""): Promise<PaymentUpdate["kind"]> {
@@ -160,7 +236,7 @@ export async function applyInvoicePayment(db: D1Database, id: number, update: Pa
       .prepare(
         `UPDATE invoices
          SET payment_status = 'test', paid_at = ?, payment_method = ?, payment_reference = ?, payment_note = ?
-         WHERE id = ? AND payment_status NOT IN ('bezahlt', 'erstattet')`,
+         WHERE id = ? AND payment_status NOT IN ('bezahlt', 'erstattet', 'storniert')`,
       )
       .bind(update.paidAt, update.method, update.reference, update.note, id)
       .run();
@@ -248,9 +324,18 @@ export async function noteInvoicePayment(db: D1Database, id: number, note: strin
   await db.prepare(`UPDATE invoices SET payment_note = ? WHERE id = ?`).bind(note, id).run();
 }
 
-export function invoicePdfInput(row: InvoiceRow, stored: StoredOffer, authorName: string): InvoicePdfInput {
+export function invoicePdfInput(
+  row: InvoiceRow,
+  stored: StoredOffer,
+  authorName: string,
+  related: InvoiceRow | null = null,
+): InvoicePdfInput {
+  const storno = row.document_kind === "storno";
   return {
     number: invoiceNumber(row.id, row.invoice_date),
+    documentKind: storno ? "storno" : "rechnung",
+    referenceNumber: storno && related ? invoiceNumber(related.id, related.invoice_date) : undefined,
+    referenceDate: storno && related ? related.invoice_date : undefined,
     invoiceDateLabel: formatOfferDate(row.invoice_date),
     serviceDateLabel: formatOfferDate(row.service_date),
     dueDateLabel: formatOfferDate(row.due_date),
@@ -272,9 +357,20 @@ export function invoicePdfInput(row: InvoiceRow, stored: StoredOffer, authorName
   };
 }
 
-export function renderInvoicePdf(row: InvoiceRow, stored: StoredOffer, authorName: string): { filename: string; bytes: Uint8Array } {
-  const input = invoicePdfInput(row, stored, authorName);
-  return { filename: `Rechnung-${input.number}.pdf`, bytes: buildInvoicePdf(input) };
+export function renderInvoicePdf(
+  row: InvoiceRow,
+  stored: StoredOffer,
+  authorName: string,
+  related: InvoiceRow | null = null,
+): { filename: string; bytes: Uint8Array } {
+  const input = invoicePdfInput(row, stored, authorName, related);
+  const prefix = input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
+  return { filename: `${prefix}-${input.number}.pdf`, bytes: buildInvoicePdf(input) };
+}
+
+export async function relatedInvoice(db: D1Database, row: InvoiceRow): Promise<InvoiceRow | null> {
+  if (row.document_kind !== "storno" || !row.related_invoice_id) return null;
+  return getInvoice(db, row.related_invoice_id);
 }
 
 export async function sendInvoiceEmail(
@@ -292,6 +388,7 @@ export async function sendInvoiceEmail(
     paymentUrl?: string | null;
     paymentStatus?: string | null;
     paymentMode?: "test" | "live" | "off" | null;
+    purpose?: "rechnung" | "storno";
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const plain = invoicePlainText({
@@ -303,17 +400,24 @@ export async function sendInvoiceEmail(
     serviceDate: input.invoice.serviceDate,
     dueDate: input.invoice.dueDate,
     taxNumber: input.taxNumber,
+    storno: input.purpose === "storno",
   });
-  const subject = `Rechnung ${input.number}: ${input.invoice.title}`;
+  const storno = input.purpose === "storno";
+  const subject = `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}: ${input.invoice.title}`;
   const from = "info@zeus-service.de";
   const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
-  const paymentUrl = paid ? "" : input.paymentUrl?.trim() || "";
-  const testPay = !paid && Boolean(paymentUrl) && input.paymentMode === "test";
-  const footerNote = paid
-    ? "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten."
-    : paymentUrl
-      ? `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Der Knopf öffnet die Zahlung per Karte, Apple Pay, Google Pay, PayPal oder SEPA-Lastschrift.${testPay ? " Testmodus: Es wird kein Geld abgebucht." : ""} Eine Überweisung auf die IBAN bleibt möglich. Sie können direkt auf diese E-Mail antworten.`
-      : `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Sie können direkt auf diese E-Mail antworten.`;
+  const cancelled = input.paymentStatus === "storniert";
+  const paymentUrl = paid || cancelled || storno ? "" : input.paymentUrl?.trim() || "";
+  const testPay = Boolean(paymentUrl) && input.paymentMode === "test";
+  const footerNote = storno
+    ? "Diese Stornorechnung hebt die genannte Rechnung auf. Es ist nichts zu zahlen. Sie können direkt auf diese E-Mail antworten."
+    : cancelled
+      ? "Diese Rechnung ist storniert. Es ist nichts zu zahlen. Sie können direkt auf diese E-Mail antworten."
+      : paid
+        ? "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten."
+        : paymentUrl
+          ? `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Der Knopf „Jetzt bezahlen“ öffnet die Zahlung per Karte, Apple Pay, Google Pay, PayPal oder SEPA-Lastschrift.${testPay ? " Testmodus: Es wird kein Geld abgebucht." : ""} Eine Überweisung auf die IBAN bleibt möglich. Sie können direkt auf diese E-Mail antworten.`
+          : `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Sie können direkt auf diese E-Mail antworten.`;
   const result = await sendEmail(env, {
     from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",
     fromName: env.SITE_NAME ?? "Zeus-Service",
@@ -329,11 +433,12 @@ export async function sendInvoiceEmail(
       authorName: input.authorName,
       fromEmail: from,
       replyToEmail: from,
-      eyebrow: "Rechnung",
+      eyebrow: storno ? "Stornorechnung" : "Rechnung",
       greeting: input.greeting,
       footerNote,
       ctaUrl: paymentUrl || null,
       ctaLabel: "Jetzt bezahlen",
+      ctaFirst: Boolean(paymentUrl),
     }),
     text: renderReplyEmailText({
       siteName: env.SITE_NAME ?? "Zeus-Service",
@@ -348,6 +453,7 @@ export async function sendInvoiceEmail(
       footerNote,
       ctaUrl: paymentUrl || null,
       ctaLabel: "Jetzt bezahlen",
+      ctaFirst: Boolean(paymentUrl),
     }),
     attachments: [{ filename: input.filename, type: "application/pdf", disposition: "attachment", content: input.pdf }],
   });

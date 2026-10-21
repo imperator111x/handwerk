@@ -31,6 +31,8 @@ export interface ReplyEmailInput {
   /** `undefined` setzt „Hallo Name“, `null` lässt die Zeile weg. */
   greeting?: string | null;
   footerNote?: string | null;
+  /** Zahlungsknopf steht über dem Rechnungstext. */
+  ctaFirst?: boolean | null;
 }
 
 export interface EmailAttachment {
@@ -151,8 +153,9 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
                 <p class="email-muted" style="margin:0 0 8px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${eyebrow}</p>
                 <h1 class="email-text" style="margin:0 0 22px 0;color:#0f172a;font-size:22px;line-height:1.35;font-weight:800;">${safeSubject}</h1>
                 ${greetingHtml}
+                ${input.ctaFirst ? ctaHtml : ""}
                 ${bodyHtml}
-                ${ctaHtml}
+                ${input.ctaFirst ? "" : ctaHtml}
                 <p class="email-text" style="margin:22px 0 4px 0;color:#1e293b;font-size:16px;line-height:1.6;">Mit freundlichen Grüßen</p>
                 <p class="email-text" style="margin:0;color:#0f172a;font-size:16px;line-height:1.6;font-weight:700;">${safeAuthor}</p>
                 <p class="email-muted" style="margin:2px 0 0 0;color:#64748b;font-size:14px;">${safeSite}</p>
@@ -199,11 +202,13 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
   const contactEmail = input.replyToEmail || input.fromEmail;
   const greetingText =
     input.greeting === undefined ? `Hallo ${input.recipientName},` : (input.greeting ?? "");
+  const ctaLines = input.ctaUrl ? [`${input.ctaLabel?.trim() || "Termin wählen"}:`, input.ctaUrl, ""] : [];
+  const bodyLines = [input.bodyHtml ? htmlToPlainText(input.bodyHtml) : input.bodyText.trim(), ""];
   const lines = [
     ...(greetingText ? [greetingText, ""] : []),
-    input.bodyHtml ? htmlToPlainText(input.bodyHtml) : input.bodyText.trim(),
-    "",
-    ...(input.ctaUrl ? [`${input.ctaLabel?.trim() || "Termin wählen"}:`, input.ctaUrl, ""] : []),
+    ...(input.ctaFirst ? ctaLines : []),
+    ...bodyLines,
+    ...(input.ctaFirst ? [] : ctaLines),
     ...(input.footerNote?.trim() ? [input.footerNote.trim(), ""] : []),
     "Mit freundlichen Grüßen",
     input.authorName,

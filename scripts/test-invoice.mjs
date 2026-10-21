@@ -154,6 +154,59 @@ assert.match(text, /Der Rechnungsempfänger ist verpflichtet/);
 assert.match(text, /mindestens zwei Jahre aufzubewahren/);
 assert.match(text, /Rechnungsnummer: R-2026-0007/);
 assert.match(text, /Bei Zahlung bitte angeben/);
+
+const stornoXml = invoice.buildInvoiceXml({
+  number: "R-2026-0008",
+  title: "Rollladen einstellen",
+  lines: parsed.lines,
+  invoiceDate: "2026-10-21",
+  serviceDate: "2026-10-18",
+  dueDate: "2026-10-21",
+  taxNumber: "12/345/67890",
+  buyerName: "Erika Muster",
+  buyerEmail: "erika@example.com",
+  buyerStreet: "Musterweg 1",
+  buyerPostalCode: "22850",
+  buyerCity: "Norderstedt",
+  typeCode: "381",
+  referenceNumber: "R-2026-0007",
+  referenceDate: "2026-10-20",
+  paymentTerms: "Es ist kein Betrag zu zahlen.",
+});
+assert.match(stornoXml, /<ram:TypeCode>381<\/ram:TypeCode>/);
+assert.match(stornoXml, /<ram:IssuerAssignedID>R-2026-0007<\/ram:IssuerAssignedID>/);
+assert.match(stornoXml, /Es ist kein Betrag zu zahlen\./);
+assert.ok(stornoXml.includes(RETENTION));
+
+const stornoPdf = buildInvoicePdf({
+  number: "R-2026-0008",
+  invoiceDateLabel: "21. Oktober 2026",
+  serviceDateLabel: "18. Oktober 2026",
+  dueDateLabel: "21. Oktober 2026",
+  taxNumber: "12/345/67890",
+  buyerName: "Erika Muster",
+  buyerEmail: "erika@example.com",
+  buyerPhone: "+49 155 000",
+  buyerStreet: "Musterweg 1",
+  buyerPostalCode: "22850",
+  buyerCity: "Norderstedt",
+  title: "Rollladen einstellen",
+  greeting: "Guten Tag Frau Muster,",
+  intro: "Diese Stornorechnung hebt die Rechnung R-2026-0007 vom 20. Oktober 2026 vollständig auf.",
+  lines: parsed.lines,
+  invoiceDate: "2026-10-21",
+  serviceDate: "2026-10-18",
+  dueDate: "2026-10-21",
+  authorName: "Leon Lütcke",
+  documentKind: "storno",
+  referenceNumber: "R-2026-0007",
+  referenceDate: "2026-10-20",
+});
+const stornoText = new TextDecoder("latin1").decode(stornoPdf).replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+assert.match(stornoText, /Stornorechnung/);
+assert.match(stornoText, /Zur Rechnung R-2026-0007/);
+assert.match(stornoText, /Es ist kein Betrag zu zahlen/);
+assert.match(stornoText, /mindestens zwei Jahre aufzubewahren/);
 assert.match(text, /IBAN: DE38 1001 4000 1598 1684 18/);
 
 const noteBaselines = [...text.matchAll(/1 0 0 1 [\d.]+ ([\d.]+) Tm \(([^)]*)\) Tj/g)]

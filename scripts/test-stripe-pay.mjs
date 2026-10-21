@@ -126,6 +126,14 @@ assert.equal(pay.stripeKeyMode("sk_live_abc"), "live");
 assert.equal(pay.paymentStatusLabel("offen"), "Offen");
 assert.equal(pay.paymentStatusLabel("bezahlt"), "Bezahlt");
 assert.equal(pay.paymentStatusLabel("test"), "Testzahlung");
+assert.equal(pay.paymentStatusLabel("storniert"), "Storniert");
+assert.equal(pay.invoiceStatusLabel("offen", "storno"), "Stornorechnung");
+assert.equal(pay.applyOnlinePayment(open, { amountCents: 12750, reference: "pi_late", method: "Karte", paidAt: now }).kind, "paid");
+assert.equal(pay.applyOnlinePayment({ ...open, status: "storniert" }, { amountCents: 12750, reference: "pi_late", method: "Karte", paidAt: now }).kind, "noted");
+const price = pay.stripePriceParams("R-2026-0001", 10000);
+assert.equal(price.get("product_data[name]"), "Rechnung R-2026-0001");
+assert.equal(price.get("product_data[description]"), null);
+assert.equal(price.get("unit_amount"), "10000");
 
 const link = pay.paymentLinkForMail("https://buy.stripe.com/test_abc", "kunde@example.com");
 assert.match(link, /^https:\/\/buy\.stripe\.com\/test_abc\?/);
@@ -148,6 +156,19 @@ const text = email.renderReplyEmailText({
 assert.match(text, /Jetzt bezahlen:/);
 assert.match(text, /buy\.stripe\.com/);
 assert.doesNotMatch(text, /Termin wählen/);
+const payFirst = email.renderReplyEmailText({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001",
+  bodyText: "Rechnungstext",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  ctaUrl: link,
+  ctaLabel: "Jetzt bezahlen",
+  ctaFirst: true,
+});
+assert.ok(payFirst.indexOf("Jetzt bezahlen:") < payFirst.indexOf("Rechnungstext"));
 
 console.log("stripe payment checks ok");
 

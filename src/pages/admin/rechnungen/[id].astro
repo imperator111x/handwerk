@@ -5,8 +5,8 @@ import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { cfEnv } from "../../../lib/cf";
 import { invoiceNumber } from "../../../lib/invoice";
-import { getInvoice } from "../../../lib/invoices";
-import { paymentLinkForMail, paymentStatusLabel, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
+import { getInvoice, listRelatedInvoices } from "../../../lib/invoices";
+import { invoiceStatusLabel, paymentLinkForMail, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
 import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, formatEuro, formatOfferDate, formatQuantity, lineTotalCents, readStoredOffer } from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
 
@@ -20,22 +20,33 @@ if (!Number.isFinite(id) || id <= 0) return Astro.redirect("/admin/rechnungen");
 const db = getDb(Astro);
 const row = db ? await getInvoice(db, id) : null;
 if (!row) return Astro.redirect("/admin/rechnungen?rechnung=missing");
+const related = db ? await listRelatedInvoices(db, row.id) : [];
+const stornoDoc = related.find((entry) => entry.document_kind === "storno");
+const replacement = related.find((entry) => entry.document_kind !== "storno");
 const stored = readStoredOffer(row.lines_json, "");
 const number = invoiceNumber(row.id, row.invoice_date);
 const flag = Astro.url.searchParams.get("rechnung");
 const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
-  sent: { kind: "ok", text: "Die Rechnung ist als ZUGFeRD-PDF verschickt." },
+  sent: { kind: "ok", text: "Die Rechnung ist als ZUGFeRD-PDF verschickt. In der Mail steht „Jetzt bezahlen“." },
+  "sent-ohne-link": { kind: "bad", text: "Die Rechnung ist verschickt. Der Zahlungslink fehlt in der Mail." },
   saved: { kind: "ok", text: "Die Rechnung ist festgeschrieben. Der Versand ist nicht bestätigt." },
   failed: { kind: "bad", text: "Die Rechnung ist festgeschrieben, der Versand ist aber fehlgeschlagen." },
   transfer: { kind: "ok", text: "Die Überweisung ist gespeichert. Der Zahlungslink ist geschlossen." },
   "transfer-clear": { kind: "ok", text: "Die Rechnung steht wieder auf offen." },
   "transfer-kept": { kind: "bad", text: "Der Zahlungsstatus blieb unverändert." },
+  storniert: { kind: "ok", text: "Die Rechnung ist storniert. Die Stornorechnung ist verschickt." },
+  angepasst: { kind: "ok", text: "Die alte Rechnung ist storniert. Diese Rechnung ist mit dem Knopf „Jetzt bezahlen“ verschickt." },
+  "angepasst-ohne-link": { kind: "bad", text: "Die alte Rechnung ist storniert. Diese Rechnung ist verschickt, der Zahlungslink fehlt aber noch." },
+  "angepasst-offen": { kind: "bad", text: "Die alte Rechnung ist storniert. Diese Rechnung ist gespeichert, der Versand ist aber fehlgeschlagen." },
+  "storno-kept": { kind: "bad", text: "Diese Rechnung ist bereits storniert." },
 };
 const stripeEnv = cfEnv();
 const stripeReady = stripePaymentsReady(stripeEnv);
 const stripeMode = stripeKeyMode(stripeEnv.STRIPE_SECRET_KEY);
 const payUrl = row.payment_url ? paymentLinkForMail(row.payment_url, row.buyer_email) : "";
+const cancelled = row.payment_status === "storniert" || row.document_kind === "storno";
 const paid = row.payment_status === "bezahlt" || row.payment_status === "erstattet";
+const canCorrect = row.document_kind !== "storno" && row.payment_status !== "storniert";
 const notice = flag ? notices[flag] : undefined;
 ---
 
@@ -43,7 +54,9 @@ const notice = flag ? notices[flag] : undefined;
   <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">Festgeschrieben</p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">
+          {row.document_kind === "storno" ? "Stornorechnung" : "Festgeschrieben"}
+        </p>
         <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{number}</h2>
         <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
           {row.buyer_name} · {row.buyer_street}, {row.buyer_postal_code} {row.buyer_city} · {row.buyer_email}
@@ -55,12 +68,12 @@ const notice = flag ? notices[flag] : undefined;
             "rounded-full px-3 py-1 text-xs font-semibold",
             row.payment_status === "bezahlt"
               ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100"
-              : row.payment_status === "erstattet" || row.payment_status === "test"
+              : row.payment_status === "erstattet" || row.payment_status === "test" || row.payment_status === "storniert" || row.document_kind === "storno"
                 ? "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-100"
                 : "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200",
           ]}
         >
-          {paymentStatusLabel(row.payment_status)}
+          {invoiceStatusLabel(row.payment_status, row.document_kind)}
           {row.payment_method ? ` · ${row.payment_method}` : ""}
           {row.paid_at ? ` · ${formatBerlin(row.paid_at)}` : ""}
         </span>
@@ -118,18 +131,35 @@ const notice = flag ? notices[flag] : undefined;
         {row.payment_note}
       </p>
     )}
-    {stripeMode === "test" && !paid && (
+    {stornoDoc && (
+      <p class="mt-3 text-sm text-ink-700 dark:text-ink-200">
+        Stornorechnung:
+        <a class="font-semibold text-brand-700 underline dark:text-brand-200" href={`/admin/rechnungen/${stornoDoc.id}`}>{invoiceNumber(stornoDoc.id, stornoDoc.invoice_date)}</a>
+      </p>
+    )}
+    {replacement && (
+      <p class="mt-3 text-sm text-ink-700 dark:text-ink-200">
+        Neue Rechnung:
+        <a class="font-semibold text-brand-700 underline dark:text-brand-200" href={`/admin/rechnungen/${replacement.id}`}>{invoiceNumber(replacement.id, replacement.invoice_date)}</a>
+      </p>
+    )}
+    {row.document_kind === "storno" && row.related_invoice_id && (
+      <p class="mt-3 text-sm text-ink-700 dark:text-ink-200">
+        <a class="font-semibold text-brand-700 underline dark:text-brand-200" href={`/admin/rechnungen/${row.related_invoice_id}`}>Zur aufgehobenen Rechnung</a>
+      </p>
+    )}
+    {stripeMode === "test" && !paid && !cancelled && (
       <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
         Testmodus: Der Zahlungslink bucht kein echtes Geld ab. Eine Übung erscheint als Testzahlung.
       </p>
     )}
-    {!paid && payUrl && (
+    {!paid && !cancelled && payUrl && (
       <p class="mt-3 text-sm text-ink-700 dark:text-ink-200">
         In der Mail steht der Knopf „Jetzt bezahlen“:
         <a href={payUrl} target="_blank" class="font-semibold text-brand-700 underline dark:text-brand-200">Zahlungslink</a>
       </p>
     )}
-    {!paid && !payUrl && (
+    {!paid && !cancelled && !payUrl && (
       <p class="mt-3 text-sm text-ink-600 dark:text-ink-300">
         {stripeReady
           ? "Der Zahlungslink entsteht beim nächsten Senden."
@@ -140,11 +170,30 @@ const notice = flag ? notices[flag] : undefined;
     <p class="mt-3 text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
     <div class="mt-5 flex flex-wrap gap-2">
       <a href={`/api/admin/rechnung-pdf?id=${row.id}`} target="_blank" class="btn-primary">PDF ansehen</a>
-      <form method="POST" action="/api/admin/rechnung">
-        <input type="hidden" name="action" value="resend" />
-        <input type="hidden" name="id" value={row.id} />
-        <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Erneut senden</button>
-      </form>
+      {canCorrect && (
+        <a href={`/admin/rechnungen/bearbeiten?id=${row.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Anpassen</a>
+      )}
+      {canCorrect && (
+        <form method="POST" action="/api/admin/rechnung" onsubmit="return confirm('Diese Rechnung stornieren? Der Zahlungslink wird geschlossen und der Kunde erhält die Stornorechnung.')">
+          <input type="hidden" name="action" value="storno" />
+          <input type="hidden" name="id" value={row.id} />
+          <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Stornieren</button>
+        </form>
+      )}
+      {!cancelled && (
+        <form method="POST" action="/api/admin/rechnung">
+          <input type="hidden" name="action" value="resend" />
+          <input type="hidden" name="id" value={row.id} />
+          <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Erneut senden</button>
+        </form>
+      )}
+      {row.document_kind === "storno" && (
+        <form method="POST" action="/api/admin/rechnung">
+          <input type="hidden" name="action" value="resend" />
+          <input type="hidden" name="id" value={row.id} />
+          <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Stornorechnung erneut senden</button>
+        </form>
+      )}
       {row.payment_status === "offen" && (
         <form method="POST" action="/api/admin/rechnung">
           <input type="hidden" name="action" value="transfer" />

@@ -1,7 +1,7 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb, signatureNameForUser } from "../../../lib/db";
-import { getInvoice, renderInvoicePdf } from "../../../lib/invoices";
+import { getInvoice, relatedInvoice, renderInvoicePdf } from "../../../lib/invoices";
 import { readStoredOffer } from "../../../lib/quote";
 
 export const prerender = false;
@@ -17,7 +17,7 @@ export async function GET(ctx: APIContext): Promise<Response> {
   if (!row) return new Response("Nicht gefunden", { status: 404 });
   const stored = readStoredOffer(row.lines_json, "");
   const authorName = await signatureNameForUser(db, session.userId, session.username);
-  const pdf = renderInvoicePdf(row, stored, authorName);
+  const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row));
   return new Response(pdf.bytes, {
     headers: {
       "Content-Type": "application/pdf",

@@ -1,0 +1,73 @@
+---
+import InvoiceComposer from "../../../components/InvoiceComposer.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { getDb } from "../../../lib/db";
+import { invoiceNumber } from "../../../lib/invoice";
+import { getInvoice } from "../../../lib/invoices";
+import { berlinTodayIso } from "../../../lib/offers";
+import { readStoredOffer } from "../../../lib/quote";
+import { salutationFromGreeting } from "../../../lib/salutation";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const db = getDb(Astro);
+const id = Number.parseInt(Astro.url.searchParams.get("id") ?? "", 10);
+const row = db && Number.isFinite(id) ? await getInvoice(db, id) : null;
+if (!row) return Astro.redirect("/admin/rechnungen?rechnung=missing");
+const number = invoiceNumber(row.id, row.invoice_date);
+const closed = row.document_kind === "storno" || row.payment_status === "storniert";
+const stored = readStoredOffer(row.lines_json, "");
+const today = berlinTodayIso();
+const invoiceDate = row.invoice_date <= today ? row.invoice_date : today;
+const serviceDate = row.service_date <= invoiceDate ? row.service_date : invoiceDate;
+const flag = Astro.url.searchParams.get("rechnung");
+---
+
+<AdminLayout title={`Rechnung ${number} anpassen`} session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">Anpassen</p>
+    <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{number}</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      {row.buyer_name} · {row.buyer_street}, {row.buyer_postal_code} {row.buyer_city} · {row.buyer_email}
+    </p>
+    {flag === "bad" && (
+      <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+        Bitte Positionen, Preise und die Daten prüfen. Das Rechnungsdatum darf nicht in der Zukunft liegen, das Leistungsdatum nicht danach.
+      </p>
+    )}
+    {closed ? (
+      <p class="mt-4 text-sm text-ink-700 dark:text-ink-200">
+        Diese Rechnung ist storniert.
+        <a class="font-semibold underline" href={`/admin/rechnungen/${row.id}`}>Zurück zur Rechnung</a>
+      </p>
+    ) : (
+      <div class="mt-5">
+        {row.payment_status === "bezahlt" && (
+          <p class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
+            Diese Rechnung ist bereits bezahlt. Die Stornorechnung hebt sie auf. Eine Erstattung läuft weiter über Stripe.
+          </p>
+        )}
+        <InvoiceComposer
+          customerName={row.buyer_name}
+          title={row.title}
+          intro={stored.intro}
+          invoiceDate={invoiceDate}
+          serviceDate={serviceDate}
+          lines={stored.lines}
+          salutation={salutationFromGreeting(stored.greeting, row.buyer_name)}
+          submitLabel="Änderung festschreiben und senden"
+          hint="Die bisherige Rechnung wird storniert. Die Änderung bekommt eine neue Nummer, einen Zahlungslink und geht an den Kunden."
+          confirmMessage="Die bisherige Rechnung wird storniert. Die Änderung wird als neue Rechnung verschickt."
+          hidden={[
+            { name: "action", value: "adjust" },
+            { name: "id", value: String(row.id) },
+          ]}
+        />
+      </div>
+    )}
+  </section>
+</AdminLayout>

@@ -47,6 +47,9 @@ export interface InvoicePdfInput {
   serviceDate: string;
   dueDate: string;
   authorName: string;
+  documentKind?: "rechnung" | "storno";
+  referenceNumber?: string;
+  referenceDate?: string;
 }
 
 const PAGE_W = 595.28;
@@ -77,6 +80,7 @@ const WIN_EXTRA: Record<string, number> = {
 };
 
 export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
+  const storno = input.documentKind === "storno";
   const xml = buildInvoiceXml({
     number: input.number,
     title: input.title,
@@ -90,11 +94,21 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
     buyerStreet: input.buyerStreet,
     buyerPostalCode: input.buyerPostalCode,
     buyerCity: input.buyerCity,
+    typeCode: storno ? "381" : "380",
+    referenceNumber: input.referenceNumber,
+    referenceDate: input.referenceDate,
+    paymentTerms: storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS,
   });
   return serializeZugferd(layoutPages(input), xml, input);
 }
 
+function documentHeading(input: InvoicePdfInput): string {
+  return input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
+}
+
 function layoutPages(input: InvoicePdfInput): string[] {
+  const heading = documentHeading(input);
+  const storno = input.documentKind === "storno";
   const pages: string[][] = [];
   let ops: string[] = [];
   let y = 760;
@@ -135,7 +149,7 @@ function layoutPages(input: InvoicePdfInput): string[] {
       const smallH = (smallW * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
       const smallBottom = PAGE_H - 16 - smallH;
       paint(`q ${round(smallW)} 0 0 ${round(smallH)} ${LEFT} ${round(smallBottom)} cm /Im1 Do Q`);
-      textRight(RIGHT, PAGE_H - 28, 11, "F2", `Rechnung ${input.number}`, BLACK);
+      textRight(RIGHT, PAGE_H - 28, 11, "F2", `${heading} ${input.number}`, BLACK);
       textRight(RIGHT, PAGE_H - 42, 8, "F1", "Fortsetzung", MUTED);
       paint(`${BLACK} rg`);
       paint(`0 ${round(smallBottom - 10)} ${PAGE_W} 2 re f`);
@@ -150,7 +164,7 @@ function layoutPages(input: InvoicePdfInput): string[] {
   const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
   const logoBottom = PAGE_H - 28 - logoH;
   paint(`q ${round(LOGO_W)} 0 0 ${round(logoH)} ${LEFT} ${round(logoBottom)} cm /Im1 Do Q`);
-  textRight(RIGHT, PAGE_H - 44, 20, "F2", "Rechnung", BLACK);
+  textRight(RIGHT, PAGE_H - 44, 20, "F2", heading, BLACK);
   textRight(RIGHT, PAGE_H - 64, 10, "F1", input.number, MUTED);
   const ruleY = logoBottom - 12;
   paint(`${BLACK} rg`);
@@ -176,7 +190,9 @@ function layoutPages(input: InvoicePdfInput): string[] {
   y = addressTop - 108;
   const place = [input.buyerPostalCode.trim(), input.buyerCity.trim()].filter(Boolean).join(" ");
   const customerLines = [input.buyerName, input.buyerStreet.trim(), place, input.buyerEmail, input.buyerPhone?.trim() || ""].filter(Boolean);
-  const paymentHint = [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
+  const paymentHint = storno
+    ? [`Stornorechnung: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Es ist nichts zu zahlen"]
+    : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;
   paymentHint.forEach((line, index) => {
@@ -252,7 +268,7 @@ function layoutPages(input: InvoicePdfInput): string[] {
   textRight(RIGHT, y, 10, "F1", "Umsatzsteuer 0 %  0,00 EUR");
   y -= 22;
 
-  const notes = [OFFER_TAX_NOTE, INVOICE_PAYMENT_TERMS, INVOICE_RETENTION_NOTE];
+  const notes = [OFFER_TAX_NOTE, storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS, INVOICE_RETENTION_NOTE];
   for (const note of notes) {
     const lines = wrapToWidth(note, WIDTH, 10);
     for (const line of lines) {
@@ -403,7 +419,7 @@ function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput
   objects.set(
     infoId,
     latin1(
-      `<< /Title ${pdfText(`Rechnung ${input.number}`)} /Author ${pdfText(SELLER.personName)} /Creator ${pdfText("Zeus-Service")} /Producer ${pdfText("Zeus-Service")} /CreationDate ${pdfText(created)} /ModDate ${pdfText(created)} /Trapped /False >>`,
+      `<< /Title ${pdfText(`${documentHeading(input)} ${input.number}`)} /Author ${pdfText(SELLER.personName)} /Creator ${pdfText("Zeus-Service")} /Producer ${pdfText("Zeus-Service")} /CreationDate ${pdfText(created)} /ModDate ${pdfText(created)} /Trapped /False >>`,
     ),
   );
 
@@ -526,7 +542,7 @@ function winAnsiUnicode(code: number): number | null {
 
 function xmpPacket(input: InvoicePdfInput, created: string): string {
   const iso = `${input.invoiceDate}T12:00:00Z`;
-  const title = xmlEscape(`Rechnung ${input.number}`);
+  const title = xmlEscape(`${documentHeading(input)} ${input.number}`);
   return `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
