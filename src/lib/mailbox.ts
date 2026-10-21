@@ -65,6 +65,15 @@ export function canOpenMailbox(
   return session.userId != null && mailbox.memberIds.includes(session.userId);
 }
 
+/** info@ bleibt. Jede andere sichtbare Adresse darf weg, samt Verläufen. */
+export function canDeleteMailbox(
+  session: { role?: string; userId?: number },
+  mailbox: { local_part: string; memberIds: number[] },
+): boolean {
+  if (isExternalLocalPart(mailbox.local_part)) return false;
+  return canOpenMailbox(session, mailbox);
+}
+
 export function mailboxOwnerLabel(mailbox: { memberNames: string }): string {
   const names = mailbox.memberNames.trim();
   return names || "Nicht zugeordnet";

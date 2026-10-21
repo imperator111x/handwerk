@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  canDeleteMailbox,
   canOpenMailbox,
   cleanLocalPart,
   cleanRecipient,
@@ -32,6 +33,16 @@ assert.equal(canOpenMailbox({ role: "admin" }, { memberIds: [] }), true);
 assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [2, 4] }), true);
 assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [2] }), false);
 assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [] }), false);
+assert.equal(canDeleteMailbox({ role: "admin" }, { local_part: "info", memberIds: [] }), false);
+assert.equal(canDeleteMailbox({ role: "admin" }, { local_part: "leon.luetcke", memberIds: [] }), true);
+assert.equal(
+  canDeleteMailbox({ role: "editor", userId: 4 }, { local_part: "leon.luetcke", memberIds: [4] }),
+  true,
+);
+assert.equal(
+  canDeleteMailbox({ role: "editor", userId: 4 }, { local_part: "leon.luetcke", memberIds: [2] }),
+  false,
+);
 assert.equal(
   mailboxOwnerLabel({ memberNames: "Leon Lütcke, Anna Beispiel" }),
   "Leon Lütcke, Anna Beispiel",

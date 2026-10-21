@@ -12,6 +12,7 @@ import {
   findUserById,
   getDb,
   deleteMailThread,
+  deleteMailbox,
   getMailThread,
   insertMailMessage,
   latestInboundMailMessageId,
@@ -27,6 +28,7 @@ import {
 import {
   canOpenMailbox,
   cleanLocalPart,
+  isExternalLocalPart,
   cleanRecipient,
   mailboxAddress,
   MAX_MAILBOXES,
@@ -84,6 +86,18 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (memberIds === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
     await setMailboxMembers(db, mailbox.id, memberIds);
     return ctx.redirect(`${redirectBase}?mail=assigned`, 303);
+  }
+
+  if (action === "delete-address") {
+    const mailboxId = Number.parseInt(String(form.get("mailbox_id") ?? ""), 10);
+    const mailbox = Number.isFinite(mailboxId) ? await findMailboxById(db, mailboxId) : null;
+    if (!mailbox) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    if (isExternalLocalPart(mailbox.local_part)) return ctx.redirect("/admin/postfach?mail=protected", 303);
+    if (!canOpenMailbox(session, mailbox)) return ctx.redirect("/admin/postfach?mail=forbidden", 303);
+    const keys = await deleteMailbox(db, mailbox.id);
+    if (!keys) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    await removeStoredFiles(env, keys);
+    return ctx.redirect("/admin/postfach?mail=address_deleted", 303);
   }
 
   if (action === "delete") {
