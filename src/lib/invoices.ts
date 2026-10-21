@@ -373,6 +373,27 @@ export async function relatedInvoice(db: D1Database, row: InvoiceRow): Promise<I
   return getInvoice(db, row.related_invoice_id);
 }
 
+export function invoiceMailFooter(input: {
+  purpose?: "rechnung" | "storno" | null;
+  paymentStatus?: string | null;
+  paymentUrl?: string | null;
+  paymentMode?: "test" | "live" | "off" | null;
+  footerNote?: string | null;
+}): string {
+  const custom = input.footerNote?.trim();
+  if (custom) return custom;
+  const storno = input.purpose === "storno";
+  const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
+  const cancelled = input.paymentStatus === "storniert";
+  const paymentUrl = paid || cancelled || storno ? "" : input.paymentUrl?.trim() || "";
+  const testPay = Boolean(paymentUrl) && input.paymentMode === "test";
+  if (storno) return "Sie können direkt auf diese E-Mail antworten.";
+  if (cancelled) return "Diese Rechnung ist storniert. Sie können direkt auf diese E-Mail antworten.";
+  if (paid) return "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten.";
+  if (testPay) return "Testmodus: Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten.";
+  return "Sie können direkt auf diese E-Mail antworten.";
+}
+
 export async function sendInvoiceEmail(
   env: Env,
   input: {
@@ -389,6 +410,8 @@ export async function sendInvoiceEmail(
     paymentStatus?: string | null;
     paymentMode?: "test" | "live" | "off" | null;
     purpose?: "rechnung" | "storno";
+    /** Ersetzt den automatischen Fuß, zum Beispiel beim Systemcheck. */
+    footerNote?: string | null;
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const storno = input.purpose === "storno";
@@ -397,7 +420,6 @@ export async function sendInvoiceEmail(
   const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
   const cancelled = input.paymentStatus === "storniert";
   const paymentUrl = paid || cancelled || storno ? "" : input.paymentUrl?.trim() || "";
-  const testPay = Boolean(paymentUrl) && input.paymentMode === "test";
   const plain = invoicePlainText({
     priceCents: input.invoice.priceCents,
     dueDate: input.invoice.dueDate,
@@ -409,15 +431,7 @@ export async function sendInvoiceEmail(
   const lead = storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
   const prefix = `${lead}\n${amount}\n\n`;
   const body = plain.startsWith(prefix) ? plain.slice(prefix.length) : plain;
-  const footerNote = storno
-    ? "Sie können direkt auf diese E-Mail antworten."
-    : cancelled
-      ? "Diese Rechnung ist storniert. Sie können direkt auf diese E-Mail antworten."
-      : paid
-        ? "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten."
-        : testPay
-          ? "Testmodus: Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten."
-          : "Sie können direkt auf diese E-Mail antworten.";
+  const footerNote = invoiceMailFooter(input);
   const mail = {
     siteName: env.SITE_NAME ?? "Zeus-Service",
     siteUrl: env.SITE_URL ?? "https://zeus-service.de",
