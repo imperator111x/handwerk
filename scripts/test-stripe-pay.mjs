@@ -188,6 +188,7 @@ const invoiceHtml = email.renderReplyEmailHtml({
 });
 assert.match(invoiceHtml, /font-size:32px/);
 assert.match(invoiceHtml, /#16a34a/);
+assert.match(invoiceHtml, /border-radius:999px;color:#ffffff;background-color:#16a34a/);
 assert.match(invoiceHtml, /td\.email-cta-green/);
 assert.doesNotMatch(invoiceHtml, /bgcolor="#2563eb"/);
 assert.match(invoiceHtml, /127,50 €/);

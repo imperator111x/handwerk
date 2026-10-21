@@ -126,7 +126,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;">
          <tr>
            <td class="${ctaClass}" bgcolor="${ctaBackground}" style="border-radius:999px;background-color:${ctaBackground};">
-             <a class="${ctaClass}" href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;color:#ffffff;background-color:${ctaBackground};font-size:15px;font-weight:700;text-decoration:none;-webkit-text-fill-color:#ffffff;">${ctaLabel}</a>
+             <a class="${ctaClass}" href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;border-radius:999px;color:#ffffff;background-color:${ctaBackground};font-size:15px;font-weight:700;text-decoration:none;-webkit-text-fill-color:#ffffff;">${ctaLabel}</a>
            </td>
          </tr>
        </table>
@@ -161,6 +161,8 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
         .email-outer td.email-cta { background-color: #2563eb !important; }
         .email-outer td.email-cta-green,
         .email-outer a.email-cta-green { background-color: #16a34a !important; }
+        .email-outer td.email-cta,
+        .email-outer a.email-cta { border-radius: 999px !important; }
         .email-outer a.email-cta { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
       }
     </style>
