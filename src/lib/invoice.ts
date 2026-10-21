@@ -120,6 +120,9 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
   };
 }
 
+export const INVOICE_MAIL_LEAD = "Hiermit übersende ich Ihnen die Rechnung in Höhe von:";
+export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:";
+
 /** Kurzer Mailtext. Positionen, Steuerhinweis und Bankdaten bleiben im PDF. */
 export function invoicePlainText(input: {
   priceCents: number;
@@ -128,25 +131,13 @@ export function invoicePlainText(input: {
   settled?: boolean;
 }): string {
   const amount = formatEuro(input.priceCents);
-  if (input.storno) {
-    return [
-      `Gesamtbetrag: ${amount}`,
-      "",
-      "Es ist kein Betrag zu zahlen.",
-      "",
-      "Die Positionen stehen in der angehängten Stornorechnung.",
-    ].join("\n");
-  }
-  if (input.settled) {
-    return [`Gesamtbetrag: ${amount}`, "", "Die Positionen stehen in der angehängten Rechnung."].join("\n");
-  }
-  return [
-    `Gesamtbetrag: ${amount}`,
-    "",
-    `Fällig am ${formatOfferDate(input.dueDate)}.`,
-    "",
-    "Die Positionen stehen in der angehängten Rechnung.",
-  ].join("\n");
+  const lead = input.storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const tail = input.storno
+    ? ["Es ist kein Betrag zu zahlen.", "", "Die Positionen stehen in der angehängten Stornorechnung."]
+    : input.settled
+      ? ["Die Positionen stehen in der angehängten Rechnung."]
+      : [`Fällig am ${formatOfferDate(input.dueDate)}.`, "", "Die Positionen stehen in der angehängten Rechnung."];
+  return [lead, amount, "", ...tail].join("\n");
 }
 
 export function buildInvoiceXml(input: {

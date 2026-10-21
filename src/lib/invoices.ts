@@ -1,6 +1,6 @@
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
-import { invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
+import { INVOICE_MAIL_LEAD, STORNO_MAIL_LEAD, invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
 import { formatEuro, formatOfferDate, offerTotalCents, readStoredOffer, serializeOffer, type StoredOffer } from "./quote";
 import { applyOnlinePayment, applyRefund, applyTestPayment, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
@@ -405,7 +405,9 @@ export async function sendInvoiceEmail(
     settled: paid || cancelled,
   });
   const amount = formatEuro(input.invoice.priceCents);
-  const body = plain.replace(/^Gesamtbetrag: [^\n]+\n\n/, "");
+  const lead = storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const prefix = `${lead}\n${amount}\n\n`;
+  const body = plain.startsWith(prefix) ? plain.slice(prefix.length) : plain;
   const footerNote = storno
     ? "Sie können direkt auf diese E-Mail antworten."
     : cancelled
@@ -427,7 +429,7 @@ export async function sendInvoiceEmail(
     eyebrow: `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
     greeting: input.greeting,
     footerNote,
-    summaryLabel: "Gesamtbetrag",
+    summaryLabel: lead,
     summaryAmount: amount,
     ctaUrl: paymentUrl || null,
     ctaLabel: "Jetzt bezahlen",

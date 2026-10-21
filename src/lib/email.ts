@@ -108,8 +108,13 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const ctaUrl = input.ctaUrl && /^https:\/\/[^\s<>"]+$/.test(input.ctaUrl) ? input.ctaUrl : "";
   const ctaLabel = escapeHtml(input.ctaLabel?.trim() || "Termin wählen");
   const summaryAmount = input.summaryAmount?.trim() ?? "";
+  const summaryLabel = input.summaryLabel?.trim() || "Gesamtbetrag";
+  const summarySentence = summaryLabel.endsWith(":");
   const summaryHtml = summaryAmount
-    ? `<p class="email-muted" style="margin:0 0 4px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${escapeHtml(input.summaryLabel?.trim() || "Gesamtbetrag")}</p>
+    ? summarySentence
+      ? `<p class="email-text" style="margin:0 0 8px 0;color:#1e293b;font-size:16px;line-height:1.6;">${escapeHtml(summaryLabel)}</p>
+       <p class="email-text" style="margin:0 0 18px 0;color:#0f172a;font-size:32px;line-height:1.15;font-weight:800;">${escapeHtml(summaryAmount)}</p>`
+      : `<p class="email-muted" style="margin:0 0 4px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${escapeHtml(summaryLabel)}</p>
        <p class="email-text" style="margin:0 0 18px 0;color:#0f172a;font-size:32px;line-height:1.15;font-weight:800;">${escapeHtml(summaryAmount)}</p>`
     : "";
   const ctaHtml = ctaUrl
@@ -218,8 +223,11 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
     input.greeting === undefined ? `Hallo ${input.recipientName},` : (input.greeting ?? "");
   const ctaLines = input.ctaUrl ? [`${input.ctaLabel?.trim() || "Termin wählen"}:`, input.ctaUrl, ""] : [];
   const summaryAmount = input.summaryAmount?.trim() ?? "";
+  const summaryLabel = input.summaryLabel?.trim() || "Gesamtbetrag";
   const summaryLines = summaryAmount
-    ? [`${input.summaryLabel?.trim() || "Gesamtbetrag"}: ${summaryAmount}`, ""]
+    ? summaryLabel.endsWith(":")
+      ? [summaryLabel, summaryAmount, ""]
+      : [`${summaryLabel}: ${summaryAmount}`, ""]
     : [];
   const bodyLines = [input.bodyHtml ? htmlToPlainText(input.bodyHtml) : input.bodyText.trim(), ""];
   const lines = [

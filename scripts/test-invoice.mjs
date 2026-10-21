@@ -70,14 +70,15 @@ const plain = invoice.invoicePlainText({
   priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
 });
-assert.match(plain, /^Gesamtbetrag: 127,50\s€\n\nFällig am 3\. November 2026\.\n\nDie Positionen stehen in der angehängten Rechnung\.$/);
+assert.equal(invoice.INVOICE_MAIL_LEAD, "Hiermit übersende ich Ihnen die Rechnung in Höhe von:");
+assert.match(plain, /^Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50\s€\n\nFällig am 3\. November 2026\.\n\nDie Positionen stehen in der angehängten Rechnung\.$/);
 assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung|IBAN/);
 const stornoMail = invoice.invoicePlainText({
   priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
   storno: true,
 });
-assert.match(stornoMail, /Gesamtbetrag: 127,50\s€/);
+assert.match(stornoMail, /^Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:\n127,50\s€/);
 assert.match(stornoMail, /Es ist kein Betrag zu zahlen\./);
 assert.match(stornoMail, /angehängten Stornorechnung/);
 assert.doesNotMatch(stornoMail, /Stundenlohn/);

@@ -210,6 +210,32 @@ assert.ok(invoiceText.indexOf("Gesamtbetrag:") < invoiceText.indexOf("Jetzt beza
 assert.ok(invoiceText.indexOf("Jetzt bezahlen:") < invoiceText.indexOf("Fällig am"));
 assert.match(invoiceText, /buy\.stripe\.com/);
 assert.equal(invoiceText.split("Gesamtbetrag:").length, 2);
+const leadHtml = email.renderReplyEmailHtml({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001",
+  bodyText: "Fällig am 3. November 2026.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Hiermit übersende ich Ihnen die Rechnung in Höhe von:",
+  summaryAmount: "127,50 €",
+});
+assert.match(leadHtml, /Hiermit übersende ich Ihnen die Rechnung in Höhe von:/);
+assert.doesNotMatch(leadHtml, /text-transform:uppercase[^>]*>Hiermit/);
+const leadText = email.renderReplyEmailText({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001",
+  bodyText: "Fällig am 3. November 2026.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Hiermit übersende ich Ihnen die Rechnung in Höhe von:",
+  summaryAmount: "127,50 €",
+});
+assert.match(leadText, /Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50 €/);
+assert.doesNotMatch(leadText, /von::/);
 
 console.log("stripe payment checks ok");
 
