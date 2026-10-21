@@ -108,7 +108,8 @@ const xml = invoice.buildInvoiceXml({
   buyerPostalCode: "22850",
   buyerCity: "Norderstedt",
 });
-assert.match(xml, /urn:cen\.eu:en16931:2017#compliant#urn:factur-x\.eu:1p0:en16931/);
+assert.match(xml, /<ram:ID>urn:cen\.eu:en16931:2017<\/ram:ID>/);
+assert.doesNotMatch(xml, /factur-x\.eu:1p0:en16931/);
 assert.match(xml, /<ram:TypeCode>380<\/ram:TypeCode>/);
 assert.match(xml, /<ram:CategoryCode>E<\/ram:CategoryCode>/);
 assert.match(xml, /<ram:ID schemeID="FC">12\/345\/67890<\/ram:ID>/);
