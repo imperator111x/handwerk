@@ -99,7 +99,7 @@ function stripeConnectionText(source: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHO
     <div id="online-zahlung" class="border-t border-ink-100 pt-4 dark:border-white/10">
       <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">Online-Zahlung</h3>
       <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
-        In der Rechnungsmail steht der Knopf „Jetzt bezahlen“. Karte, Apple Pay, Google Pay, PayPal und SEPA-Lastschrift laufen über Stripe.
+        In der Rechnungsmail steht der Knopf „Jetzt bezahlen“. Karte, Apple Pay und Google Pay laufen sofort über Stripe. PayPal und SEPA-Lastschrift kommen dazu, sobald sie im Stripe-Dashboard freigegeben sind.
         Es gibt keine Monatsgebühr. Eine Standardkarte aus dem Europäischen Wirtschaftsraum kostet 1,5 % plus 0,25 €, Apple Pay und Google Pay denselben Satz.
         SEPA-Lastschrift kostet 0,35 €. PayPal kommt dazu und kostet mehr, weil PayPal eine eigene Gebühr berechnet und Stripe dafür 0,2 % plus 0,10 € aufschlägt.
         Nach der Zahlung setzt sich die Rechnung von selbst auf Bezahlt. Bei SEPA-Lastschrift erst, wenn die Bank die Zahlung bestätigt.
@@ -109,10 +109,12 @@ function stripeConnectionText(source: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHO
         {stripeConnectionText(env ?? {})}
       </p>
       <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
-        Webhook-Adresse: https://zeus-service.de/api/stripe/webhook
+        Webhook-Adresse: https://zeus-service-web.imperator111x.workers.dev/api/stripe/webhook
+        <br />
+        Diese Adresse empfängt die Zahlungsbestätigung. zeus-service.de hält den Stripe-Server mit der Bot-Prüfung auf, deshalb gilt die Worker-Adresse.
         <br />
         Ereignisse: checkout.session.completed, checkout.session.async_payment_succeeded, charge.refunded.
-        Im Stripe-Dashboard Karte, Apple Pay, Google Pay, PayPal und SEPA-Lastschrift einschalten. Klarna bleibt besser aus, die Gebühr liegt höher.
+        Karte, Apple Pay und Google Pay sind eingeschaltet. PayPal und SEPA-Lastschrift müssen im Stripe-Dashboard noch freigegeben werden. Klarna bleibt aus, die Gebühr liegt höher.
       </p>
     </div>
   </section>

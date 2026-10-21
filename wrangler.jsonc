@@ -21,6 +21,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "zeus-service-web",
   "main": "./src/worker.ts",
+  // workers.dev bleibt an: der Stripe-Webhook hängt daran, weil die Zone Bots prüft.
   "workers_dev": true,
   "preview_urls": true,
   "routes": [
