@@ -10,13 +10,14 @@ import { greetingFor } from "../../../lib/salutation";
 import { createStripePaymentLink, paymentLinkForMail, stripeKeyMode } from "../../../lib/stripe-pay";
 import {
   SYSTEM_CHECK_BUYER,
-  SYSTEM_CHECK_FOOTER,
+  SYSTEM_CHECK_LIVE_CONFIRMATION,
   SYSTEM_CHECK_SHORT_FOOTER,
   SYSTEM_CHECK_SHORT_SUBJECT,
   SYSTEM_CHECK_STRIPE_INVOICE_ID,
   SYSTEM_CHECK_TITLE,
   parseTestRecipient,
   renderSystemCheckPdf,
+  systemCheckFooter,
   systemCheckMayLink,
   systemCheckSentMessage,
   systemCheckShortText,
@@ -103,6 +104,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
         title: SYSTEM_CHECK_TITLE,
         amountCents: 12750,
         email: to,
+        confirmation: mode === "live" ? SYSTEM_CHECK_LIVE_CONFIRMATION : undefined,
       });
       paymentUrl = paymentLinkForMail(link.url, to);
     } catch (error) {
@@ -125,8 +127,8 @@ export async function POST(ctx: APIContext): Promise<Response> {
     number: pdf.number,
     paymentUrl,
     paymentStatus: "offen",
-    paymentMode: paymentUrl ? "test" : "off",
-    footerNote: SYSTEM_CHECK_FOOTER,
+    paymentMode: paymentUrl ? mode : "off",
+    footerNote: systemCheckFooter({ mode, link: Boolean(paymentUrl) }),
   });
   if (!sent.sentAt) return json({ ok: false, message: "Die Testrechnung konnte nicht verschickt werden." }, 502);
   return json({

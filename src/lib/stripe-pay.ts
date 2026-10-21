@@ -209,7 +209,7 @@ export async function verifyStripeSignature(
 
 export async function createStripePaymentLink(
   secret: string,
-  input: { invoiceId: number; number: string; title: string; amountCents: number; email: string },
+  input: { invoiceId: number; number: string; title: string; amountCents: number; email: string; confirmation?: string },
 ): Promise<{ id: string; url: string }> {
   if (!stripeSecretUsable(secret)) throw new Error("Stripe-Schlüssel fehlt");
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_AMOUNT_CENTS) {
@@ -275,7 +275,7 @@ export function stripePriceParams(number: string, amountCents: number): URLSearc
 }
 
 function paymentLinkParams(
-  input: { invoiceId: number; number: string; email: string },
+  input: { invoiceId: number; number: string; email: string; confirmation?: string },
   priceId: string,
   methods: string[],
   testMode: boolean,
@@ -287,9 +287,10 @@ function paymentLinkParams(
     "metadata[invoice_id]": String(input.invoiceId),
     "metadata[invoice_number]": input.number,
     "after_completion[type]": "hosted_confirmation",
-    "after_completion[hosted_confirmation][custom_message]": testMode
-      ? "Testmodus: Es wird kein Geld abgebucht."
-      : "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt.",
+    "after_completion[hosted_confirmation][custom_message]": input.confirmation?.trim()
+      || (testMode
+        ? "Testmodus: Es wird kein Geld abgebucht."
+        : "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt."),
     inactive_message: "Diese Rechnung ist bereits bezahlt.",
     "automatic_tax[enabled]": "false",
     submit_type: "pay",

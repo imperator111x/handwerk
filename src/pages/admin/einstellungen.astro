@@ -156,8 +156,8 @@ function stripeConnectionText(source: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHO
             />
           </div>
           <p class="text-sm text-ink-600 dark:text-ink-300">
-            Die kurze Testmail prüft nur, ob der Versand ankommt. Die Testrechnung hängt das PDF mit der Position „Testposition“ über 127,50 € an.
-            Der Knopf „Jetzt bezahlen“ erscheint nur im Stripe-Testmodus. Im Live-Betrieb geht die Testrechnung ohne Knopf raus, damit nichts abgebucht wird.
+            Die kurze Testmail prüft nur, ob der Versand ankommt. Die Testrechnung hängt das PDF mit der Position „Testposition“ über 127,50 € an und enthält den Knopf „Jetzt bezahlen“.
+            Im Stripe-Testmodus wird darüber nichts abgebucht. Im Live-Betrieb ist es eine echte Zahlung, die Rechnung bleibt unverbucht.
           </p>
           {!taxNumber && (
             <p class="text-sm text-ink-600 dark:text-ink-300">Für die Testrechnung zuerst die Steuernummer speichern.</p>

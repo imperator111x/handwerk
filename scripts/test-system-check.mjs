@@ -17,8 +17,11 @@ assert.equal(check.parseTestRecipient(" Leon.Luetcke@iCloud.com "), "leon.luetck
 assert.equal(check.parseTestRecipient("keine-mail"), null);
 assert.equal(check.parseTestRecipient(""), null);
 assert.equal(check.systemCheckMayLink("test"), true);
-assert.equal(check.systemCheckMayLink("live"), false);
+assert.equal(check.systemCheckMayLink("live"), true);
 assert.equal(check.systemCheckMayLink("off"), false);
+assert.match(check.systemCheckFooter({ mode: "live", link: true }), /Jetzt bezahlen/);
+assert.match(check.systemCheckFooter({ mode: "live", link: true }), /echte Zahlung/);
+assert.match(check.systemCheckFooter({ mode: "test", link: true }), /kein Geld abgebucht/);
 assert.doesNotMatch(check.systemCheckShortText(), /IBAN|Verwendungszweck/);
 assert.match(check.systemCheckShortText(), /nichts zu zahlen/);
 
@@ -57,12 +60,52 @@ assert.equal(
   "Die Testmail ist an leon.luetcke@icloud.com raus.",
 );
 assert.match(
-  check.systemCheckSentMessage({ kind: "rechnung", to: "leon.luetcke@icloud.com", mode: "live", link: false, linkFailed: false }),
-  /nicht verbucht/,
+  check.systemCheckSentMessage({ kind: "rechnung", to: "leon.luetcke@icloud.com", mode: "live", link: true, linkFailed: false }),
+  /Zahlungsknopf ist dabei/,
 );
-assert.doesNotMatch(
-  check.systemCheckSentMessage({ kind: "rechnung", to: "leon.luetcke@icloud.com", mode: "live", link: false, linkFailed: false }),
-  /Zahlungsknopf ist ein Testlink/,
+assert.match(
+  check.systemCheckSentMessage({ kind: "rechnung", to: "leon.luetcke@icloud.com", mode: "live", link: true, linkFailed: false }),
+  /echt bezahlt/,
 );
+assert.match(
+  check.systemCheckSentMessage({ kind: "rechnung", to: "leon.luetcke@icloud.com", mode: "test", link: true, linkFailed: false }),
+  /nichts abgebucht/,
+);
+
+const email = await import("../src/lib/email.ts");
+const invoice = await import("../src/lib/invoice.ts");
+const quote = await import("../src/lib/quote.ts");
+const amount = quote.formatEuro(draft.priceCents);
+const lead = invoice.INVOICE_MAIL_LEAD;
+const plain = invoice.invoicePlainText({
+  priceCents: draft.priceCents,
+  dueDate: draft.dueDate,
+  number: draft.number,
+});
+const prefix = `${lead}\n${amount}\n\n`;
+const body = plain.startsWith(prefix) ? plain.slice(prefix.length) : plain;
+const html = email.renderReplyEmailHtml({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Testempfänger",
+  subject: "Rechnung R-TEST-0000: Testrechnung",
+  heading: "Testrechnung",
+  eyebrow: "Rechnung R-TEST-0000",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  bodyText: body,
+  summaryLabel: lead,
+  summaryAmount: amount,
+  ctaUrl: "https://buy.stripe.com/live_example",
+  ctaLabel: "Jetzt bezahlen",
+  ctaFirst: true,
+  ctaTone: "green",
+  hideCtaUrl: true,
+  footerNote: check.systemCheckFooter({ mode: "live", link: true }),
+});
+assert.match(html, /Jetzt bezahlen/);
+assert.match(html, /#16a34a/);
+assert.match(html, /echte Zahlung/);
+assert.match(html, /href="https:\/\/buy\.stripe\.com\/live_example"/);
 
 console.log("system check ok");

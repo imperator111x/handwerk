@@ -9,8 +9,8 @@ export const SYSTEM_CHECK_TITLE = "Testrechnung";
 export const SYSTEM_CHECK_BUYER = "Testempfänger";
 /** Liegt absichtlich weit über echten Rechnungsnummern und wird nicht verbucht. */
 export const SYSTEM_CHECK_STRIPE_INVOICE_ID = 990001;
-export const SYSTEM_CHECK_FOOTER =
-  "Systemcheck: Diese Rechnung ist nicht verbucht. Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten.";
+export const SYSTEM_CHECK_LIVE_CONFIRMATION =
+  "Die Zahlung ist eingegangen. Diese Testrechnung ist nicht verbucht.";
 export const SYSTEM_CHECK_SHORT_SUBJECT = "Systemcheck: Testmail";
 export const SYSTEM_CHECK_SHORT_FOOTER =
   "Systemcheck: Es ist nichts zu zahlen. Sie können direkt auf diese E-Mail antworten.";
@@ -24,9 +24,16 @@ export function parseTestRecipient(raw: string): string | null {
   return email;
 }
 
-/** Ein Zahlungslink entsteht nur im Stripe-Testmodus, damit im Live-Betrieb nichts abgebucht wird. */
+/** Zahlungslink, sobald Stripe verbunden ist. Im Live-Betrieb ist die Zahlung echt. */
 export function systemCheckMayLink(mode: "test" | "live" | "off"): boolean {
-  return mode === "test";
+  return mode === "test" || mode === "live";
+}
+
+export function systemCheckFooter(input: { mode: "test" | "live" | "off"; link: boolean }): string {
+  if (input.link && input.mode === "live") {
+    return "Systemcheck: Diese Rechnung ist nicht verbucht. Der Knopf „Jetzt bezahlen“ ist eine echte Zahlung. Sie können direkt auf diese E-Mail antworten.";
+  }
+  return "Systemcheck: Diese Rechnung ist nicht verbucht. Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten.";
 }
 
 export function systemCheckShortText(): string {
@@ -99,8 +106,8 @@ export function systemCheckSentMessage(input: {
 }): string {
   if (input.kind === "kurz") return `Die Testmail ist an ${input.to} raus.`;
   const base = `Die Testrechnung ist an ${input.to} raus. Sie ist nicht verbucht.`;
+  if (input.link && input.mode === "live") return `${base} Der Zahlungsknopf ist dabei. Darüber wird echt bezahlt.`;
   if (input.link) return `${base} Der Zahlungsknopf ist ein Testlink, es wird nichts abgebucht.`;
   if (input.linkFailed) return `${base} Der Zahlungslink konnte nicht angelegt werden.`;
-  if (input.mode === "live") return `${base} Im Live-Betrieb gibt es keinen Zahlungsknopf.`;
   return `${base}`;
 }
