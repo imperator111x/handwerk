@@ -69,21 +69,41 @@ const flags: Record<string, string> = {
             <label class="label" for="mailbox_id">Von</label>
             <select class="input" id="mailbox_id" name="mailbox_id" required>
               {mailboxes.map((box) => (
-                <option value={box.id} selected={box.id === selected}>
+                <option
+                  value={box.id}
+                  selected={box.id === selected}
+                  data-sender={box.display_name || box.local_part}
+                  data-address={mailboxAddress(box.local_part, domain)}
+                >
                   {(box.display_name || box.local_part) + " · " + mailboxAddress(box.local_part, domain)}
                 </option>
               ))}
             </select>
           </div>
           <div>
-            <label class="label" for="recipient_name">Name des Empfängers</label>
-            <input class="input" id="recipient_name" name="recipient_name" maxlength="120" placeholder="optional" />
+            <label class="label" for="sender_name">Name beim Empfänger</label>
+            <input
+              class="input"
+              id="sender_name"
+              name="sender_name"
+              maxlength="80"
+              value={selectedBox?.display_name || selectedBox?.local_part || ""}
+            />
+            <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
+              Diesen Namen sieht der Empfänger. Die Adresse bleibt <span id="sender-address">{selectedBox ? mailboxAddress(selectedBox.local_part, domain) : ""}</span>.
+            </p>
           </div>
         </div>
 
-        <div>
-          <label class="label" for="to">An</label>
-          <input class="input" id="to" name="to" type="email" required maxlength="200" placeholder="name@example.com" />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="label" for="to">An</label>
+            <input class="input" id="to" name="to" type="email" required maxlength="200" placeholder="name@example.com" />
+          </div>
+          <div>
+            <label class="label" for="recipient_name">Name des Empfängers</label>
+            <input class="input" id="recipient_name" name="recipient_name" maxlength="120" placeholder="optional" />
+          </div>
         </div>
 
         <div>
@@ -100,3 +120,17 @@ const flags: Record<string, string> = {
     )}
   </section>
 </AdminLayout>
+
+<script data-astro-rerun>
+  const mailboxSelect = document.getElementById("mailbox_id");
+  const senderName = document.getElementById("sender_name");
+  const senderAddress = document.getElementById("sender-address");
+  if (mailboxSelect instanceof HTMLSelectElement && senderName instanceof HTMLInputElement) {
+    mailboxSelect.addEventListener("change", () => {
+      const option = mailboxSelect.selectedOptions[0];
+      if (!option) return;
+      senderName.value = option.dataset.sender ?? "";
+      if (senderAddress) senderAddress.textContent = option.dataset.address ?? "";
+    });
+  }
+</script>

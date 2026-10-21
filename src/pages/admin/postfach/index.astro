@@ -145,6 +145,7 @@ const userLabel = (person: { first_name: string; last_name: string; username: st
       <div>
         <label class="label" for="display_name">Anzeigename</label>
         <input class="input" id="display_name" name="display_name" maxlength="80" placeholder="Leon Lütcke" />
+        <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">Diesen Namen sieht der Empfänger. Beim Schreiben kannst du ihn noch ändern.</p>
       </div>
       {isAdmin ? (
         <fieldset class="sm:col-span-2 lg:col-span-4">

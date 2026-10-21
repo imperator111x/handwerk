@@ -79,6 +79,17 @@ export function mailboxOwnerLabel(mailbox: { memberNames: string }): string {
   return names || "Nicht zugeordnet";
 }
 
+/** Name, den der Empfänger vor der Absenderadresse sieht. Leer fällt auf den bisherigen Namen zurück. */
+export function senderDisplayName(raw: string, fallback: string): string {
+  const clean = (value: string) =>
+    value
+      .replace(/[\u0000-\u001f\u007f<>"]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80);
+  return clean(raw) || clean(fallback) || "Zeus-Service";
+}
+
 export function cleanRecipient(raw: string): string | null {
   const email = raw.trim().toLowerCase();
   if (!email || email.length > 200 || email.includes(",") || email.includes(";")) return null;

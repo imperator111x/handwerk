@@ -234,6 +234,19 @@ const previewText = (value: string) =>
               <input type="file" id="reply-images" name="images" class="hidden" multiple />
               <input type="file" id="reply-documents" name="documents" class="hidden" multiple />
               <div>
+                <label class="label" for="sender_name">Name beim Empfänger</label>
+                <input
+                  class="input"
+                  id="sender_name"
+                  name="sender_name"
+                  maxlength="80"
+                  value={mailbox.display_name || mailbox.local_part}
+                />
+                <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
+                  Diesen Namen sieht der Empfänger. Die Adresse bleibt {ownAddress}.
+                </p>
+              </div>
+              <div>
                 <label class="label" for="reply_subject">Betreff</label>
                 <input class="input" id="reply_subject" name="subject" type="text" required minlength="3" maxlength="200" value={threadSubject.startsWith("Re:") ? threadSubject : `Re: ${threadSubject}`} />
               </div>

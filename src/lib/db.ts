@@ -682,6 +682,17 @@ export async function createMailbox(
   return id;
 }
 
+export async function updateMailboxDisplayName(
+  db: D1Database,
+  mailboxId: number,
+  displayName: string,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE mailboxes SET display_name = ? WHERE id = ?`)
+    .bind(displayName, mailboxId)
+    .run();
+}
+
 export async function setMailboxMembers(
   db: D1Database,
   mailboxId: number,
