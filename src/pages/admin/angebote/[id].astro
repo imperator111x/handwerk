@@ -2,8 +2,17 @@
 import OfferComposer from "../../../components/OfferComposer.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
+import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { getDb } from "../../../lib/db";
-import { berlinTodayIso, getQuote, offerValidity, quoteParty } from "../../../lib/offers";
+import {
+  berlinTodayIso,
+  getQuote,
+  invoiceIdForQuote,
+  offerValidity,
+  quoteParty,
+  QUOTE_STATUS_LABELS,
+  quoteStatus,
+} from "../../../lib/offers";
 import {
   formatOfferDate,
   formatQuantity,
@@ -36,13 +45,29 @@ const lines: OfferLine[] = stored.lines.length
 const salutation = salutationFromGreeting(stored.greeting, customerName);
 const today = berlinTodayIso();
 const validity = offerValidity(quote.valid_until, today);
+const status = quoteStatus(quote.status);
 const number = offerNumber(quote.id, quote.created_at);
+const invoiceId = db && status === "abgerechnet" ? await invoiceIdForQuote(db, quote.id) : null;
+const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
 const angebotFlag = Astro.url.searchParams.get("angebot");
-const bad = angebotFlag === "bad";
-const hours = angebotFlag === "hours";
+const notices: Record<string, string> = {
+  bad: "Bitte Positionen, Preise und das Datum prüfen. Das Datum darf höchstens ein Jahr vor oder nach heute liegen.",
+  hours: "Beim Angebot nach Stunden braucht der Arbeitslohn Stunden und einen Stundensatz.",
+  accepted: "Als Auftrag markiert.",
+  reopened: "Wieder als Angebot geöffnet.",
+  locked: "Dieses Angebot ist schon abgerechnet und lässt sich so nicht mehr ändern.",
+};
+const notice = angebotFlag ? notices[angebotFlag] : undefined;
 
 const euroField = (cents: number) =>
   new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
+
+const statusClass =
+  status === "angenommen"
+    ? "bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-100"
+    : status === "abgerechnet"
+      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100"
+      : "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200";
 ---
 
 <AdminLayout title={`Angebot ${number}`} session={session}>
@@ -56,32 +81,58 @@ const euroField = (cents: number) =>
           {party.phone ? ` · ${party.phone}` : ""}
         </p>
       </div>
-      <span
-        class={`rounded-full px-3 py-1 text-xs font-semibold ${
-          validity === "gueltig"
-            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
-            : "bg-ink-100 text-ink-600 dark:bg-white/10 dark:text-ink-300"
-        }`}
-      >
-        {validity === "gueltig" ? `Gültig bis ${formatOfferDate(quote.valid_until)}` : `Abgelaufen am ${formatOfferDate(quote.valid_until)}`}
-      </span>
+      <div class="flex flex-wrap gap-2">
+        <span class={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+          {QUOTE_STATUS_LABELS[status]}
+        </span>
+        <span
+          class={`rounded-full px-3 py-1 text-xs font-semibold ${
+            validity === "gueltig"
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+              : "bg-ink-100 text-ink-600 dark:bg-white/10 dark:text-ink-300"
+          }`}
+        >
+          {validity === "gueltig" ? `Gültig bis ${formatOfferDate(quote.valid_until)}` : `Abgelaufen am ${formatOfferDate(quote.valid_until)}`}
+        </span>
+      </div>
     </div>
 
-    {bad && (
-      <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
-        Bitte Positionen, Preise und das Datum prüfen. Das Datum darf höchstens ein Jahr vor oder nach heute liegen.
+    {notice && (
+      <p class="mt-4 rounded-xl border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">
+        {notice}
       </p>
     )}
-    {hours && (
-      <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
-        Beim Angebot nach Stunden braucht der Arbeitslohn Stunden und einen Stundensatz.
-      </p>
-    )}
-    {validity === "abgelaufen" && (
+    {validity === "abgelaufen" && status !== "abgerechnet" && (
       <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
         Dieses Angebot ist abgelaufen. Ein neues Datum unter „Gültig bis“ macht es wieder gültig.
       </p>
     )}
+    {invoiceId && (
+      <p class="mt-4 text-sm text-ink-700 dark:text-ink-200">
+        Rechnung:
+        <a class="font-semibold text-brand-700 underline dark:text-brand-200" href={`/admin/rechnungen/${invoiceId}`}>Zur Rechnung</a>
+      </p>
+    )}
+
+    <div class="mt-5 flex flex-wrap gap-2">
+      {status === "offen" && (
+        <form method="POST" action="/api/admin/angebote">
+          <input type="hidden" name="id" value={quote.id} />
+          <input type="hidden" name="action" value="accept" />
+          <button type="submit" class="rounded-full border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 dark:border-sky-400/40 dark:bg-sky-500/15 dark:text-sky-100">Als Auftrag annehmen</button>
+        </form>
+      )}
+      {status === "angenommen" && (
+        <form method="POST" action="/api/admin/angebote">
+          <input type="hidden" name="id" value={quote.id} />
+          <input type="hidden" name="action" value="reopen" />
+          <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Wieder als Angebot</button>
+        </form>
+      )}
+      {status !== "abgerechnet" && (
+        <a href={`/admin/rechnungen/neu?angebot=${quote.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Als Rechnung übernehmen</a>
+      )}
+    </div>
 
     <div class="mt-5">
       <OfferComposer
@@ -92,6 +143,7 @@ const euroField = (cents: number) =>
         billing={stored.billing}
         intro={stored.intro}
         salutation={salutation}
+        catalog={catalog}
         hidden={[{ name: "id", value: String(quote.id) }]}
         lines={lines.map((line) => ({
           label: line.label,
@@ -104,11 +156,9 @@ const euroField = (cents: number) =>
           <button type="submit" name="action" value="save" class="btn-primary">Speichern</button>
           <button type="submit" name="action" value="resend" class="btn-primary">Speichern und erneut senden</button>
           <a href={`/api/admin/angebot-pdf?id=${quote.id}`} target="_blank" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">PDF ansehen</a>
-          <a href={`/admin/rechnungen/neu?angebot=${quote.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Als Rechnung übernehmen</a>
           <a href="/admin/angebote" class="rounded-full px-4 py-2 text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zurück zur Liste</a>
         </div>
       </OfferComposer>
     </div>
   </section>
 </AdminLayout>
-

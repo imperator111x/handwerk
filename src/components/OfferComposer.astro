@@ -19,6 +19,13 @@ interface ComposerLine {
   price: string;
 }
 
+interface CatalogPick {
+  label: string;
+  unit: OfferUnit;
+  price: string;
+  qty: string;
+}
+
 interface Props {
   customerName: string;
   title?: string;
@@ -29,6 +36,7 @@ interface Props {
   intro?: string;
   salutation?: string;
   action?: string;
+  catalog?: CatalogPick[];
 }
 
 const {
@@ -39,6 +47,7 @@ const {
   intro = "",
   salutation = "hallo_name",
   action = "/api/admin/angebot",
+  catalog = [],
 } = Astro.props;
 const billing = offerBilling(Astro.props.billing);
 const festLines: ComposerLine[] = Astro.props.lines && billing === "fest"
@@ -60,6 +69,7 @@ const festSnapshot = billing === "fest" ? visible : festLines;
   class="grid gap-4"
   data-fest-lines={JSON.stringify(festSnapshot)}
   data-hour-lines={JSON.stringify(hourLines)}
+  data-catalog={JSON.stringify(catalog)}
 >
   {hidden.map((field) => <input type="hidden" name={field.name} value={field.value} />)}
   <fieldset>
@@ -89,6 +99,20 @@ const festSnapshot = billing === "fest" ? visible : festLines;
     <button type="button" data-preset="material" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Material</button>
     <button type="button" id="offer-add" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Weitere Position</button>
   </div>
+  {catalog.length > 0 && (
+    <div class="flex flex-wrap items-end gap-2">
+      <div class="min-w-[14rem] flex-1">
+        <label class="label" for="offer-catalog">Aus Katalog</label>
+        <select class="input" id="offer-catalog">
+          <option value="">Leistung wählen …</option>
+          {catalog.map((item, index) => (
+            <option value={String(index)}>{item.label}{item.price ? ` · ${item.price} €` : ""}</option>
+          ))}
+        </select>
+      </div>
+      <button type="button" id="offer-catalog-add" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Übernehmen</button>
+    </div>
+  )}
   <div id="offer-lines" class="grid gap-3">
     {visible.map((line) => (
       <div data-line class="grid gap-2 rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
@@ -253,11 +277,30 @@ const festSnapshot = billing === "fest" ? visible : festLines;
       if (qty instanceof HTMLInputElement) qty.value = values[2] || "";
       if (price instanceof HTMLInputElement) price.value = values[3] || "";
     };
+    const catalogItems = (() => {
+      try {
+        const parsed = JSON.parse(form.dataset.catalog || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
     const addLine = (preset) => {
       if (root.querySelectorAll("[data-line]").length >= 12) return;
       const node = template.content.firstElementChild?.cloneNode(true);
       if (!(node instanceof HTMLElement)) return;
       fill(node, presets[preset] || ["", "pauschal", "", ""]);
+      root.appendChild(node);
+      bind(node);
+      refresh();
+    };
+    const addCatalog = (index) => {
+      const item = catalogItems[index];
+      if (!item) return;
+      if (root.querySelectorAll("[data-line]").length >= 12) return;
+      const node = template.content.firstElementChild?.cloneNode(true);
+      if (!(node instanceof HTMLElement)) return;
+      fill(node, [item.label || "", item.unit || "pauschal", item.qty || "", item.price || ""]);
       root.appendChild(node);
       bind(node);
       refresh();
@@ -287,6 +330,12 @@ const festSnapshot = billing === "fest" ? visible : festLines;
     };
     root.querySelectorAll("[data-line]").forEach(bind);
     document.getElementById("offer-add")?.addEventListener("click", () => addLine(""));
+    document.getElementById("offer-catalog-add")?.addEventListener("click", () => {
+      const select = document.getElementById("offer-catalog");
+      if (!(select instanceof HTMLSelectElement) || select.value === "") return;
+      addCatalog(Number(select.value));
+      select.value = "";
+    });
     form.querySelectorAll("[data-preset]").forEach((button) => {
       button.addEventListener("click", () => addLine(button.getAttribute("data-preset") || ""));
     });

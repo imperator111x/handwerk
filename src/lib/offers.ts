@@ -14,6 +14,19 @@ import {
   type ParsedOffer,
 } from "./quote";
 
+export const QUOTE_STATUSES = ["offen", "angenommen", "abgerechnet"] as const;
+export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
+
+export const QUOTE_STATUS_LABELS: Record<QuoteStatus, string> = {
+  offen: "Angebot",
+  angenommen: "Auftrag",
+  abgerechnet: "Abgerechnet",
+};
+
+export function quoteStatus(value: string | null | undefined): QuoteStatus {
+  return value === "angenommen" || value === "abgerechnet" ? value : "offen";
+}
+
 export interface QuoteRow {
   id: number;
   request_id: number | null;
@@ -26,6 +39,7 @@ export interface QuoteRow {
   sent_at: number | null;
   email_status: string | null;
   lines_json: string;
+  status: QuoteStatus;
 }
 
 export interface OfferParty {
@@ -66,22 +80,28 @@ export function offerValidity(validUntil: string, today: string): OfferValidity 
   return validUntil >= today ? "gueltig" : "abgelaufen";
 }
 
+const QUOTE_COLUMNS = `id, request_id, customer_id, title, body, price_cents, valid_until, created_at, sent_at, email_status, lines_json, status`;
+
+function withStatus<T extends { status?: string | null }>(row: T): T & { status: QuoteStatus } {
+  return { ...row, status: quoteStatus(row.status) };
+}
+
 export async function listQuotes(db: D1Database, requestId: number): Promise<QuoteRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, request_id, customer_id, title, body, price_cents, valid_until, created_at, sent_at, email_status, lines_json
+      `SELECT ${QUOTE_COLUMNS}
          FROM quotes WHERE request_id = ? ORDER BY created_at DESC, id DESC`,
     )
     .bind(requestId)
     .all<QuoteRow>();
-  return results ?? [];
+  return (results ?? []).map(withStatus);
 }
 
 export async function listAllQuotes(db: D1Database): Promise<QuoteListItem[]> {
   const { results } = await db
     .prepare(
       `SELECT q.id, q.request_id, q.customer_id, q.title, q.body, q.price_cents, q.valid_until, q.created_at,
-              q.sent_at, q.email_status, q.lines_json,
+              q.sent_at, q.email_status, q.lines_json, q.status,
               COALESCE(cu.name, c.name, '') AS customer_name,
               COALESCE(cu.email, c.email, '') AS customer_email,
               COALESCE(cu.phone, c.phone) AS customer_phone
@@ -91,28 +111,50 @@ export async function listAllQuotes(db: D1Database): Promise<QuoteListItem[]> {
         ORDER BY q.created_at DESC, q.id DESC`,
     )
     .all<QuoteListItem>();
-  return results ?? [];
+  return (results ?? []).map(withStatus);
 }
 
 export async function getQuote(db: D1Database, id: number): Promise<QuoteRow | null> {
-  return await db
-    .prepare(
-      `SELECT id, request_id, customer_id, title, body, price_cents, valid_until, created_at, sent_at, email_status, lines_json
-         FROM quotes WHERE id = ?`,
-    )
+  const row = await db
+    .prepare(`SELECT ${QUOTE_COLUMNS} FROM quotes WHERE id = ?`)
     .bind(id)
     .first<QuoteRow>();
+  return row ? withStatus(row) : null;
 }
 
 export async function listQuotesForCustomer(db: D1Database, customerId: number): Promise<QuoteRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT id, request_id, customer_id, title, body, price_cents, valid_until, created_at, sent_at, email_status, lines_json
+      `SELECT ${QUOTE_COLUMNS}
          FROM quotes WHERE customer_id = ? ORDER BY created_at DESC, id DESC`,
     )
     .bind(customerId)
     .all<QuoteRow>();
-  return results ?? [];
+  return (results ?? []).map(withStatus);
+}
+
+export async function updateQuoteStatus(db: D1Database, id: number, status: QuoteStatus): Promise<boolean> {
+  const result = await db.prepare(`UPDATE quotes SET status = ? WHERE id = ?`).bind(status, id).run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function markQuoteInvoiced(db: D1Database, quoteId: number): Promise<void> {
+  await db
+    .prepare(`UPDATE quotes SET status = 'abgerechnet' WHERE id = ? AND status != 'abgerechnet'`)
+    .bind(quoteId)
+    .run();
+}
+
+export async function invoiceIdForQuote(db: D1Database, quoteId: number): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `SELECT id FROM invoices
+        WHERE quote_id = ? AND document_kind = 'rechnung' AND payment_status != 'storniert'
+        ORDER BY id DESC LIMIT 1`,
+    )
+    .bind(quoteId)
+    .first<{ id: number }>();
+  return row?.id ?? null;
 }
 
 /** Stundensatz und Nebenpositionen aus dem neuesten Stunden-Angebot des Kunden. */
@@ -139,8 +181,8 @@ export async function saveQuote(
 ): Promise<number> {
   const result = await db
     .prepare(
-      `INSERT INTO quotes (request_id, customer_id, title, body, price_cents, valid_until, sent_at, email_status, lines_json)
-       VALUES (?, ?, ?, ?, ?, ?, NULL, 'pending', ?)`,
+      `INSERT INTO quotes (request_id, customer_id, title, body, price_cents, valid_until, sent_at, email_status, lines_json, status)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, 'pending', ?, 'offen')`,
     )
     .bind(
       link.requestId ?? null,

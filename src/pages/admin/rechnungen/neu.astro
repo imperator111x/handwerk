@@ -2,6 +2,7 @@
 import InvoiceComposer from "../../../components/InvoiceComposer.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
+import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { getCustomer, listCustomers } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
@@ -41,6 +42,7 @@ const customerId =
 const customer = db && customerId > 0 ? await getCustomer(db, customerId) : null;
 const customers = db && !customer ? await listCustomers(db) : [];
 const taxNumber = db ? await getTaxNumber(db) : "";
+const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
 const stored = quote ? readStoredOffer(quote.lines_json, "") : null;
 const hints =
   db && customer && timesheet && !quote
@@ -132,6 +134,7 @@ const canCompose = Boolean(customer && addressReady && taxNumber && (!wantsTimes
             serviceDate={serviceDate}
             lines={lines}
             salutation={salutation}
+            catalog={catalog}
             hidden={[
               { name: "customer_id", value: String(customer.id) },
               ...(quote ? [{ name: "quote_id", value: String(quote.id) }] : []),

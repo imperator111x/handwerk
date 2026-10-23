@@ -3,13 +3,14 @@ import CustomerForm from "../../../components/CustomerForm.astro";
 import OfferComposer from "../../../components/OfferComposer.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
+import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { customerAddress, getCustomer } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { invoiceNumber } from "../../../lib/invoice";
 import { listInvoicesForCustomer } from "../../../lib/invoices";
 import { invoiceStatusLabel } from "../../../lib/stripe-pay";
-import { berlinTodayIso, listQuotesForCustomer, offerValidity } from "../../../lib/offers";
+import { berlinTodayIso, listQuotesForCustomer, offerValidity, QUOTE_STATUS_LABELS, quoteStatus } from "../../../lib/offers";
 import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
 
@@ -30,6 +31,7 @@ const name = decodeHtmlEntities(customer.name);
 const address = customerAddress(customer);
 const quotes = db ? await listQuotesForCustomer(db, customer.id) : [];
 const invoices = db ? await listInvoicesForCustomer(db, customer.id) : [];
+const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
 const today = berlinTodayIso();
 const offerUntil = new Date(Date.parse(`${today}T00:00:00Z`) + 14 * 86_400_000).toISOString().slice(0, 10);
 const kunde = Astro.url.searchParams.get("kunde");
@@ -131,7 +133,7 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
                 </span>
               </div>
               <p class="mt-1 text-ink-600 dark:text-ink-300">
-                {`${formatEuro(quote.price_cents)} · ${
+                {`${QUOTE_STATUS_LABELS[quoteStatus(quote.status)]} · ${formatEuro(quote.price_cents)} · ${
                   validity === "gueltig"
                     ? `Gültig bis ${formatOfferDate(quote.valid_until)}`
                     : `Abgelaufen am ${formatOfferDate(quote.valid_until)}`
@@ -191,6 +193,7 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
       <OfferComposer
         customerName={name}
         validUntil={offerUntil}
+        catalog={catalog}
         hidden={[{ name: "customer_id", value: String(customer.id) }]}
       />
     </div>

@@ -23,7 +23,7 @@ import {
   type InvoiceRow,
 } from "../../../lib/invoices";
 import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive, stripeKeyMode, stripePaymentsReady } from "../../../lib/stripe-pay";
-import { berlinTodayIso, getQuote } from "../../../lib/offers";
+import { berlinTodayIso, getQuote, markQuoteInvoiced } from "../../../lib/offers";
 import { formatOfferDate, readStoredOffer } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
 import { getTimesheet, timesheetPdf } from "../../../lib/timesheets";
@@ -170,6 +170,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     createdAt,
   });
   if (!id) return ctx.redirect(`${back}&rechnung=db`, 303);
+  if (linkedQuote) await markQuoteInvoiced(db, linkedQuote.id);
   const row = await getInvoice(db, id);
   if (!row) return ctx.redirect(`${back}&rechnung=db`, 303);
   const sent = await deliverInvoice(env, db, row, authorName, "rechnung");

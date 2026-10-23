@@ -7,11 +7,14 @@ import {
   cleanOffer,
   deleteQuote,
   getQuote,
+  invoiceIdForQuote,
   offerPdfForQuote,
   quoteParty,
+  quoteStatus,
   sendOfferEmail,
   updateQuote,
   updateQuoteDelivery,
+  updateQuoteStatus,
 } from "../../../lib/offers";
 import { hourlyOfferMissingWage, offerNumber } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
@@ -36,6 +39,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
   if (action === "delete") {
     await deleteQuote(db, id);
     return ctx.redirect("/admin/angebote?angebot=deleted", 303);
+  }
+
+  if (action === "accept") {
+    if (quoteStatus(quote.status) === "abgerechnet") {
+      return ctx.redirect(`/admin/angebote/${id}?angebot=locked`, 303);
+    }
+    await updateQuoteStatus(db, id, "angenommen");
+    return ctx.redirect(`/admin/angebote/${id}?angebot=accepted`, 303);
+  }
+
+  if (action === "reopen") {
+    if (quoteStatus(quote.status) === "abgerechnet") {
+      const invoiceId = await invoiceIdForQuote(db, id);
+      if (invoiceId) return ctx.redirect(`/admin/angebote/${id}?angebot=locked`, 303);
+    }
+    await updateQuoteStatus(db, id, "offen");
+    return ctx.redirect(`/admin/angebote/${id}?angebot=reopened`, 303);
   }
 
   if (action !== "save" && action !== "resend") {

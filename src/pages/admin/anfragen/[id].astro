@@ -20,6 +20,7 @@ import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { formatBerlin } from "../../../lib/time";
 import { findCustomerByEmail } from "../../../lib/customers";
+import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { berlinTodayIso, listQuotes } from "../../../lib/offers";
 import {
   OFFER_BANK_LINES,
@@ -69,6 +70,7 @@ const customerFiles = attachedFiles.filter((file) => file.reply_id == null);
 const filesForReply = (replyId: number) => attachedFiles.filter((file) => file.reply_id === replyId);
 const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
 const quotes = db ? await listQuotes(db, id) : [];
+const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
 const linkedCustomer = db ? await findCustomerByEmail(db, request.email) : null;
 const offerUntil = new Date(Date.parse(`${berlinTodayIso()}T00:00:00Z`) + 14 * 86_400_000)
   .toISOString()
@@ -384,6 +386,7 @@ const redirectPath = Astro.url.pathname;
         customerName={customerName}
         title={topicLabels[request.topic] ?? request.topic}
         validUntil={offerUntil}
+        catalog={catalog}
         hidden={[{ name: "request_id", value: String(request.id) }]}
         lines={[
           { label: "Stundenlohn", quantity: "", unit: "stunde", price: "" },
