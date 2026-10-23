@@ -149,6 +149,9 @@ const statusClass =
             </button>
           </form>
         ))}
+      {status !== "abgerechnet" && status !== "offen" && (
+        <a href={`/admin/rechnungen/vorschau?angebot=${quote.id}`} class="rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100">PDF-Vorschau → Rechnung</a>
+      )}
       {status !== "abgerechnet" && (
         <a href={`/admin/rechnungen/neu?angebot=${quote.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Als Rechnung übernehmen</a>
       )}

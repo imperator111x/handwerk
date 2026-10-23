@@ -1,0 +1,86 @@
+---
+import PortalLayout from "../../../layouts/PortalLayout.astro";
+import { getCustomer } from "../../../lib/customers";
+import { getDb } from "../../../lib/db";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
+import { getPortalAccountByCustomer, getPortalInviteByToken, inviteIsValid } from "../../../lib/portal";
+import { getPortalSession } from "../../../lib/portal-auth";
+
+export const prerender = false;
+
+const existing = await getPortalSession(Astro);
+if (existing) return Astro.redirect("/portal");
+
+const token = (Astro.params.token ?? "").trim();
+const db = getDb(Astro);
+const invite = db && token ? await getPortalInviteByToken(db, token) : null;
+const valid = invite ? inviteIsValid(invite) : false;
+const account = invite && db ? await getPortalAccountByCustomer(db, invite.customer_id) : null;
+const customer = invite && db ? await getCustomer(db, invite.customer_id) : null;
+const name = customer ? decodeHtmlEntities(customer.name) : "";
+
+const flag = Astro.url.searchParams.get("portal");
+const notices: Record<string, string> = {
+  match: "Die Passwörter stimmen nicht überein.",
+  short: "Bitte mindestens 8 Zeichen wählen.",
+  expired: "Diese Einladung ist abgelaufen oder schon benutzt.",
+  exists: "Für diesen Kunden gibt es bereits einen Zugang. Bitte melden Sie sich an.",
+};
+const notice = flag ? notices[flag] : undefined;
+---
+
+<PortalLayout title="Zugang einrichten">
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900">
+    <h1 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Zugang einrichten</h1>
+
+    {!invite || !valid || account || !customer ? (
+      <div class="mt-4 space-y-3">
+        <p class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+          {account
+            ? "Für diesen Kunden ist das Portal schon eingerichtet. Bitte melden Sie sich an."
+            : "Diese Einladung ist ungültig oder abgelaufen. Bitte fordern Sie einen neuen Link an."}
+        </p>
+        <a href="/portal/login" class="btn-primary inline-flex">Zum Login</a>
+      </div>
+    ) : (
+      <>
+        <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+          Hallo {name}, wählen Sie ein Passwort für {invite.email}.
+        </p>
+        {notice && (
+          <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+            {notice}
+          </p>
+        )}
+        <form method="POST" action="/api/portal/register" class="mt-5 space-y-4">
+          <input type="hidden" name="token" value={invite.token} />
+          <div>
+            <label for="password" class="label">Passwort</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minlength={8}
+              autocomplete="new-password"
+              class="input"
+            />
+          </div>
+          <div>
+            <label for="password2" class="label">Passwort wiederholen</label>
+            <input
+              id="password2"
+              name="password2"
+              type="password"
+              required
+              minlength={8}
+              autocomplete="new-password"
+              class="input"
+            />
+          </div>
+          <button type="submit" class="btn-primary w-full justify-center">Zugang speichern</button>
+        </form>
+      </>
+    )}
+  </section>
+</PortalLayout>

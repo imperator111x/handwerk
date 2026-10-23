@@ -1,0 +1,57 @@
+---
+import PortalLayout from "../../layouts/PortalLayout.astro";
+import { getPortalSession } from "../../lib/portal-auth";
+
+export const prerender = false;
+
+const session = await getPortalSession(Astro);
+if (session) return Astro.redirect("/portal");
+
+const nextRaw = Astro.url.searchParams.get("next") ?? "/portal";
+const next = nextRaw.startsWith("/portal") && !nextRaw.startsWith("//") ? nextRaw : "/portal";
+const flag = Astro.url.searchParams.get("portal");
+const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  bad: { kind: "bad", text: "E-Mail oder Passwort stimmt nicht." },
+  logout: { kind: "ok", text: "Sie sind abgemeldet." },
+  expired: { kind: "bad", text: "Die Einladung ist abgelaufen. Bitte fordern Sie einen neuen Link an." },
+};
+const notice = flag ? notices[flag] : undefined;
+---
+
+<PortalLayout title="Anmelden">
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900">
+    <h1 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Kundenportal</h1>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Rechnungen ansehen, PDFs öffnen und online bezahlen.
+    </p>
+
+    {notice && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          notice.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {notice.text}
+      </p>
+    )}
+
+    <form method="POST" action="/api/portal/login" class="mt-5 space-y-4">
+      <input type="hidden" name="next" value={next} />
+      <div>
+        <label for="email" class="label">E-Mail</label>
+        <input id="email" name="email" type="email" required autocomplete="username" class="input" />
+      </div>
+      <div>
+        <label for="password" class="label">Passwort</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password" class="input" />
+      </div>
+      <button type="submit" class="btn-primary w-full justify-center">Anmelden</button>
+    </form>
+    <p class="mt-4 text-xs text-ink-500 dark:text-ink-400">
+      Noch keinen Zugang? Den Einladungslink erhalten Sie von Zeus-Service per E-Mail.
+    </p>
+  </section>
+</PortalLayout>

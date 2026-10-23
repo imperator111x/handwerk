@@ -10,6 +10,7 @@ import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { invoiceNumber } from "../../../lib/invoice";
 import { JOB_STATUS_LABELS, jobStatusForQuote } from "../../../lib/jobs";
+import { getPortalAccountByCustomer } from "../../../lib/portal";
 import { invoiceStatusLabel } from "../../../lib/stripe-pay";
 import { berlinTodayIso, offerValidity, QUOTE_STATUS_LABELS, quoteStatus } from "../../../lib/offers";
 import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
@@ -36,10 +37,12 @@ const dossier = db
   : { quotes: [], auftraege: [], invoices: [], timesheets: [], requests: [], mails: [], recurring: [] };
 const { quotes, auftraege, invoices, timesheets, requests, mails, recurring } = dossier;
 const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
+const portalAccount = db ? await getPortalAccountByCustomer(db, customer.id) : null;
 const today = berlinTodayIso();
 const offerUntil = new Date(Date.parse(`${today}T00:00:00Z`) + 14 * 86_400_000).toISOString().slice(0, 10);
 const kunde = Astro.url.searchParams.get("kunde");
 const angebot = Astro.url.searchParams.get("angebot");
+const portal = Astro.url.searchParams.get("portal");
 
 const kundeText =
   kunde === "saved"
@@ -47,6 +50,13 @@ const kundeText =
     : kunde === "bad"
       ? "Bitte Name und E-Mail prüfen."
       : "";
+const portalNotices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  sent: { kind: "ok", text: "Einladung zum Kundenportal ist verschickt." },
+  exists: { kind: "ok", text: "Dieser Kunde hat bereits einen Portal-Zugang." },
+  "mail-fail": { kind: "bad", text: "Einladung konnte nicht per E-Mail verschickt werden." },
+  bad: { kind: "bad", text: "Portal-Einladung fehlgeschlagen." },
+};
+const portalMessage = portal ? portalNotices[portal] : undefined;
 const angebotText: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
   sent: { kind: "ok", text: "Das Angebot ist als PDF verschickt." },
   saved: { kind: "warn", text: "Das Angebot ist gespeichert, aber nicht per E-Mail verschickt." },
@@ -92,6 +102,41 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
         {kundeText}
       </p>
     )}
+    {portalMessage && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          portalMessage.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {portalMessage.text}
+      </p>
+    )}
+
+    <div class="mt-5 rounded-2xl border border-ink-100 bg-ink-50 px-4 py-4 dark:border-white/10 dark:bg-white/5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-50">Kundenportal</h3>
+          <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+            {portalAccount
+              ? `Aktiv für ${portalAccount.email}. Der Kunde sieht Rechnungen, PDFs und kann online zahlen.`
+              : `Einladungslink an ${customer.email} – danach Registrierung, Rechnungen und Zahlung.`}
+          </p>
+        </div>
+        {portalAccount ? (
+          <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100">
+            Portal aktiv
+          </span>
+        ) : (
+          <form method="POST" action="/api/admin/portal-invite">
+            <input type="hidden" name="customer_id" value={customer.id} />
+            <button type="submit" class="btn-primary">Portal-Link senden</button>
+          </form>
+        )}
+      </div>
+    </div>
 
     <div class="mt-5">
       <CustomerForm customer={customer} submitLabel="Änderungen speichern" />
