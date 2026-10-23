@@ -135,12 +135,31 @@ const jobClass = (job: JobStatus) =>
                   </form>
                 ))}
                 {job !== "abgerechnet" && (
-                  <a
-                    href={`/admin/rechnungen/neu?angebot=${quote.id}`}
-                    class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
-                  >
-                    Als Rechnung
-                  </a>
+                  <>
+                    <form method="POST" action="/api/admin/rechnung">
+                      <input type="hidden" name="action" value="from-quote" />
+                      <input type="hidden" name="quote_id" value={quote.id} />
+                      <button
+                        type="submit"
+                        class="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-100"
+                        onclick="return confirm('Rechnung jetzt festschreiben und an den Kunden senden?')"
+                      >
+                        Ein Klick → Rechnung
+                      </button>
+                    </form>
+                    <a
+                      href={`/admin/rechnungen/neu?angebot=${quote.id}`}
+                      class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                    >
+                      Bearbeiten
+                    </a>
+                    <a
+                      href={`/admin/rechnungen/neu?angebot=${quote.id}&art=teil`}
+                      class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                    >
+                      Teilrechnung
+                    </a>
+                  </>
                 )}
               </div>
             </li>

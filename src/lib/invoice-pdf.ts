@@ -47,11 +47,17 @@ export interface InvoicePdfInput {
   serviceDate: string;
   dueDate: string;
   authorName: string;
-  documentKind?: "rechnung" | "storno";
+  documentKind?: "rechnung" | "storno" | "gutschrift";
+  billingKind?: "voll" | "teil" | "schluss";
   /** Optisch als Zahlungserinnerung / Mahnung / letzte Mahnung kennzeichnen (PDF-Anhang). */
   noticeKind?: "erinnerung" | "mahnung" | "inkasso";
   referenceNumber?: string;
   referenceDate?: string;
+  paymentTerms?: string;
+  siteName?: string | null;
+  siteStreet?: string | null;
+  sitePostalCode?: string | null;
+  siteCity?: string | null;
 }
 
 const PAGE_W = 595.28;
@@ -83,6 +89,7 @@ const WIN_EXTRA: Record<string, number> = {
 
 export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
   const storno = input.documentKind === "storno";
+  const credit = input.documentKind === "gutschrift";
   const xml = buildInvoiceXml({
     number: input.number,
     title: input.title,
@@ -96,10 +103,13 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
     buyerStreet: input.buyerStreet,
     buyerPostalCode: input.buyerPostalCode,
     buyerCity: input.buyerCity,
-    typeCode: storno ? "381" : "380",
+    typeCode: storno || credit ? "381" : "380",
     referenceNumber: input.referenceNumber,
     referenceDate: input.referenceDate,
-    paymentTerms: storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS,
+    paymentTerms:
+      storno || credit
+        ? "Es ist kein Betrag zu zahlen."
+        : input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS,
   });
   return serializeZugferd(layoutPages(input), xml, input);
 }
@@ -108,7 +118,11 @@ function documentHeading(input: InvoicePdfInput): string {
   if (input.noticeKind === "inkasso") return "3. Mahnung";
   if (input.noticeKind === "mahnung") return "2. Mahnung";
   if (input.noticeKind === "erinnerung") return "Zahlungserinnerung";
-  return input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
+  if (input.documentKind === "storno") return "Stornorechnung";
+  if (input.documentKind === "gutschrift") return "Gutschrift";
+  if (input.billingKind === "teil") return "Teilrechnung";
+  if (input.billingKind === "schluss") return "Schlussrechnung";
+  return "Rechnung";
 }
 
 function noticeBannerLines(input: InvoicePdfInput): string[] {
@@ -140,6 +154,7 @@ function noticeBannerLines(input: InvoicePdfInput): string[] {
 function layoutPages(input: InvoicePdfInput): string[] {
   const heading = documentHeading(input);
   const storno = input.documentKind === "storno";
+  const credit = input.documentKind === "gutschrift";
   const pages: string[][] = [];
   let ops: string[] = [];
   let y = 760;
@@ -229,15 +244,19 @@ function layoutPages(input: InvoicePdfInput): string[] {
   y = addressTop - 108;
   const place = [input.buyerPostalCode.trim(), input.buyerCity.trim()].filter(Boolean).join(" ");
   const customerLines = [input.buyerName, input.buyerStreet.trim(), place, input.buyerEmail, input.buyerPhone?.trim() || ""].filter(Boolean);
+  const sitePlace = [input.sitePostalCode?.trim() || "", input.siteCity?.trim() || ""].filter(Boolean).join(" ");
+  const siteLines = [input.siteName?.trim() || "", input.siteStreet?.trim() || "", sitePlace].filter(Boolean);
   const paymentHint = storno
     ? [`Stornorechnung: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Es ist nichts zu zahlen"]
-    : input.noticeKind === "inkasso"
-      ? [`3. Mahnung`, `Rechnung ${input.number}`, "Sofort zahlen / Inkasso"]
-      : input.noticeKind === "mahnung"
-        ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
-        : input.noticeKind === "erinnerung"
-          ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
-          : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
+    : credit
+      ? [`Gutschrift: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Gutschrift"]
+      : input.noticeKind === "inkasso"
+        ? [`3. Mahnung`, `Rechnung ${input.number}`, "Sofort zahlen / Inkasso"]
+        : input.noticeKind === "mahnung"
+          ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
+          : input.noticeKind === "erinnerung"
+            ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
+            : [`${heading}: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;
   paymentHint.forEach((line, index) => {
@@ -247,7 +266,17 @@ function layoutPages(input: InvoicePdfInput): string[] {
   customerLines.forEach((line, index) => {
     textAt(LEFT, y - 14 - index * 14, 11, index === 0 ? "F2" : "F1", line);
   });
-  y -= 14 + customerLines.length * 14 + 22;
+  y -= 14 + customerLines.length * 14 + 16;
+  if (siteLines.length) {
+    need(14 + siteLines.length * 14 + 10);
+    textAt(LEFT, y, 8, "F2", "Leistungsort / Baustelle", MUTED);
+    siteLines.forEach((line, index) => {
+      textAt(LEFT, y - 14 - index * 14, 11, "F1", line);
+    });
+    y -= 14 + siteLines.length * 14 + 22;
+  } else {
+    y -= 6;
+  }
 
   const banner = noticeBannerLines(input);
   if (banner.length) {
@@ -318,7 +347,7 @@ function layoutPages(input: InvoicePdfInput): string[] {
   y -= 6;
   paint(`${BLACK} rg`);
   paint(`${LEFT} ${round(y - 6)} ${WIDTH} 24 re f`);
-  textAt(LEFT + 8, y, 11, "F2", "Rechnungsbetrag", WHITE);
+  textAt(LEFT + 8, y, 11, "F2", credit ? "Gutschriftbetrag" : "Rechnungsbetrag", WHITE);
   textRight(RIGHT - 6, y, 11, "F2", total, WHITE);
   y -= 28;
   need(28);
@@ -327,7 +356,11 @@ function layoutPages(input: InvoicePdfInput): string[] {
   textRight(RIGHT, y, 10, "F1", "Umsatzsteuer 0 %  0,00 EUR");
   y -= 22;
 
-  const notes = [OFFER_TAX_NOTE, storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS, INVOICE_RETENTION_NOTE];
+  const notes = [
+    OFFER_TAX_NOTE,
+    storno || credit ? "Es ist kein Betrag zu zahlen." : input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS,
+    INVOICE_RETENTION_NOTE,
+  ];
   for (const note of notes) {
     const lines = wrapToWidth(note, WIDTH, 10);
     for (const line of lines) {

@@ -1,0 +1,77 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { getDb } from "../../../lib/db";
+import { monthBounds } from "../../../lib/datev-export";
+import { listInvoicesInPeriod } from "../../../lib/invoices";
+import { invoiceNumber } from "../../../lib/invoice";
+import { berlinTodayIso } from "../../../lib/offers";
+import { formatEuro, formatOfferDate } from "../../../lib/quote";
+import { invoiceStatusLabel } from "../../../lib/stripe-pay";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const today = berlinTodayIso();
+const month = Astro.url.searchParams.get("monat")?.trim() || today.slice(0, 7);
+const bounds = monthBounds(month);
+const db = getDb(Astro);
+const rows = db && bounds ? await listInvoicesInPeriod(db, bounds.from, bounds.to) : [];
+const sum = rows.reduce((acc, row) => {
+  if (row.document_kind === "storno" || row.document_kind === "gutschrift") return acc - row.price_cents;
+  return acc + row.price_cents;
+}, 0);
+---
+
+<AdminLayout title="Buchhaltung" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Buchhaltung / DATEV</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Monats-Export für den Steuerberater (CSV, Semikolon). Konten 1400/8400 sind Vorschläge – bitte anpassen.
+    </p>
+
+    <form class="mt-5 flex flex-wrap items-end gap-3" method="GET">
+      <div>
+        <label class="label" for="monat">Monat</label>
+        <input class="input" id="monat" name="monat" type="month" value={month} required />
+      </div>
+      <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Anzeigen</button>
+      <a
+        href={`/api/admin/datev-export?monat=${encodeURIComponent(month)}`}
+        class="btn-primary"
+      >
+        CSV herunterladen
+      </a>
+    </form>
+
+    <p class="mt-4 text-sm text-ink-700 dark:text-ink-200">
+      {rows.length} Belege · Saldo (Erlöse − Storno/Gutschrift) {formatEuro(sum)}
+    </p>
+
+    {rows.length === 0 ? (
+      <p class="mt-6 text-sm text-ink-600 dark:text-ink-300">Keine Belege in diesem Monat.</p>
+    ) : (
+      <ul class="mt-6 divide-y divide-ink-100 dark:divide-white/10">
+        {rows.map((row) => (
+          <li class="flex flex-wrap items-start justify-between gap-3 py-3 text-sm">
+            <div>
+              <a class="font-semibold text-ink-900 underline dark:text-ink-50" href={`/admin/rechnungen/${row.id}`}>
+                {invoiceNumber(row.id, row.invoice_date)} · {row.title}
+              </a>
+              <p class="mt-1 text-ink-600 dark:text-ink-300">
+                {formatOfferDate(row.invoice_date)} · {row.buyer_name} · {invoiceStatusLabel(row.payment_status, row.document_kind, row.billing_kind)}
+              </p>
+            </div>
+            <span class="font-semibold text-ink-900 dark:text-ink-50">
+              {row.document_kind === "storno" || row.document_kind === "gutschrift" ? "−" : ""}
+              {formatEuro(row.price_cents)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+</AdminLayout>

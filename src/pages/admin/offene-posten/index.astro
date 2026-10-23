@@ -27,7 +27,10 @@ const all = db ? await listInvoices(db) : [];
 const overdue = all.filter(
   (row) =>
     row.document_kind !== "storno" &&
-    (row.payment_status === "offen" || row.payment_status === "test") &&
+    row.document_kind !== "gutschrift" &&
+    (row.payment_status === "offen" ||
+      row.payment_status === "test" ||
+      row.payment_status === "teilbezahlt") &&
     Boolean(row.sent_at) &&
     row.due_date <= today,
 );

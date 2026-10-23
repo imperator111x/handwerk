@@ -61,15 +61,20 @@ export function stripeKeyMode(secret?: string): "test" | "live" | "off" {
 
 export function paymentStatusLabel(status: string): string {
   if (status === "bezahlt") return "Bezahlt";
+  if (status === "teilbezahlt") return "Teilbezahlt";
   if (status === "erstattet") return "Erstattet";
   if (status === "storniert") return "Storniert";
   if (status === "test") return "Testzahlung";
   return "Offen";
 }
 
-export function invoiceStatusLabel(status: string, kind?: string | null): string {
+export function invoiceStatusLabel(status: string, kind?: string | null, billingKind?: string | null): string {
   if (kind === "storno") return "Stornorechnung";
-  return paymentStatusLabel(status);
+  if (kind === "gutschrift") return "Gutschrift";
+  const pay = paymentStatusLabel(status);
+  if (billingKind === "teil") return `Teilrechnung · ${pay}`;
+  if (billingKind === "schluss") return `Schlussrechnung · ${pay}`;
+  return pay;
 }
 
 export function paymentLinkForMail(url: string, email: string): string {
@@ -126,7 +131,9 @@ export function applyRefund(row: PaymentRow, incoming: { reference: string; full
 }
 
 export function applyTransferPayment(row: PaymentRow, paidAt: number): PaymentUpdate {
-  if (row.status !== "offen" && row.status !== "test") return { kind: "unchanged" };
+  if (row.status !== "offen" && row.status !== "test" && row.status !== "teilbezahlt") {
+    return { kind: "unchanged" };
+  }
   return {
     kind: "paid",
     paidAt,
@@ -137,7 +144,11 @@ export function applyTransferPayment(row: PaymentRow, paidAt: number): PaymentUp
 }
 
 export function transferPayment(row: PaymentRow): boolean {
-  return row.status === "bezahlt" && (row.reference ?? "").startsWith("ueberweisung-");
+  const ref = row.reference ?? "";
+  return (
+    (row.status === "bezahlt" || row.status === "teilbezahlt") &&
+    (ref.startsWith("ueberweisung-") || ref.startsWith("teil-"))
+  );
 }
 
 export function decideStripeEvent(event: unknown): StripeDecision {

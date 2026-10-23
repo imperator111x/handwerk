@@ -4,6 +4,7 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { cfEnv } from "../../../lib/cf";
+import { openAmountCents, siteAddressLabel } from "../../../lib/billing";
 import {
   canSendPaymentReminder,
   invoiceNumber,
@@ -11,7 +12,7 @@ import {
   reminderActionLabel,
   reminderStageLabel,
 } from "../../../lib/invoice";
-import { getInvoice, listRelatedInvoices } from "../../../lib/invoices";
+import { getInvoice, listRelatedInvoices, sumCreditsForInvoice } from "../../../lib/invoices";
 import { berlinTodayIso } from "../../../lib/offers";
 import { invoiceStatusLabel, paymentLinkForMail, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
 import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, formatEuro, formatOfferDate, formatQuantity, lineTotalCents, readStoredOffer } from "../../../lib/quote";
@@ -66,17 +67,29 @@ const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
     kind: "bad",
     text: "Zahlungserinnerung erst nach Fälligkeit und wenn die Rechnung schon einmal verschickt wurde.",
   },
+  "transfer-partial": { kind: "ok", text: "Teilzahlung per Überweisung erfasst." },
+  gutschrift: { kind: "ok", text: "Die Gutschrift ist festgeschrieben und verschickt." },
+  "gutschrift-bad": { kind: "bad", text: "Gutschrift prüfen: Positionen und Betrag." },
+  "gutschrift-kept": { kind: "bad", text: "Gutschrift nicht möglich (Betrag oder Status)." },
 };
 const stripeEnv = cfEnv();
 const stripeReady = stripePaymentsReady(stripeEnv);
 const stripeMode = stripeKeyMode(stripeEnv.STRIPE_SECRET_KEY);
 const payUrl = row.payment_url ? paymentLinkForMail(row.payment_url, row.buyer_email) : "";
-const cancelled = row.payment_status === "storniert" || row.document_kind === "storno";
+const cancelled =
+  row.payment_status === "storniert" ||
+  row.document_kind === "storno" ||
+  row.document_kind === "gutschrift";
 const paid = row.payment_status === "bezahlt" || row.payment_status === "erstattet";
-const canCorrect = row.document_kind !== "storno" && row.payment_status !== "storniert";
+const canCorrect =
+  row.document_kind === "rechnung" && row.payment_status !== "storniert";
 const canRemind = canSendPaymentReminder(row, berlinTodayIso());
 const remindLevel = nextReminderLevel(row);
+const credited = db ? await sumCreditsForInvoice(db, row.id) : 0;
+const openCents = openAmountCents(row, credited);
+const siteLabel = siteAddressLabel(row);
 const notice = flag ? notices[flag] : undefined;
+const openEuro = formatEuro(openCents).replace("€", "").trim();
 ---
 
 <AdminLayout title={`Rechnung ${number}`} session={session}>
@@ -84,12 +97,19 @@ const notice = flag ? notices[flag] : undefined;
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <p class="text-xs font-semibold uppercase tracking-wider text-ink-500 dark:text-ink-400">
-          {row.document_kind === "storno" ? "Stornorechnung" : "Festgeschrieben"}
+          {row.document_kind === "storno"
+            ? "Stornorechnung"
+            : row.document_kind === "gutschrift"
+              ? "Gutschrift"
+              : "Festgeschrieben"}
         </p>
         <h2 class="mt-1 font-display text-2xl font-bold text-ink-900 dark:text-ink-50">{number}</h2>
         <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
           {row.buyer_name} · {row.buyer_street}, {row.buyer_postal_code} {row.buyer_city} · {row.buyer_email}
         </p>
+        {siteLabel && (
+          <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">Baustelle: {siteLabel}</p>
+        )}
       </div>
       <div class="flex flex-wrap gap-2">
         <span
@@ -97,12 +117,17 @@ const notice = flag ? notices[flag] : undefined;
             "rounded-full px-3 py-1 text-xs font-semibold",
             row.payment_status === "bezahlt"
               ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100"
-              : row.payment_status === "erstattet" || row.payment_status === "test" || row.payment_status === "storniert" || row.document_kind === "storno"
+              : row.payment_status === "erstattet" ||
+                  row.payment_status === "test" ||
+                  row.payment_status === "teilbezahlt" ||
+                  row.payment_status === "storniert" ||
+                  row.document_kind === "storno" ||
+                  row.document_kind === "gutschrift"
                 ? "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-100"
                 : "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200",
           ]}
         >
-          {invoiceStatusLabel(row.payment_status, row.document_kind)}
+          {invoiceStatusLabel(row.payment_status, row.document_kind, row.billing_kind)}
           {row.payment_method ? ` · ${row.payment_method}` : ""}
           {row.paid_at ? ` · ${formatBerlin(row.paid_at)}` : ""}
         </span>
@@ -160,7 +185,15 @@ const notice = flag ? notices[flag] : undefined;
         </li>
       ))}
     </ul>
-    <p class="mt-4 text-sm font-semibold text-ink-900 dark:text-ink-50">Rechnungsbetrag {formatEuro(row.price_cents)}</p>
+    <p class="mt-4 text-sm font-semibold text-ink-900 dark:text-ink-50">
+      Rechnungsbetrag {formatEuro(row.price_cents)}
+      {Number(row.amount_paid_cents ?? 0) > 0 ? ` · gezahlt ${formatEuro(Number(row.amount_paid_cents))}` : ""}
+      {credited > 0 ? ` · Gutschriften ${formatEuro(credited)}` : ""}
+      {row.document_kind === "rechnung" && openCents !== row.price_cents ? ` · offen ${formatEuro(openCents)}` : ""}
+    </p>
+    <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
+      Zahlungsziel: {row.payment_terms || `innerhalb von ${Number(row.due_days ?? 14)} Tagen`} · fällig {formatOfferDate(row.due_date)}
+    </p>
     {row.payment_note && (
       <p class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
         {row.payment_note}
@@ -247,13 +280,21 @@ const notice = flag ? notices[flag] : undefined;
           <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Stornorechnung erneut senden</button>
         </form>
       )}
-      {row.payment_status === "offen" && (
-        <form method="POST" action="/api/admin/rechnung">
-          <input type="hidden" name="action" value="transfer" />
-          <input type="hidden" name="id" value={row.id} />
-          <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Zahlung per Überweisung erfasst</button>
-        </form>
-      )}
+      {(row.payment_status === "offen" || row.payment_status === "teilbezahlt" || row.payment_status === "test") &&
+        row.document_kind === "rechnung" &&
+        openCents > 0 && (
+          <form method="POST" action="/api/admin/rechnung" class="flex flex-wrap items-end gap-2">
+            <input type="hidden" name="action" value="transfer" />
+            <input type="hidden" name="id" value={row.id} />
+            <div>
+              <label class="label" for="pay-amount">Teil-/Zahlung (€)</label>
+              <input class="input w-28" id="pay-amount" name="amount" inputmode="decimal" value={openEuro} />
+            </div>
+            <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">
+              Überweisung erfassen
+            </button>
+          </form>
+        )}
       {transferPayment({
         priceCents: row.price_cents,
         status: row.payment_status,
@@ -267,6 +308,14 @@ const notice = flag ? notices[flag] : undefined;
           <input type="hidden" name="id" value={row.id} />
           <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Überweisung zurücknehmen</button>
         </form>
+      )}
+      {canCorrect && openCents > 0 && (
+        <a
+          href={`/admin/rechnungen/gutschrift?id=${row.id}`}
+          class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+        >
+          Teilgutschrift
+        </a>
       )}
       {row.customer_id && (
         <a href={`/admin/kunden/${row.customer_id}`} class="rounded-full px-4 py-2 text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zum Kunden</a>

@@ -14,11 +14,14 @@ import {
   type OfferUnit,
 } from "./quote";
 
+import { dueDateFromInvoiceDate, parseBillingKind, parseDueDays, paymentTermsForDays, type BillingKind } from "./billing";
+
 export const INVOICE_PAYMENT_TERMS = "Zahlbar innerhalb von 14 Tagen ohne Abzug.";
 export const INVOICE_RETENTION_NOTE =
   "Der Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren.";
 export const INVOICE_DEFAULT_INTRO =
   "für die ausgeführte Leistung berechnen wir Ihnen folgende Positionen.";
+export const CREDIT_MAIL_LEAD = "Hiermit übersende ich Ihnen die Gutschrift in Höhe von:";
 
 export const SELLER = {
   tradeName: "Zeus-Service",
@@ -51,6 +54,9 @@ export interface ParsedInvoice {
   serviceDate: string;
   dueDate: string;
   priceCents: number;
+  dueDays: number;
+  paymentTerms: string;
+  billingKind: BillingKind;
 }
 
 export function invoiceNumber(id: number, invoiceDate: string): string {
@@ -110,14 +116,48 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
   if (lines.length < 1) return null;
   const priceCents = offerTotalCents(lines);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
+  const dueDays = parseDueDays(String(form.get("due_days") ?? ""), 14);
+  const paymentTerms = paymentTermsForDays(dueDays);
+  const billingKind = parseBillingKind(String(form.get("billing_kind") ?? ""));
   return {
     title,
     intro,
     lines,
     invoiceDate,
     serviceDate,
-    dueDate: addIsoDays(invoiceDate, 14),
+    dueDate: dueDateFromInvoiceDate(invoiceDate, dueDays),
     priceCents,
+    dueDays,
+    paymentTerms,
+    billingKind,
+  };
+}
+
+/** Rechnung aus Angebotsdaten ohne Formular (Ein-Klick). */
+export function invoiceFromQuoteLines(input: {
+  title: string;
+  intro: string;
+  lines: OfferLine[];
+  today: string;
+  dueDays?: number;
+  billingKind?: BillingKind;
+}): ParsedInvoice | null {
+  if (input.title.trim().length < 3) return null;
+  if (!input.lines.length) return null;
+  const priceCents = offerTotalCents(input.lines);
+  if (priceCents <= 0 || priceCents > 10_000_000) return null;
+  const dueDays = parseDueDays(String(input.dueDays ?? 14), 14);
+  return {
+    title: input.title.trim().slice(0, 120),
+    intro: input.intro.trim().slice(0, 2000),
+    lines: input.lines,
+    invoiceDate: input.today,
+    serviceDate: input.today,
+    dueDate: dueDateFromInvoiceDate(input.today, dueDays),
+    priceCents,
+    dueDays,
+    paymentTerms: paymentTermsForDays(dueDays),
+    billingKind: input.billingKind ?? "voll",
   };
 }
 
@@ -174,7 +214,9 @@ export function canSendPaymentReminder(
   today: string,
 ): boolean {
   if (row.document_kind === "storno") return false;
-  if (row.payment_status !== "offen" && row.payment_status !== "test") return false;
+  if (row.payment_status !== "offen" && row.payment_status !== "test" && row.payment_status !== "teilbezahlt") {
+    return false;
+  }
   if (!row.sent_at) return false;
   if (!isIsoDate(row.due_date) || !isIsoDate(today)) return false;
   if (row.due_date > today) return false;

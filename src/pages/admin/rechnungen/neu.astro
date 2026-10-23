@@ -135,6 +135,12 @@ const canCompose = Boolean(customer && addressReady && taxNumber && (!wantsTimes
             lines={lines}
             salutation={salutation}
             catalog={catalog}
+            dueDays={Number(customer.default_due_days ?? 14)}
+            billingKind={Astro.url.searchParams.get("art") === "teil" ? "teil" : Astro.url.searchParams.get("art") === "schluss" ? "schluss" : "voll"}
+            siteName={customer.site_name}
+            siteStreet={customer.site_street}
+            sitePostalCode={customer.site_postal_code}
+            siteCity={customer.site_city}
             hidden={[
               { name: "customer_id", value: String(customer.id) },
               ...(quote ? [{ name: "quote_id", value: String(quote.id) }] : []),

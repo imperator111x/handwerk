@@ -1,0 +1,59 @@
+---
+import InvoiceComposer from "../../../components/InvoiceComposer.astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { openAmountCents } from "../../../lib/billing";
+import { requireSession } from "../../../lib/auth";
+import { getDb } from "../../../lib/db";
+import { invoiceNumber } from "../../../lib/invoice";
+import { getInvoice, sumCreditsForInvoice } from "../../../lib/invoices";
+import { berlinTodayIso } from "../../../lib/offers";
+import { formatEuro, readStoredOffer } from "../../../lib/quote";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+const db = getDb(Astro);
+const id = Number.parseInt(Astro.url.searchParams.get("id") ?? "", 10);
+const row = db && Number.isFinite(id) ? await getInvoice(db, id) : null;
+if (!row || row.document_kind !== "rechnung") return Astro.redirect("/admin/rechnungen");
+const credited = db ? await sumCreditsForInvoice(db, row.id) : 0;
+const open = openAmountCents(row, credited);
+if (open <= 0) return Astro.redirect(`/admin/rechnungen/${row.id}?rechnung=gutschrift-kept`);
+const stored = readStoredOffer(row.lines_json, "");
+const today = berlinTodayIso();
+const number = invoiceNumber(row.id, row.invoice_date);
+---
+
+<AdminLayout title={`Gutschrift zu ${number}`} session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Teilgutschrift</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Zu Rechnung {number}. Offen aktuell {formatEuro(open)}. Positionen anpassen – Betrag darf den offenen Rest nicht überschreiten.
+    </p>
+    <div class="mt-5">
+      <InvoiceComposer
+        customerName={row.buyer_name}
+        title={row.title}
+        intro={`Gutschrift zur Rechnung ${number}.`}
+        invoiceDate={today}
+        serviceDate={row.service_date <= today ? row.service_date : today}
+        lines={stored.lines}
+        dueDays={0}
+        billingKind="voll"
+        siteName={row.site_name}
+        siteStreet={row.site_street}
+        sitePostalCode={row.site_postal_code}
+        siteCity={row.site_city}
+        submitLabel="Gutschrift festschreiben und senden"
+        hint="Es entsteht ein Gutschrift-Dokument; die Originalrechnung bleibt bestehen, der offene Betrag sinkt."
+        confirmMessage="Gutschrift jetzt festschreiben und senden?"
+        hidden={[
+          { name: "action", value: "gutschrift" },
+          { name: "id", value: String(row.id) },
+        ]}
+      />
+    </div>
+  </section>
+</AdminLayout>

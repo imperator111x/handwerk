@@ -55,6 +55,9 @@ export function systemCheckDraft(today = berlinTodayIso()): ParsedInvoice & { nu
     serviceDate: today,
     dueDate,
     priceCents: offerTotalCents(TEST_LINES),
+    dueDays: 14,
+    paymentTerms: "Zahlbar innerhalb von 14 Tagen ohne Abzug.",
+    billingKind: "voll",
   };
 }
 
@@ -73,6 +76,9 @@ export function renderSystemCheckPdf(input: {
     serviceDate: draft.serviceDate,
     dueDate: draft.dueDate,
     priceCents: draft.priceCents,
+    dueDays: draft.dueDays,
+    paymentTerms: draft.paymentTerms,
+    billingKind: draft.billingKind,
   };
   const bytes = buildInvoicePdf({
     number: draft.number,

@@ -1,6 +1,7 @@
 ---
 import InvoiceNotes from "./InvoiceNotes.astro";
 import SalutationSelect from "./SalutationSelect.astro";
+import { DUE_DAY_OPTIONS, paymentTermsForDays } from "../lib/billing";
 import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, OFFER_UNITS, formatEuro, formatQuantity, type OfferLine, type OfferUnit } from "../lib/quote";
 
 interface CatalogPick {
@@ -23,6 +24,12 @@ interface Props {
   hint?: string;
   confirmMessage?: string;
   catalog?: CatalogPick[];
+  dueDays?: number;
+  billingKind?: "voll" | "teil" | "schluss";
+  siteName?: string | null;
+  siteStreet?: string | null;
+  sitePostalCode?: string | null;
+  siteCity?: string | null;
 }
 
 const {
@@ -38,7 +45,14 @@ const {
   hint = "Nach dem Festschreiben bleibt diese Rechnung stehen. Eine Korrektur läuft über Stornieren oder Anpassen und legt eine neue Rechnung an.",
   confirmMessage = "",
   catalog = [],
+  dueDays = 14,
+  billingKind = "voll",
+  siteName = "",
+  siteStreet = "",
+  sitePostalCode = "",
+  siteCity = "",
 } = Astro.props;
+const terms = paymentTermsForDays(dueDays);
 const initial = lines.length
   ? lines
   : [{ label: "Stundenlohn", quantity: 0, unit: "stunde" as const, unitCents: 0 }];
@@ -104,7 +118,7 @@ const euroField = (cents: number) =>
     ))}
   </div>
   <p class="text-sm text-ink-800 dark:text-ink-100">Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
-  <InvoiceNotes />
+  <InvoiceNotes paymentTerms={terms} />
   <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
   <div class="grid min-w-0 gap-3 sm:grid-cols-2">
     <div class="min-w-0">
@@ -114,6 +128,45 @@ const euroField = (cents: number) =>
     <div class="min-w-0">
       <label class="label" for="service-date">Leistungsdatum</label>
       <input class="input" id="service-date" name="service_date" type="date" required value={serviceDate} />
+    </div>
+    <div class="min-w-0">
+      <label class="label" for="due-days">Zahlungsziel</label>
+      <select class="input" id="due-days" name="due_days">
+        {DUE_DAY_OPTIONS.map((days) => (
+          <option value={days} selected={dueDays === days}>
+            {days === 0 ? "Sofort" : `${days} Tage`}
+          </option>
+        ))}
+      </select>
+    </div>
+    <div class="min-w-0">
+      <label class="label" for="billing-kind">Rechnungsart</label>
+      <select class="input" id="billing-kind" name="billing_kind">
+        <option value="voll" selected={billingKind === "voll"}>Volle Rechnung</option>
+        <option value="teil" selected={billingKind === "teil"}>Teilrechnung</option>
+        <option value="schluss" selected={billingKind === "schluss"}>Schlussrechnung</option>
+      </select>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-ink-200 p-4 dark:border-white/10">
+    <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">Baustelle / Leistungsort</p>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+      <div class="sm:col-span-2">
+        <label class="label" for="site-name">Bezeichnung</label>
+        <input class="input" id="site-name" name="site_name" maxlength="120" value={siteName ?? ""} />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="label" for="site-street">Straße</label>
+        <input class="input" id="site-street" name="site_street" maxlength="120" value={siteStreet ?? ""} />
+      </div>
+      <div>
+        <label class="label" for="site-postal">PLZ</label>
+        <input class="input" id="site-postal" name="site_postal_code" maxlength="12" value={sitePostalCode ?? ""} />
+      </div>
+      <div>
+        <label class="label" for="site-city">Ort</label>
+        <input class="input" id="site-city" name="site_city" maxlength="80" value={siteCity ?? ""} />
+      </div>
     </div>
   </div>
   <SalutationSelect name={customerName} id="salutation-invoice" selected={salutation} />
