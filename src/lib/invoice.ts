@@ -123,6 +123,7 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
 
 export const INVOICE_MAIL_LEAD = "Hiermit übersende ich Ihnen die Rechnung in Höhe von:";
 export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:";
+export const REMINDER_MAIL_LEAD = "Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:";
 
 /** Kurzer Mailtext. Positionen und Steuerhinweis bleiben im PDF. */
 export function invoicePlainText(input: {
@@ -131,15 +132,18 @@ export function invoicePlainText(input: {
   number: string;
   storno?: boolean;
   settled?: boolean;
+  reminder?: boolean;
 }): string {
   const amount = formatEuro(input.priceCents);
-  const lead = input.storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const lead = input.storno ? STORNO_MAIL_LEAD : input.reminder ? REMINDER_MAIL_LEAD : INVOICE_MAIL_LEAD;
   const tail = input.storno
     ? ["Es ist kein Betrag zu zahlen.", "", "Die Positionen stehen in der angehängten Stornorechnung."]
     : input.settled
       ? ["Die Positionen stehen in der angehängten Rechnung."]
       : [
-          `Fällig am ${formatOfferDate(input.dueDate)}.`,
+          input.reminder
+            ? `Die Zahlung war fällig am ${formatOfferDate(input.dueDate)}.`
+            : `Fällig am ${formatOfferDate(input.dueDate)}.`,
           "",
           "Bei einer Überweisung bitte angeben:",
           `Verwendungszweck: ${input.number}`,
@@ -148,6 +152,18 @@ export function invoicePlainText(input: {
           "Die Positionen stehen in der angehängten Rechnung.",
         ];
   return [lead, amount, "", ...tail].join("\n");
+}
+
+/** Offene, bereits versandte Rechnung nach Fälligkeit – bereit für Zahlungserinnerung. */
+export function canSendPaymentReminder(
+  row: { document_kind: string; payment_status: string; sent_at: number | null; due_date: string },
+  today: string,
+): boolean {
+  if (row.document_kind === "storno") return false;
+  if (row.payment_status !== "offen" && row.payment_status !== "test") return false;
+  if (!row.sent_at) return false;
+  if (!isIsoDate(row.due_date) || !isIsoDate(today)) return false;
+  return row.due_date <= today;
 }
 
 export function buildInvoiceXml(input: {

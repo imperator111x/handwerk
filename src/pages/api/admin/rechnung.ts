@@ -4,7 +4,7 @@ import { cfEnv } from "../../../lib/cf";
 import { getCustomer } from "../../../lib/customers";
 import { getDb, signatureNameForUser } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
-import { invoiceNumber, parseInvoiceForm } from "../../../lib/invoice";
+import { canSendPaymentReminder, invoiceNumber, parseInvoiceForm } from "../../../lib/invoice";
 import { buildInvoicePdf } from "../../../lib/invoice-pdf";
 import {
   beginStorno,
@@ -19,6 +19,7 @@ import {
   saveInvoicePaymentLink,
   sendInvoiceEmail,
   updateInvoiceDelivery,
+  updateInvoiceReminder,
   type InvoiceRow,
 } from "../../../lib/invoices";
 import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive, stripeKeyMode, stripePaymentsReady } from "../../../lib/stripe-pay";
@@ -50,7 +51,14 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const action = String(form.get("action") ?? "");
   if (!db || !env) return ctx.redirect("/admin/rechnungen?rechnung=db", 303);
 
-  if (action === "resend" || action === "transfer" || action === "transfer-clear" || action === "storno" || action === "adjust") {
+  if (
+    action === "resend" ||
+    action === "erinnerung" ||
+    action === "transfer" ||
+    action === "transfer-clear" ||
+    action === "storno" ||
+    action === "adjust"
+  ) {
     const id = Number.parseInt(String(form.get("id") ?? ""), 10);
     const row = Number.isFinite(id) ? await getInvoice(db, id) : null;
     if (!row) return ctx.redirect("/admin/rechnungen?rechnung=missing", 303);
@@ -80,6 +88,15 @@ export async function POST(ctx: APIContext): Promise<Response> {
         }
       }
       return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${cleared ? "transfer-clear" : "transfer-kept"}`, 303);
+    }
+    if (action === "erinnerung") {
+      if (!canSendPaymentReminder(row, berlinTodayIso())) {
+        return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=erinnerung-frueh`, 303);
+      }
+      const authorName = await signatureNameForUser(db, session.userId, session.username);
+      const sent = await deliverInvoice(env, db, row, authorName, "erinnerung");
+      const flag = sent.sent ? (sent.paymentUrl ? "erinnerung" : "erinnerung-ohne-link") : "erinnerung-fail";
+      return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${flag}`, 303);
     }
     const authorName = await signatureNameForUser(db, session.userId, session.username);
     const sent = await deliverInvoice(env, db, row, authorName, "rechnung");
@@ -191,14 +208,14 @@ async function deliverInvoice(
   db: D1Database,
   row: InvoiceRow,
   authorName: string,
-  purpose: "rechnung" | "storno",
+  purpose: "rechnung" | "storno" | "erinnerung",
 ): Promise<{ sent: boolean; paymentUrl: boolean }> {
   const stored = readStoredOffer(row.lines_json, "");
   const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row));
   const number = invoiceNumber(row.id, row.invoice_date);
   const paymentUrl = await ensurePaymentUrl(env, db, row, number);
   const extraAttachments: Array<{ filename: string; pdf: Uint8Array }> = [];
-  if (row.timesheet_id && purpose === "rechnung") {
+  if (row.timesheet_id && (purpose === "rechnung" || purpose === "erinnerung")) {
     try {
       const sheet = await getTimesheet(db, row.timesheet_id);
       if (sheet) {
@@ -233,8 +250,16 @@ async function deliverInvoice(
     purpose,
     extraAttachments,
   });
-  await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
-  const linkExpected = purpose === "rechnung" && row.payment_status !== "bezahlt" && row.payment_status !== "erstattet" && row.payment_status !== "storniert";
+  if (purpose === "erinnerung" && delivery.sentAt != null) {
+    await updateInvoiceReminder(db, row.id, delivery.sentAt, delivery.emailStatus);
+  } else {
+    await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
+  }
+  const linkExpected =
+    (purpose === "rechnung" || purpose === "erinnerung") &&
+    row.payment_status !== "bezahlt" &&
+    row.payment_status !== "erstattet" &&
+    row.payment_status !== "storniert";
   return { sent: delivery.sentAt != null, paymentUrl: !linkExpected || Boolean(paymentUrl) };
 }
 

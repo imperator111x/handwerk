@@ -1,6 +1,13 @@
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
-import { INVOICE_MAIL_LEAD, STORNO_MAIL_LEAD, invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
+import {
+  INVOICE_MAIL_LEAD,
+  REMINDER_MAIL_LEAD,
+  STORNO_MAIL_LEAD,
+  invoiceNumber,
+  invoicePlainText,
+  type ParsedInvoice,
+} from "./invoice";
 import { formatEuro, formatOfferDate, offerTotalCents, readStoredOffer, serializeOffer, type StoredOffer } from "./quote";
 import { applyOnlinePayment, applyRefund, applyTestPayment, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
@@ -34,12 +41,13 @@ export interface InvoiceRow {
   payment_note: string | null;
   document_kind: string;
   related_invoice_id: number | null;
+  reminded_at: number | null;
 }
 
 const COLUMNS = `id, customer_id, quote_id, timesheet_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
   tax_number, buyer_name, buyer_email, buyer_phone, buyer_street, buyer_postal_code, buyer_city,
   created_at, sent_at, email_status, payment_status, paid_at, payment_method, payment_reference,
-  payment_url, payment_link_id, payment_note, document_kind, related_invoice_id`;
+  payment_url, payment_link_id, payment_note, document_kind, related_invoice_id, reminded_at`;
 
 export async function getTaxNumber(db: D1Database): Promise<string> {
   const row = await db.prepare(`SELECT tax_number FROM business_profile WHERE id = 1`).first<{ tax_number: string }>();
@@ -195,6 +203,13 @@ export async function listRelatedInvoices(db: D1Database, id: number): Promise<I
 
 export async function updateInvoiceDelivery(db: D1Database, id: number, sentAt: number | null, emailStatus: string): Promise<void> {
   await db.prepare(`UPDATE invoices SET sent_at = COALESCE(?, sent_at), email_status = ? WHERE id = ?`).bind(sentAt, emailStatus, id).run();
+}
+
+export async function updateInvoiceReminder(db: D1Database, id: number, remindedAt: number, emailStatus: string): Promise<void> {
+  await db
+    .prepare(`UPDATE invoices SET reminded_at = ?, sent_at = COALESCE(sent_at, ?), email_status = ? WHERE id = ?`)
+    .bind(remindedAt, remindedAt, emailStatus, id)
+    .run();
 }
 
 export function paymentRow(row: InvoiceRow): PaymentRow {
@@ -378,7 +393,7 @@ export async function relatedInvoice(db: D1Database, row: InvoiceRow): Promise<I
 }
 
 export function invoiceMailFooter(input: {
-  purpose?: "rechnung" | "storno" | null;
+  purpose?: "rechnung" | "storno" | "erinnerung" | null;
   paymentStatus?: string | null;
   paymentUrl?: string | null;
   paymentMode?: "test" | "live" | "off" | null;
@@ -395,6 +410,9 @@ export function invoiceMailFooter(input: {
   if (cancelled) return "Diese Rechnung ist storniert. Sie können direkt auf diese E-Mail antworten.";
   if (paid) return "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten.";
   if (testPay) return "Testmodus: Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten.";
+  if (input.purpose === "erinnerung") {
+    return "Falls die Zahlung inzwischen unterwegs ist, bitte diese Erinnerung ignorieren. Sie können direkt auf diese E-Mail antworten.";
+  }
   return "Sie können direkt auf diese E-Mail antworten.";
 }
 
@@ -413,7 +431,7 @@ export async function sendInvoiceEmail(
     paymentUrl?: string | null;
     paymentStatus?: string | null;
     paymentMode?: "test" | "live" | "off" | null;
-    purpose?: "rechnung" | "storno";
+    purpose?: "rechnung" | "storno" | "erinnerung";
     /** Ersetzt den automatischen Fuß, zum Beispiel beim Systemcheck. */
     footerNote?: string | null;
     /** Zusätzliche PDFs, z. B. der zugehörige Stundenzettel. */
@@ -421,7 +439,10 @@ export async function sendInvoiceEmail(
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const storno = input.purpose === "storno";
-  const subject = `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}: ${input.invoice.title}`;
+  const reminder = input.purpose === "erinnerung";
+  const subject = reminder
+    ? `Zahlungserinnerung · Rechnung ${input.number}: ${input.invoice.title}`
+    : `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}: ${input.invoice.title}`;
   const from = "info@zeus-service.de";
   const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
   const cancelled = input.paymentStatus === "storniert";
@@ -432,9 +453,10 @@ export async function sendInvoiceEmail(
     number: input.number,
     storno,
     settled: paid || cancelled,
+    reminder,
   });
   const amount = formatEuro(input.invoice.priceCents);
-  const lead = storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const lead = storno ? STORNO_MAIL_LEAD : reminder ? REMINDER_MAIL_LEAD : INVOICE_MAIL_LEAD;
   const prefix = `${lead}\n${amount}\n\n`;
   const body = plain.startsWith(prefix) ? plain.slice(prefix.length) : plain;
   const footerNote = invoiceMailFooter(input);
@@ -447,7 +469,9 @@ export async function sendInvoiceEmail(
     fromEmail: from,
     replyToEmail: from,
     heading: input.invoice.title,
-    eyebrow: `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
+    eyebrow: reminder
+      ? `Zahlungserinnerung · Rechnung ${input.number}`
+      : `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
     greeting: input.greeting,
     footerNote,
     summaryLabel: lead,

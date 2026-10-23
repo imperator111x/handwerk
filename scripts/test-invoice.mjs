@@ -76,6 +76,49 @@ assert.match(plain, /^Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n1
 assert.match(plain, /Bei einer Überweisung bitte angeben:\nVerwendungszweck: R-2026-0007\nKontoinhaber: ZEUS-SERVICE\nIBAN: DE38 1001 4000 1598 1684 18\nSWIFT: SWNB DE BB/);
 assert.match(plain, /Die Positionen stehen in der angehängten Rechnung\.$/);
 assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung/);
+assert.equal(invoice.REMINDER_MAIL_LEAD, "Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:");
+const reminderMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0007",
+  reminder: true,
+});
+assert.match(reminderMail, /^Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:\n127,50\s€\n\nDie Zahlung war fällig am 3\. November 2026\./);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "offen", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-03",
+  ),
+  true,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "offen", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-02",
+  ),
+  false,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "offen", sent_at: null, due_date: "2026-11-03" },
+    "2026-11-04",
+  ),
+  false,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "storno", payment_status: "offen", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-04",
+  ),
+  false,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "bezahlt", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-04",
+  ),
+  false,
+);
 const stornoMail = invoice.invoicePlainText({
   priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
