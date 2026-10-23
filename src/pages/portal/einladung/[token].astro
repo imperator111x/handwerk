@@ -1,4 +1,5 @@
 ---
+import PasswordField from "../../../components/PasswordField.astro";
 import PortalLayout from "../../../layouts/PortalLayout.astro";
 import { getCustomer } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
@@ -54,30 +55,20 @@ const notice = flag ? notices[flag] : undefined;
         )}
         <form method="POST" action="/api/portal/register" class="mt-5 space-y-4">
           <input type="hidden" name="token" value={invite.token} />
-          <div>
-            <label for="password" class="label">Passwort</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minlength={8}
-              autocomplete="new-password"
-              class="input"
-            />
-          </div>
-          <div>
-            <label for="password2" class="label">Passwort wiederholen</label>
-            <input
-              id="password2"
-              name="password2"
-              type="password"
-              required
-              minlength={8}
-              autocomplete="new-password"
-              class="input"
-            />
-          </div>
+          <PasswordField
+            id="password"
+            name="password"
+            label="Passwort"
+            autocomplete="new-password"
+            minlength={8}
+          />
+          <PasswordField
+            id="password2"
+            name="password2"
+            label="Passwort wiederholen"
+            autocomplete="new-password"
+            minlength={8}
+          />
           <button type="submit" class="btn-primary w-full justify-center">Zugang speichern</button>
         </form>
       </>

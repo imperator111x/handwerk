@@ -4,7 +4,7 @@ import { cfEnv } from "../../../lib/cf";
 import { getCustomer } from "../../../lib/customers";
 import { getDb, signatureNameForUser } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
-import { openAmountCents, parseSiteForm } from "../../../lib/billing";
+import { parseSiteForm } from "../../../lib/billing";
 import {
   INVOICE_DEFAULT_INTRO,
   canSendPaymentReminder,
@@ -14,6 +14,7 @@ import {
   parseInvoiceForm,
   reminderPurpose,
 } from "../../../lib/invoice";
+import { ensureInvoicePaymentUrl } from "../../../lib/invoice-payment-link";
 import { buildInvoicePdf } from "../../../lib/invoice-pdf";
 import {
   beginCreditNote,
@@ -26,14 +27,12 @@ import {
   relatedInvoice,
   renderInvoicePdf,
   saveInvoice,
-  saveInvoicePaymentLink,
   sendInvoiceEmail,
-  sumCreditsForInvoice,
   updateInvoiceDelivery,
   updateInvoiceReminder,
   type InvoiceRow,
 } from "../../../lib/invoices";
-import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive, stripeKeyMode, stripePaymentsReady } from "../../../lib/stripe-pay";
+import { setStripePaymentLinkActive, stripeKeyMode } from "../../../lib/stripe-pay";
 import { berlinTodayIso, getQuote, markQuoteInvoiced } from "../../../lib/offers";
 import { formatOfferDate, parseEuroToCents, readStoredOffer } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
@@ -285,50 +284,6 @@ export async function POST(ctx: APIContext): Promise<Response> {
   return ctx.redirect(`/admin/rechnungen/${id}?rechnung=${sent.sent ? (sent.paymentUrl ? "sent" : "sent-ohne-link") : "saved"}`, 303);
 }
 
-async function ensurePaymentUrl(env: Env, db: D1Database, row: InvoiceRow, number: string): Promise<string | null> {
-  if (
-    row.document_kind === "storno" ||
-    row.document_kind === "gutschrift" ||
-    row.payment_status === "bezahlt" ||
-    row.payment_status === "erstattet" ||
-    row.payment_status === "storniert"
-  ) {
-    return null;
-  }
-  const credited = await sumCreditsForInvoice(db, row.id);
-  const amountCents = openAmountCents(row, credited);
-  if (!stripePaymentsReady(env) || !env.STRIPE_SECRET_KEY || amountCents < 50) {
-    return row.payment_url ? paymentLinkForMail(row.payment_url, row.buyer_email) || null : null;
-  }
-  try {
-    const previousLinkId = row.payment_link_id;
-    // Neu anlegen bzw. per Idempotenz denselben Link holen – Abbuchung trägt die Rechnungsnummer.
-    const link = await createStripePaymentLink(env.STRIPE_SECRET_KEY, {
-      invoiceId: row.id,
-      number,
-      title: row.title,
-      amountCents,
-      email: row.buyer_email,
-    });
-    await saveInvoicePaymentLink(db, row.id, link.url, link.id, true);
-    if (previousLinkId && previousLinkId !== link.id) {
-      try {
-        await setStripePaymentLinkActive(env.STRIPE_SECRET_KEY, previousLinkId, false);
-      } catch (err) {
-        console.error("invoice_payment_link_close_failed", err instanceof Error ? err.message : "error");
-      }
-    }
-    return paymentLinkForMail(link.url, row.buyer_email) || null;
-  } catch (err) {
-    console.error("invoice_payment_link_failed", err instanceof Error ? err.message : "error");
-    if (!row.payment_note) {
-      await noteInvoicePayment(db, row.id, "Der Zahlungslink konnte nicht angelegt werden. Bitte erneut senden.");
-    }
-    if (row.payment_url) return paymentLinkForMail(row.payment_url, row.buyer_email) || null;
-    return null;
-  }
-}
-
 async function deliverInvoice(
   env: NonNullable<ReturnType<typeof cfEnv>>,
   db: D1Database,
@@ -342,7 +297,7 @@ async function deliverInvoice(
     purpose === "erinnerung" || purpose === "mahnung" || purpose === "inkasso" ? purpose : null;
   const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row), noticeKind);
   const number = invoiceNumber(row.id, row.invoice_date);
-  const paymentUrl = purpose === "gutschrift" ? null : await ensurePaymentUrl(env, db, row, number);
+  const paymentUrl = purpose === "gutschrift" ? null : await ensureInvoicePaymentUrl(env, db, row);
   const extraAttachments: Array<{ filename: string; pdf: Uint8Array }> = [];
   const attachTimesheet =
     purpose === "rechnung" ||

@@ -226,7 +226,9 @@ export async function createStripePaymentLink(
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_AMOUNT_CENTS) {
     throw new Error("Betrag liegt unter dem Stripe-Minimum");
   }
-  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v4`);
+  // Betrag in den Key, damit geänderte Summen keinen Stripe-Idempotenz-Konflikt auslösen.
+  const priceKey = `invoice-${input.invoiceId}-c${input.amountCents}-price-v5`;
+  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), priceKey);
   const priceId = typeof price.id === "string" ? price.id : "";
   if (!priceId.startsWith("price_")) throw new Error("Stripe hat keinen Preis angelegt");
 
@@ -238,14 +240,15 @@ export async function createStripePaymentLink(
   ];
   let lastMessage = "Zahlungslink fehlgeschlagen";
   for (const methods of methodSets) {
+    const linkKey = `invoice-${input.invoiceId}-c${input.amountCents}-link-v5-${methods.join("-")}`;
     const params = paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test");
-    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-stmt2-${methods.join("-")}`);
+    let result = await stripePost(secret, "payment_links", params, linkKey);
     if (!result.ok && canDropDescriptor(result.body)) {
       result = await stripePost(
         secret,
         "payment_links",
         paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", true, false),
-        `invoice-${input.invoiceId}-link-stmt2b-${methods.join("-")}`,
+        `${linkKey}-nodesc`,
       );
     }
     if (!result.ok && canDropIntent(result.body)) {
@@ -253,7 +256,7 @@ export async function createStripePaymentLink(
         secret,
         "payment_links",
         paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false, false),
-        `invoice-${input.invoiceId}-link-stmt2c-${methods.join("-")}`,
+        `${linkKey}-nointent`,
       );
     }
     if (result.ok) {

@@ -1,4 +1,5 @@
 ---
+import PasswordField from "../../components/PasswordField.astro";
 import PortalLayout from "../../layouts/PortalLayout.astro";
 import { getPortalSession } from "../../lib/portal-auth";
 
@@ -44,10 +45,7 @@ const notice = flag ? notices[flag] : undefined;
         <label for="email" class="label">E-Mail</label>
         <input id="email" name="email" type="email" required autocomplete="username" class="input" />
       </div>
-      <div>
-        <label for="password" class="label">Passwort</label>
-        <input id="password" name="password" type="password" required autocomplete="current-password" class="input" />
-      </div>
+      <PasswordField id="password" name="password" label="Passwort" autocomplete="current-password" />
       <button type="submit" class="btn-primary w-full justify-center">Anmelden</button>
     </form>
     <p class="mt-4 text-xs text-ink-500 dark:text-ink-400">

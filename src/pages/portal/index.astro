@@ -8,7 +8,8 @@ import { invoiceNumber } from "../../lib/invoice";
 import { listInvoicesForCustomer, sumCreditsForInvoice } from "../../lib/invoices";
 import { requirePortalSession } from "../../lib/portal-auth";
 import { formatEuro, formatOfferDate } from "../../lib/quote";
-import { invoiceStatusLabel, paymentLinkForMail } from "../../lib/stripe-pay";
+import { invoiceStatusLabel, stripePaymentsReady } from "../../lib/stripe-pay";
+import { cfEnv } from "../../lib/cf";
 
 export const prerender = false;
 
@@ -17,6 +18,8 @@ if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
 const session = sessionOrRedirect;
 
 const db = getDb(Astro);
+const env = cfEnv();
+const stripeReady = stripePaymentsReady(env ?? {});
 const customer = db ? await getCustomer(db, session.customerId) : null;
 const name = customer ? decodeHtmlEntities(customer.name) : session.email;
 const invoices = db ? await listInvoicesForCustomer(db, session.customerId) : [];
@@ -25,14 +28,20 @@ const rows = await Promise.all(
   invoices.map(async (row) => {
     const credited = db ? await sumCreditsForInvoice(db, row.id) : 0;
     const openCents = openAmountCents(row, credited);
-    const payUrl =
-      openCents > 0 && row.payment_url ? paymentLinkForMail(row.payment_url, row.buyer_email || session.email) : "";
-    return { row, openCents, payUrl };
+    return { row, openCents };
   }),
 );
 
 const flag = Astro.url.searchParams.get("portal");
-const welcome = flag === "welcome";
+const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  welcome: { kind: "ok", text: "Willkommen im Kundenportal. Ihr Zugang ist eingerichtet." },
+  "pay-fail": {
+    kind: "bad",
+    text: "Online-Zahlung ist gerade nicht verfügbar. Bitte später erneut versuchen oder per Überweisung zahlen.",
+  },
+  "pay-bad": { kind: "bad", text: "Diese Rechnung wurde nicht gefunden." },
+};
+const notice = flag ? notices[flag] : undefined;
 ---
 
 <PortalLayout title="Meine Rechnungen" session={session}>
@@ -42,9 +51,16 @@ const welcome = flag === "welcome";
       Hier finden Sie Ihre Rechnungen von Zeus-Service.
     </p>
 
-    {welcome && (
-      <p class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100">
-        Willkommen im Kundenportal. Ihr Zugang ist eingerichtet.
+    {notice && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          notice.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {notice.text}
       </p>
     )}
 
@@ -52,13 +68,14 @@ const welcome = flag === "welcome";
       <p class="mt-6 text-sm text-ink-600 dark:text-ink-300">Noch keine Rechnungen vorhanden.</p>
     ) : (
       <ul class="mt-6 divide-y divide-ink-100 dark:divide-white/10">
-        {rows.map(({ row, openCents, payUrl }) => {
+        {rows.map(({ row, openCents }) => {
           const number = invoiceNumber(row.id, row.invoice_date);
           const paid =
             row.payment_status === "bezahlt" ||
             row.payment_status === "erstattet" ||
             row.document_kind === "storno" ||
             row.document_kind === "gutschrift";
+          const canPayOnline = !paid && openCents >= 50 && stripeReady;
           return (
             <li class="py-4">
               <div class="flex flex-wrap items-start justify-between gap-3">
@@ -80,11 +97,9 @@ const welcome = flag === "welcome";
                   >
                     PDF
                   </a>
-                  {payUrl && !paid && (
+                  {canPayOnline && (
                     <a
-                      href={payUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/api/portal/zahlen?id=${row.id}`}
                       class="rounded-full bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white dark:bg-brand-500 dark:text-ink-950"
                     >
                       Online zahlen
@@ -92,9 +107,11 @@ const welcome = flag === "welcome";
                   )}
                 </div>
               </div>
-              {!payUrl && openCents > 0 && !paid && (
+              {!paid && openCents > 0 && (
                 <p class="mt-2 text-xs text-ink-500 dark:text-ink-400">
-                  Kein Online-Link hinterlegt. Bei Überweisung bitte Verwendungszweck {number} angeben.
+                  {canPayOnline
+                    ? `Optional per Überweisung mit Verwendungszweck ${number}.`
+                    : `Bei Überweisung bitte Verwendungszweck ${number} angeben.`}
                 </p>
               )}
             </li>
