@@ -119,18 +119,26 @@ const tabs = [
                   Überfällig
                 </span>
               </div>
-              {can && (
-                <form method="POST" action="/api/admin/rechnung" class="mt-3">
-                  <input type="hidden" name="id" value={row.id} />
-                  <input type="hidden" name="action" value="erinnerung" />
-                  <button
-                    type="submit"
-                    class="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100"
-                  >
-                    {reminderActionLabel(next)}
-                  </button>
-                </form>
-              )}
+              <div class="mt-3 flex flex-wrap gap-2">
+                <a
+                  href={`/api/admin/rechnung-gericht?id=${row.id}`}
+                  class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                >
+                  Für Gericht laden
+                </a>
+                {can && (
+                  <form method="POST" action="/api/admin/rechnung">
+                    <input type="hidden" name="id" value={row.id} />
+                    <input type="hidden" name="action" value="erinnerung" />
+                    <button
+                      type="submit"
+                      class="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100"
+                    >
+                      {reminderActionLabel(next)}
+                    </button>
+                  </form>
+                )}
+              </div>
             </li>
           );
         })}

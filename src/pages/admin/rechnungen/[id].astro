@@ -205,6 +205,15 @@ const notice = flag ? notices[flag] : undefined;
     <p class="mt-3 text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
     <div class="mt-5 flex flex-wrap gap-2">
       <a href={`/api/admin/rechnung-pdf?id=${row.id}`} target="_blank" class="btn-primary">PDF ansehen</a>
+      {row.document_kind !== "storno" && (
+        <a
+          href={`/api/admin/rechnung-gericht?id=${row.id}`}
+          class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+          title="ZIP mit Mahnverfahren-Daten und Rechnungs-PDF"
+        >
+          Für Gericht / Mahnverfahren
+        </a>
+      )}
       {canCorrect && (
         <a href={`/admin/rechnungen/bearbeiten?id=${row.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Anpassen</a>
       )}
