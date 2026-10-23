@@ -48,6 +48,8 @@ export interface InvoicePdfInput {
   dueDate: string;
   authorName: string;
   documentKind?: "rechnung" | "storno";
+  /** Optisch als Zahlungserinnerung / 2. Mahnung kennzeichnen (PDF-Anhang). */
+  noticeKind?: "erinnerung" | "mahnung";
   referenceNumber?: string;
   referenceDate?: string;
 }
@@ -103,7 +105,27 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
 }
 
 function documentHeading(input: InvoicePdfInput): string {
+  if (input.noticeKind === "mahnung") return "2. Mahnung";
+  if (input.noticeKind === "erinnerung") return "Zahlungserinnerung";
   return input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
+}
+
+function noticeBannerLines(input: InvoicePdfInput): string[] {
+  if (input.noticeKind === "mahnung") {
+    return [
+      `2. Mahnung zur Rechnung ${input.number}`,
+      `Der Rechnungsbetrag ist seit dem ${input.dueDateLabel} fällig.`,
+      "Bitte überweisen Sie den offenen Betrag umgehend.",
+    ];
+  }
+  if (input.noticeKind === "erinnerung") {
+    return [
+      `Zahlungserinnerung zur Rechnung ${input.number}`,
+      `Der Rechnungsbetrag war zum ${input.dueDateLabel} fällig.`,
+      "Bitte begleichen Sie den offenen Betrag zeitnah.",
+    ];
+  }
+  return [];
 }
 
 function layoutPages(input: InvoicePdfInput): string[] {
@@ -164,8 +186,16 @@ function layoutPages(input: InvoicePdfInput): string[] {
   const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
   const logoBottom = PAGE_H - 28 - logoH;
   paint(`q ${round(LOGO_W)} 0 0 ${round(logoH)} ${LEFT} ${round(logoBottom)} cm /Im1 Do Q`);
-  textRight(RIGHT, PAGE_H - 44, 20, "F2", heading, BLACK);
-  textRight(RIGHT, PAGE_H - 64, 10, "F1", input.number, MUTED);
+  const headingSize = heading.length > 14 ? 14 : 20;
+  textRight(RIGHT, PAGE_H - 44, headingSize, "F2", heading, BLACK);
+  textRight(
+    RIGHT,
+    PAGE_H - 64,
+    10,
+    "F1",
+    input.noticeKind ? `zur Rechnung ${input.number}` : input.number,
+    MUTED,
+  );
   const ruleY = logoBottom - 12;
   paint(`${BLACK} rg`);
   paint(`0 ${round(ruleY)} ${PAGE_W} 3 re f`);
@@ -192,7 +222,11 @@ function layoutPages(input: InvoicePdfInput): string[] {
   const customerLines = [input.buyerName, input.buyerStreet.trim(), place, input.buyerEmail, input.buyerPhone?.trim() || ""].filter(Boolean);
   const paymentHint = storno
     ? [`Stornorechnung: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Es ist nichts zu zahlen"]
-    : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
+    : input.noticeKind === "mahnung"
+      ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
+      : input.noticeKind === "erinnerung"
+        ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
+        : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;
   paymentHint.forEach((line, index) => {
@@ -203,6 +237,20 @@ function layoutPages(input: InvoicePdfInput): string[] {
     textAt(LEFT, y - 14 - index * 14, 11, index === 0 ? "F2" : "F1", line);
   });
   y -= 14 + customerLines.length * 14 + 22;
+
+  const banner = noticeBannerLines(input);
+  if (banner.length) {
+    const bannerHeight = 14 + banner.length * 14 + 10;
+    need(bannerHeight);
+    paint(`${BAND} rg`);
+    paint(`${LEFT} ${round(y - bannerHeight + 16)} ${WIDTH} ${bannerHeight} re f`);
+    paint(`${BLACK} RG`);
+    paint(`1.2 w ${LEFT} ${round(y - bannerHeight + 16)} ${WIDTH} ${bannerHeight} re S`);
+    banner.forEach((line, index) => {
+      textAt(LEFT + 10, y - index * 14, index === 0 ? 11 : 10, index === 0 ? "F2" : "F1", line, BLACK);
+    });
+    y -= bannerHeight + 12;
+  }
 
   need(36);
   textAt(LEFT, y, 13, "F2", input.title, BLACK);

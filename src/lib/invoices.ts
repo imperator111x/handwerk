@@ -394,9 +394,20 @@ export function renderInvoicePdf(
   stored: StoredOffer,
   authorName: string,
   related: InvoiceRow | null = null,
+  noticeKind?: "erinnerung" | "mahnung" | null,
 ): { filename: string; bytes: Uint8Array } {
-  const input = invoicePdfInput(row, stored, authorName, related);
-  const prefix = input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
+  const input = {
+    ...invoicePdfInput(row, stored, authorName, related),
+    noticeKind: noticeKind === "erinnerung" || noticeKind === "mahnung" ? noticeKind : undefined,
+  };
+  const prefix =
+    noticeKind === "mahnung"
+      ? "Mahnung"
+      : noticeKind === "erinnerung"
+        ? "Zahlungserinnerung"
+        : input.documentKind === "storno"
+          ? "Stornorechnung"
+          : "Rechnung";
   return { filename: `${prefix}-${input.number}.pdf`, bytes: buildInvoicePdf(input) };
 }
 

@@ -238,7 +238,8 @@ async function deliverInvoice(
   reminderLevel = 1,
 ): Promise<{ sent: boolean; paymentUrl: boolean }> {
   const stored = readStoredOffer(row.lines_json, "");
-  const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row));
+  const noticeKind = purpose === "erinnerung" || purpose === "mahnung" ? purpose : null;
+  const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row), noticeKind);
   const number = invoiceNumber(row.id, row.invoice_date);
   const paymentUrl = await ensurePaymentUrl(env, db, row, number);
   const extraAttachments: Array<{ filename: string; pdf: Uint8Array }> = [];
