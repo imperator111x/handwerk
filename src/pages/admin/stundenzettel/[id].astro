@@ -26,7 +26,7 @@ const flag = Astro.url.searchParams.get("zettel");
 const messages: Record<string, string> = {
   saved: "Gespeichert. Jetzt kann unterschrieben werden.",
   signed: "Der Stundenzettel ist unterschrieben und festgeschrieben.",
-  sign: "Die Unterschrift vom Mitarbeiter fehlt oder ist unvollständig. Name und Stiftstrich gehören zusammen. Der Auftraggeber ist freiwillig.",
+  sign: "Die Unterschrift ist unvollständig. Beim Mitarbeiter gehören Name und Stiftstrich zusammen. Beim Auftraggeber ebenso, wenn du ihn mit unterschreiben lässt.",
   bad: "Bitte die Zeiten prüfen. Das Ende muss nach dem Beginn liegen.",
   locked: "Dieser Stundenzettel ist schon festgeschrieben.",
 };
@@ -81,8 +81,8 @@ const messages: Record<string, string> = {
               Auf dem Tablet mit dem Stift in das weiße Feld schreiben. Es gilt der gespeicherte Stand, Änderungen oben zuerst speichern. Die Mitarbeiter-Unterschrift schreibt den Zettel fest. Die Unterschrift des Auftraggebers kann dazu, wenn die Person vor Ort ist.
             </p>
           </div>
-          <SignaturePad name="employee" label="Unterschrift Mitarbeiter" hint="Pflicht. Name und Stiftstrich." />
-          <SignaturePad name="customer" label="Unterschrift Auftraggeber" hint="Freiwillig, zum Nachweis vor Ort." />
+          <SignaturePad name="employee" label="Unterschrift Mitarbeiter" hint="Pflicht. Name und Stiftstrich." required />
+          <SignaturePad name="client" label="Unterschrift Auftraggeber" hint="Optional. Mit Stift im weißen Feld unterschreiben." />
           <p class="text-xs text-ink-500 dark:text-ink-400">{TIMESHEET_SIGN_NOTE}</p>
           <button type="submit" class="btn-primary w-fit">Unterschreiben und festschreiben</button>
         </form>

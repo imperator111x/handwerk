@@ -53,21 +53,21 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (signerName.length < 2 || !employeeJpeg || !jpegSize(employeeJpeg)) {
       return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=sign`, 303);
     }
-    const customerName = String(form.get("customer_name") ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
-    const customerJpeg = decodeSignatureJpeg(String(form.get("customer_jpeg") ?? ""));
-    if ((customerName.length > 0 || customerJpeg) && (customerName.length < 2 || !customerJpeg || !jpegSize(customerJpeg))) {
+    const clientName = String(form.get("client_name") ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+    const clientJpeg = decodeSignatureJpeg(String(form.get("client_jpeg") ?? ""));
+    if ((clientName.length > 0 || clientJpeg) && (clientName.length < 2 || !clientJpeg || !jpegSize(clientJpeg))) {
       return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=sign`, 303);
     }
     const hash = await timesheetContentHash(timesheetContent(row));
     const storedEmployee = bytesToBase64(employeeJpeg);
-    const storedCustomer = customerJpeg ? bytesToBase64(customerJpeg) : "";
+    const storedClient = clientJpeg ? bytesToBase64(clientJpeg) : "";
     const ok = await signTimesheet(db, row.id, {
       hash,
       signedAt: Math.floor(Date.now() / 1000),
       signerName,
       signatureJpeg: storedEmployee,
-      customerSignerName: customerJpeg ? customerName : "",
-      customerSignatureJpeg: storedCustomer,
+      customerSignerName: clientJpeg ? clientName : "",
+      customerSignatureJpeg: storedClient,
     });
     if (!ok) return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=locked`, 303);
     return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=signed`, 303);

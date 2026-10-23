@@ -1,3 +1,4 @@
+import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_WIDTH } from "./offer-logo";
 import { formatOfferDate } from "./quote";
 import {
   TIMESHEET_SIGN_NOTE,
@@ -32,30 +33,70 @@ const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const LEFT = 48;
 const RIGHT = 547;
+const LOGO_W = 190;
+
+type PdfImage = {
+  key: "logo" | "employee" | "customer";
+  objectId: number;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  filter: "FlateDecode" | "DCTDecode";
+};
 
 export function buildTimesheetPdf(input: TimesheetPdfInput): Uint8Array {
+  const images: PdfImage[] = [
+    {
+      key: "logo",
+      objectId: 5,
+      bytes: OFFER_LOGO_BYTES,
+      width: OFFER_LOGO_WIDTH,
+      height: OFFER_LOGO_HEIGHT,
+      filter: "FlateDecode",
+    },
+  ];
+  let nextId = 6;
   const employee = input.signature ? jpegSize(input.signature) : null;
+  if (input.signature && employee) {
+    images.push({
+      key: "employee",
+      objectId: nextId,
+      bytes: input.signature,
+      width: employee.width,
+      height: employee.height,
+      filter: "DCTDecode",
+    });
+    nextId += 1;
+  }
   const customer = input.customerSignature ? jpegSize(input.customerSignature) : null;
-  const images: Array<{ id: number; bytes: Uint8Array; width: number; height: number }> = [];
-  if (input.signature && employee) images.push({ id: 5, bytes: input.signature, width: employee.width, height: employee.height });
   if (input.customerSignature && customer) {
-    images.push({ id: images.length ? 6 : 5, bytes: input.customerSignature, width: customer.width, height: customer.height });
+    images.push({
+      key: "customer",
+      objectId: nextId,
+      bytes: input.customerSignature,
+      width: customer.width,
+      height: customer.height,
+      filter: "DCTDecode",
+    });
   }
   const stream = layout(input, images);
   return serialize(stream, images);
 }
 
-function layout(
-  input: TimesheetPdfInput,
-  images: Array<{ id: number; bytes: Uint8Array; width: number; height: number }>,
-): string {
+function layout(input: TimesheetPdfInput, images: PdfImage[]): string {
   const ops: string[] = [];
-  let y = 780;
+  const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
+  const logoBottom = PAGE_H - 28 - logoH;
+  let y = logoBottom - 28;
   const paint = (command: string) => ops.push(command);
-  const textAt = (x: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = "0 0 0") => {
+  const textAt = (x: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = "0.15 0.15 0.15") => {
     const shown = value.trim();
     if (!shown) return;
     paint(`${color} rg /${font} ${size} Tf BT 1 0 0 1 ${round(x)} ${round(baseline)} Tm ${pdfText(shown)} Tj ET`);
+  };
+  const textRight = (right: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = "0.15 0.15 0.15") => {
+    const width = textWidth(value, size, font === "F2");
+    textAt(right - width, baseline, size, font, value, color);
   };
   const line = (value: string, size = 11, font: "F1" | "F2" = "F1") => {
     for (const part of wrap(value, 92)) {
@@ -64,12 +105,13 @@ function layout(
     }
   };
 
-  textAt(LEFT, y, 18, "F2", "Zeus-Service");
-  textAt(RIGHT - 150, y, 11, "F2", input.number);
-  y -= 16;
-  textAt(LEFT, y, 10, "F1", "Stundenzettel");
-  textAt(RIGHT - 150, y, 10, "F1", input.dateLabel);
-  y -= 22;
+  paint(`q ${round(LOGO_W)} 0 0 ${round(logoH)} ${LEFT} ${round(logoBottom)} cm /Im5 Do Q`);
+  textRight(RIGHT, PAGE_H - 44, 18, "F2", "Stundenzettel", "0 0 0");
+  textRight(RIGHT, PAGE_H - 62, 10, "F1", input.number, "0.4 0.4 0.4");
+  textRight(RIGHT, PAGE_H - 76, 9, "F1", input.dateLabel, "0.4 0.4 0.4");
+  paint("0 0 0 rg");
+  paint(`0 ${round(logoBottom - 12)} ${PAGE_W} 2 re f`);
+
   line(input.customerName, 13, "F2");
   const place = [input.street, [input.postalCode, input.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   if (place) line(place, 11);
@@ -109,31 +151,26 @@ function layout(
   if (input.signedAtLabel) line(`Festgeschrieben am ${input.signedAtLabel}.`, 10, "F2");
   y -= 12;
 
-  const drawSign = (title: string, person: string, image: { id: number; width: number; height: number } | null) => {
+  const drawSign = (title: string, person: string, image: PdfImage | null) => {
     line(title, 11, "F2");
     line(person || "keine Unterschrift", 10);
     if (image) {
       const boxW = 220;
       const boxH = Math.min(70, (boxW * image.height) / image.width);
       y -= boxH;
-      paint(`q ${round(boxW)} 0 0 ${round(boxH)} ${LEFT} ${round(y)} cm /Im${image.id} Do Q`);
+      paint(`q ${round(boxW)} 0 0 ${round(boxH)} ${LEFT} ${round(y)} cm /Im${image.objectId} Do Q`);
       y -= 12;
     }
     y -= 8;
   };
-  const employeeImage = images.find((image) => input.signature && image.bytes === input.signature) ?? null;
-  const customerImage = images.find((image) => input.customerSignature && image.bytes === input.customerSignature) ?? null;
-  drawSign("Unterschrift Mitarbeiter", input.signerName, employeeImage);
-  drawSign("Unterschrift Auftraggeber", input.customerSignerName, customerImage);
+  drawSign("Unterschrift Mitarbeiter", input.signerName, images.find((image) => image.key === "employee") ?? null);
+  drawSign("Unterschrift Auftraggeber", input.customerSignerName, images.find((image) => image.key === "customer") ?? null);
   return ops.join("\n");
 }
 
-function serialize(
-  stream: string,
-  images: Array<{ id: number; bytes: Uint8Array; width: number; height: number }>,
-): Uint8Array {
-  const xobjects = images.map((image) => `/Im${image.id} ${image.id} 0 R`).join(" ");
-  const contentId = images.length ? Math.max(...images.map((image) => image.id)) + 1 : 5;
+function serialize(stream: string, images: PdfImage[]): Uint8Array {
+  const xobjects = images.map((image) => `/Im${image.objectId} ${image.objectId} 0 R`).join(" ");
+  const contentId = Math.max(...images.map((image) => image.objectId)) + 1;
   const pageId = contentId + 1;
   const objects = new Map<number, Uint8Array>();
   objects.set(1, latin1("<< /Type /Catalog /Pages 2 0 R >>"));
@@ -142,10 +179,10 @@ function serialize(
   objects.set(4, latin1("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"));
   for (const image of images) {
     objects.set(
-      image.id,
+      image.objectId,
       concat([
         latin1(
-          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`,
+          `<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${image.filter} /Length ${image.bytes.length} >>\nstream\n`,
         ),
         image.bytes,
         latin1("\nendstream"),
@@ -188,6 +225,24 @@ function wrap(value: string, max: number): string[] {
   }
   if (current) lines.push(current);
   return lines;
+}
+
+function textWidth(value: string, size: number, bold: boolean): number {
+  const table = bold ? HELVETICA_BOLD : HELVETICA;
+  let units = 0;
+  for (const ch of value) {
+    const index = winAnsiIndex(ch);
+    units += index === null ? 500 : table[index] ?? 500;
+  }
+  return (units / 1000) * size;
+}
+
+function winAnsiIndex(ch: string): number | null {
+  const mapped = WIN_EXTRA[ch];
+  if (mapped) return mapped - 32;
+  const code = ch.codePointAt(0) ?? 0;
+  if (code >= 32 && code <= 255) return code - 32;
+  return null;
 }
 
 function round(value: number): number {
@@ -247,3 +302,37 @@ const WIN_EXTRA: Record<string, number> = {
   "Ö": 0xd6,
   "Ä": 0xc4,
 };
+
+const HELVETICA = [
+  278, 278, 355, 556, 556, 889, 667, 222, 333, 333, 389, 584, 278, 333, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
+  1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
+  667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
+  222, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
+  556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584, 500,
+  556, 500, 278, 556, 333, 1000, 556, 556, 333, 1000, 667, 333, 1000, 500, 611, 500,
+  500, 222, 222, 333, 333, 350, 556, 1000, 333, 1000, 500, 333, 944, 500, 500, 667,
+  278, 333, 556, 556, 556, 556, 260, 556, 333, 737, 370, 556, 584, 333, 737, 333,
+  400, 584, 333, 333, 333, 556, 537, 278, 333, 333, 365, 556, 834, 834, 834, 611,
+  667, 667, 667, 667, 667, 667, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278,
+  722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611,
+  556, 556, 556, 556, 556, 556, 889, 500, 556, 556, 556, 556, 278, 278, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 500, 556, 500,
+];
+
+const HELVETICA_BOLD = [
+  278, 333, 474, 556, 556, 889, 722, 278, 333, 333, 389, 584, 278, 333, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611,
+  975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778,
+  667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556,
+  278, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611,
+  611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584, 500,
+  556, 500, 278, 556, 500, 1000, 556, 556, 333, 1000, 667, 333, 1000, 500, 611, 500,
+  500, 278, 278, 333, 333, 350, 556, 1000, 333, 1000, 500, 333, 944, 500, 500, 667,
+  278, 333, 556, 556, 556, 556, 260, 556, 333, 737, 370, 556, 584, 333, 737, 333,
+  400, 584, 333, 333, 333, 556, 537, 278, 333, 333, 365, 556, 834, 834, 834, 611,
+  722, 722, 722, 722, 722, 722, 1000, 722, 667, 667, 667, 667, 278, 278, 278, 278,
+  722, 722, 778, 778, 778, 778, 778, 584, 778, 722, 722, 722, 722, 667, 667, 611,
+  556, 556, 556, 556, 556, 556, 889, 500, 556, 556, 556, 556, 278, 278, 278, 278,
+  556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 556, 611, 556,
+];
