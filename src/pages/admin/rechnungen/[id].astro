@@ -15,7 +15,18 @@ import {
 import { getInvoice, listRelatedInvoices, sumCreditsForInvoice } from "../../../lib/invoices";
 import { berlinTodayIso } from "../../../lib/offers";
 import { invoiceStatusLabel, paymentLinkForMail, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
-import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, formatEuro, formatOfferDate, formatQuantity, lineTotalCents, readStoredOffer } from "../../../lib/quote";
+import {
+  OFFER_BANK_LINES,
+  OFFER_UNIT_LABELS,
+  discountCents,
+  formatDiscountLabel,
+  formatEuro,
+  formatOfferDate,
+  formatQuantity,
+  lineTotalCents,
+  offerTotalCents,
+  readStoredOffer,
+} from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
 
 export const prerender = false;
@@ -90,6 +101,9 @@ const openCents = openAmountCents(row, credited);
 const siteLabel = siteAddressLabel(row);
 const notice = flag ? notices[flag] : undefined;
 const openEuro = formatEuro(openCents).replace("€", "").trim();
+const subtotalCents = offerTotalCents(stored.lines);
+const offCents = discountCents(subtotalCents, stored.discount);
+const discountLabel = formatDiscountLabel(stored.discount, offCents);
 ---
 
 <AdminLayout title={`Rechnung ${number}`} session={session}>
@@ -185,7 +199,12 @@ const openEuro = formatEuro(openCents).replace("€", "").trim();
         </li>
       ))}
     </ul>
-    <p class="mt-4 text-sm font-semibold text-ink-900 dark:text-ink-50">
+    {offCents > 0 && (
+      <p class="mt-4 text-sm text-ink-700 dark:text-ink-200">
+        Zwischensumme {formatEuro(subtotalCents)} · {discountLabel || "Rabatt"} −{formatEuro(offCents)}
+      </p>
+    )}
+    <p class:list={["text-sm font-semibold text-ink-900 dark:text-ink-50", offCents > 0 ? "mt-1" : "mt-4"]}>
       Rechnungsbetrag {formatEuro(row.price_cents)}
       {Number(row.amount_paid_cents ?? 0) > 0 ? ` · gezahlt ${formatEuro(Number(row.amount_paid_cents))}` : ""}
       {credited > 0 ? ` · Gutschriften ${formatEuro(credited)}` : ""}

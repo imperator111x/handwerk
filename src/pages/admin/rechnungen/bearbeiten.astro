@@ -60,6 +60,7 @@ const flag = Astro.url.searchParams.get("rechnung");
           invoiceDate={invoiceDate}
           serviceDate={serviceDate}
           lines={stored.lines}
+          discount={stored.discount ?? null}
           salutation={salutationFromGreeting(stored.greeting, row.buyer_name)}
           catalog={catalog}
           submitLabel="Änderung festschreiben und senden"

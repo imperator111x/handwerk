@@ -252,6 +252,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       serviceDate: invoice.serviceDate,
       dueDate: invoice.dueDate,
       authorName,
+      discount: invoice.discount ?? null,
     });
     return pdfResponse(bytes, "Rechnung-Entwurf.pdf");
   }
@@ -412,6 +413,7 @@ async function handleCorrection(
       serviceDate: invoice.serviceDate,
       dueDate: invoice.dueDate,
       authorName,
+      discount: invoice.discount ?? null,
     });
     return pdfResponse(bytes, "Rechnung-Entwurf.pdf");
   }

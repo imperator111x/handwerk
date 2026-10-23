@@ -2,14 +2,19 @@ import { siteConfig } from "../config/site";
 import {
   OFFER_BANK_LINES,
   OFFER_TAX_NOTE,
+  discountCents,
+  documentTotalCents,
+  formatDiscountLabel,
   formatEuro,
   formatEuroAmount,
   formatOfferDate,
   isOfferUnit,
   lineTotalCents,
   offerTotalCents,
+  parseDiscountForm,
   parseEuroToCents,
   parseQuantity,
+  type OfferDiscount,
   type OfferLine,
   type OfferUnit,
 } from "./quote";
@@ -57,6 +62,7 @@ export interface ParsedInvoice {
   dueDays: number;
   paymentTerms: string;
   billingKind: BillingKind;
+  discount?: OfferDiscount | null;
 }
 
 export function invoiceNumber(id: number, invoiceDate: string): string {
@@ -114,7 +120,12 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
     lines.push({ label, quantity, unit: unitRaw, unitCents });
   }
   if (lines.length < 1) return null;
-  const priceCents = offerTotalCents(lines);
+  const discount = parseDiscountForm(form);
+  if (discount === false) return null;
+  const subtotalCents = offerTotalCents(lines);
+  const offCents = discountCents(subtotalCents, discount);
+  if (discount && offCents <= 0) return null;
+  const priceCents = documentTotalCents(lines, discount);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
   const dueDays = parseDueDays(String(form.get("due_days") ?? ""), 14);
   const paymentTerms = paymentTermsForDays(dueDays);
@@ -130,6 +141,7 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
     dueDays,
     paymentTerms,
     billingKind,
+    discount,
   };
 }
 
@@ -144,7 +156,7 @@ export function invoiceFromQuoteLines(input: {
 }): ParsedInvoice | null {
   if (input.title.trim().length < 3) return null;
   if (!input.lines.length) return null;
-  const priceCents = offerTotalCents(input.lines);
+  const priceCents = documentTotalCents(input.lines, null);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
   const dueDays = parseDueDays(String(input.dueDays ?? 14), 14);
   return {
@@ -158,6 +170,7 @@ export function invoiceFromQuoteLines(input: {
     dueDays,
     paymentTerms: paymentTermsForDays(dueDays),
     billingKind: input.billingKind ?? "voll",
+    discount: null,
   };
 }
 
@@ -272,6 +285,7 @@ export function buildInvoiceXml(input: {
   referenceNumber?: string;
   referenceDate?: string;
   paymentTerms?: string;
+  discount?: OfferDiscount | null;
 }): string {
   const typeCode = input.typeCode === "381" ? "381" : "380";
   const paymentTerms = input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS;
@@ -285,7 +299,25 @@ export function buildInvoiceXml(input: {
         </ram:FormattedIssueDateTime>
       </ram:InvoiceReferencedDocument>`
       : "";
-  const net = offerTotalCents(input.lines);
+  const lineTotal = offerTotalCents(input.lines);
+  const allowance = discountCents(lineTotal, input.discount);
+  const net = Math.max(0, lineTotal - allowance);
+  const allowanceXml =
+    allowance > 0
+      ? `
+      <ram:SpecifiedTradeAllowanceCharge>
+        <ram:ChargeIndicator>
+          <udt:Indicator>false</udt:Indicator>
+        </ram:ChargeIndicator>
+        <ram:ActualAmount>${money(allowance)}</ram:ActualAmount>
+        <ram:Reason>${xml(formatDiscountLabel(input.discount, allowance) || "Rabatt")}</ram:Reason>
+        <ram:CategoryTradeTax>
+          <ram:TypeCode>VAT</ram:TypeCode>
+          <ram:CategoryCode>E</ram:CategoryCode>
+          <ram:RateApplicablePercent>0</ram:RateApplicablePercent>
+        </ram:CategoryTradeTax>
+      </ram:SpecifiedTradeAllowanceCharge>`
+      : "";
   const lines = input.lines
     .map((line, index) => {
       const total = lineTotalCents(line);
@@ -410,7 +442,7 @@ export function buildInvoiceXml(input: {
         <ram:BasisAmount>${money(net)}</ram:BasisAmount>
         <ram:CategoryCode>E</ram:CategoryCode>
         <ram:RateApplicablePercent>0</ram:RateApplicablePercent>
-      </ram:ApplicableTradeTax>
+      </ram:ApplicableTradeTax>${allowanceXml}
       <ram:SpecifiedTradePaymentTerms>
         <ram:Description>${xml(paymentTerms)}</ram:Description>
         <ram:DueDateDateTime>
@@ -418,7 +450,10 @@ export function buildInvoiceXml(input: {
         </ram:DueDateDateTime>
       </ram:SpecifiedTradePaymentTerms>
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
-        <ram:LineTotalAmount>${money(net)}</ram:LineTotalAmount>
+        <ram:LineTotalAmount>${money(lineTotal)}</ram:LineTotalAmount>${
+          allowance > 0 ? `
+        <ram:AllowanceTotalAmount>${money(allowance)}</ram:AllowanceTotalAmount>` : ""
+        }
         <ram:TaxBasisTotalAmount>${money(net)}</ram:TaxBasisTotalAmount>
         <ram:TaxTotalAmount currencyID="EUR">0.00</ram:TaxTotalAmount>
         <ram:GrandTotalAmount>${money(net)}</ram:GrandTotalAmount>

@@ -38,6 +38,11 @@ export interface OfferLine {
   unitCents: number;
 }
 
+/** Kopf-Rabatt: Prozent (z. B. 10) oder Euro-Betrag in Cent. */
+export type OfferDiscount =
+  | { kind: "percent"; percent: number }
+  | { kind: "euro"; cents: number };
+
 export interface ParsedOffer {
   title: string;
   intro: string;
@@ -52,6 +57,7 @@ export interface StoredOffer {
   intro: string;
   lines: OfferLine[];
   billing: OfferBilling;
+  discount?: OfferDiscount | null;
 }
 
 const UNIT_SET = new Set<string>(OFFER_UNITS);
@@ -162,6 +168,80 @@ export function offerTotalCents(lines: OfferLine[]): number {
   return lines.reduce((sum, line) => sum + lineTotalCents(line), 0);
 }
 
+/** `false` = ungültige Eingabe; `null` = kein Rabatt. */
+export function parseDiscountForm(form: FormData): OfferDiscount | null | false {
+  const kind = String(form.get("discount_kind") ?? "")
+    .trim()
+    .toLowerCase();
+  const raw = String(form.get("discount_value") ?? "").trim();
+  if (!kind || kind === "none") {
+    return null;
+  }
+  if (!raw) return false;
+  if (kind === "percent") {
+    const cleaned = raw.replace(/\s/g, "").replace("%", "").replace(",", ".");
+    if (!/^\d{1,2}(\.\d{1,2})?$/.test(cleaned)) return false;
+    const percent = Number(cleaned);
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return false;
+    return { kind: "percent", percent };
+  }
+  if (kind === "euro") {
+    const cents = parseEuroToCents(raw);
+    if (cents == null) return false;
+    return { kind: "euro", cents };
+  }
+  return false;
+}
+
+export function discountCents(subtotalCents: number, discount: OfferDiscount | null | undefined): number {
+  if (!discount || !Number.isInteger(subtotalCents) || subtotalCents <= 0) return 0;
+  if (discount.kind === "percent") {
+    if (!(discount.percent > 0) || discount.percent >= 100) return 0;
+    return Math.min(subtotalCents - 1, Math.round((subtotalCents * discount.percent) / 100));
+  }
+  if (discount.kind === "euro") {
+    if (!Number.isInteger(discount.cents) || discount.cents <= 0) return 0;
+    return Math.min(subtotalCents - 1, discount.cents);
+  }
+  return 0;
+}
+
+export function documentTotalCents(
+  lines: OfferLine[],
+  discount: OfferDiscount | null | undefined = null,
+): number {
+  const subtotal = offerTotalCents(lines);
+  return Math.max(0, subtotal - discountCents(subtotal, discount));
+}
+
+export function formatDiscountLabel(
+  discount: OfferDiscount | null | undefined,
+  amountCents: number,
+): string {
+  if (!discount || amountCents <= 0) return "";
+  if (discount.kind === "percent") {
+    const pct = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(discount.percent);
+    return `Rabatt ${pct} %`;
+  }
+  return "Rabatt";
+}
+
+export function readOfferDiscount(raw: unknown): OfferDiscount | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as { kind?: unknown; percent?: unknown; cents?: unknown };
+  if (row.kind === "percent") {
+    const percent = typeof row.percent === "number" ? row.percent : Number.NaN;
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
+    return { kind: "percent", percent };
+  }
+  if (row.kind === "euro") {
+    const cents = typeof row.cents === "number" ? row.cents : Number.NaN;
+    if (!Number.isInteger(cents) || cents <= 0) return null;
+    return { kind: "euro", cents };
+  }
+  return null;
+}
+
 export function parseOfferForm(
   form: FormData,
   today: string,
@@ -206,23 +286,37 @@ export function parseOfferForm(
 }
 
 export function serializeOffer(offer: StoredOffer): string {
-  return JSON.stringify({
+  const payload: Record<string, unknown> = {
     greeting: offer.greeting,
     intro: offer.intro,
     lines: offer.lines,
     billing: offer.billing === "stunden" ? "stunden" : "fest",
-  });
+  };
+  if (offer.discount) payload.discount = offer.discount;
+  return JSON.stringify(payload);
 }
 
 export function readStoredOffer(raw: string | null | undefined, fallbackIntro: string): StoredOffer {
-  const empty = { greeting: null, intro: fallbackIntro, lines: [] as OfferLine[], billing: "fest" as OfferBilling };
+  const empty: StoredOffer = {
+    greeting: null,
+    intro: fallbackIntro,
+    lines: [],
+    billing: "fest",
+    discount: null,
+  };
   if (!raw) return empty;
   try {
     const parsed = JSON.parse(raw) as unknown;
     const source = Array.isArray(parsed)
-      ? { greeting: null, intro: fallbackIntro, lines: parsed }
+      ? { greeting: null, intro: fallbackIntro, lines: parsed, discount: null }
       : parsed && typeof parsed === "object"
-        ? (parsed as { greeting?: unknown; intro?: unknown; lines?: unknown; billing?: unknown })
+        ? (parsed as {
+            greeting?: unknown;
+            intro?: unknown;
+            lines?: unknown;
+            billing?: unknown;
+            discount?: unknown;
+          })
         : null;
     if (!source || !Array.isArray(source.lines)) return empty;
     const lines: OfferLine[] = [];
@@ -240,7 +334,8 @@ export function readStoredOffer(raw: string | null | undefined, fallbackIntro: s
     const greeting = typeof source.greeting === "string" && source.greeting.trim() ? source.greeting.trim() : null;
     const intro = typeof source.intro === "string" ? source.intro.trim() : fallbackIntro;
     const billing = offerBilling(typeof source.billing === "string" ? source.billing : "");
-    return { greeting, intro, lines, billing };
+    const discount = readOfferDiscount(source.discount);
+    return { greeting, intro, lines, billing, discount };
   } catch {
     return empty;
   }

@@ -21,10 +21,14 @@ import {
   OFFER_BANK_LINES,
   OFFER_TAX_NOTE,
   OFFER_UNIT_LABELS,
+  discountCents,
+  documentTotalCents,
+  formatDiscountLabel,
   formatEuroAmount,
   formatQuantity,
   lineTotalCents,
   offerTotalCents,
+  type OfferDiscount,
   type OfferLine,
 } from "./quote";
 
@@ -59,6 +63,7 @@ export interface InvoicePdfInput {
   siteStreet?: string | null;
   sitePostalCode?: string | null;
   siteCity?: string | null;
+  discount?: OfferDiscount | null;
 }
 
 const PAGE_W = 595.28;
@@ -91,7 +96,7 @@ const WIN_EXTRA: Record<string, number> = {
 export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
   const storno = input.documentKind === "storno";
   const credit = input.documentKind === "gutschrift";
-  const amountCents = offerTotalCents(input.lines);
+  const amountCents = documentTotalCents(input.lines, input.discount);
   const paymentQr =
     !storno && !credit && amountCents > 0
       ? buildInvoicePaymentQr({
@@ -118,6 +123,7 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
     typeCode: storno || credit ? "381" : "380",
     referenceNumber: input.referenceNumber,
     referenceDate: input.referenceDate,
+    discount: input.discount,
     paymentTerms:
       storno || credit
         ? "Es ist kein Betrag zu zahlen."
@@ -354,7 +360,19 @@ function layoutPages(input: InvoicePdfInput, paymentQr: QrPdfImage | null): stri
     y -= rowHeight;
   });
 
-  const total = formatEuroAmount(offerTotalCents(input.lines));
+  const subtotalCents = offerTotalCents(input.lines);
+  const offCents = discountCents(subtotalCents, input.discount);
+  const payableCents = documentTotalCents(input.lines, input.discount);
+  const total = formatEuroAmount(payableCents);
+  if (offCents > 0) {
+    need(48);
+    y -= 6;
+    textRight(RIGHT, y, 10, "F1", `Zwischensumme ${formatEuroAmount(subtotalCents)}`);
+    y -= 14;
+    const rabattLabel = formatDiscountLabel(input.discount, offCents) || "Rabatt";
+    textRight(RIGHT, y, 10, "F1", `${rabattLabel} -${formatEuroAmount(offCents)}`);
+    y -= 16;
+  }
   need(36);
   y -= 6;
   paint(`${BLACK} rg`);

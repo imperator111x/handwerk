@@ -54,7 +54,40 @@ const parsed = invoice.parseInvoiceForm(form, "2026-10-20");
 assert.ok(parsed);
 assert.equal(parsed.priceCents, 12750);
 assert.equal(parsed.dueDate, "2026-11-03");
+assert.equal(parsed.discount ?? null, null);
 assert.equal(invoice.parseInvoiceForm(form, "2026-10-19"), null);
+
+const withLines = (extra) => {
+  const next = new FormData();
+  next.set("title", "Rollladen einstellen");
+  next.set("intro", "für die ausgeführte Leistung.");
+  next.set("invoice_date", "2026-10-20");
+  next.set("service_date", "2026-10-18");
+  next.append("line_label", "Stundenlohn");
+  next.append("line_qty", "2,5");
+  next.append("line_unit", "stunde");
+  next.append("line_price", "45,00");
+  next.append("line_label", "Anfahrt");
+  next.append("line_qty", "1");
+  next.append("line_unit", "pauschal");
+  next.append("line_price", "15,00");
+  for (const [key, value] of Object.entries(extra)) next.set(key, value);
+  return next;
+};
+const withPercent = invoice.parseInvoiceForm(withLines({ discount_kind: "percent", discount_value: "10" }), "2026-10-20");
+assert.ok(withPercent);
+assert.deepEqual(withPercent.discount, { kind: "percent", percent: 10 });
+assert.equal(withPercent.priceCents, 11475);
+
+const withEuro = invoice.parseInvoiceForm(withLines({ discount_kind: "euro", discount_value: "27,50" }), "2026-10-20");
+assert.ok(withEuro);
+assert.deepEqual(withEuro.discount, { kind: "euro", cents: 2750 });
+assert.equal(withEuro.priceCents, 10000);
+
+assert.equal(
+  invoice.parseInvoiceForm(withLines({ discount_kind: "percent", discount_value: "100" }), "2026-10-20"),
+  null,
+);
 
 const future = new FormData();
 future.set("title", "Rollladen einstellen");
@@ -161,6 +194,26 @@ assert.match(xml, /<ram:IBANID>DE38100140001598168418<\/ram:IBANID>/);
 assert.match(xml, /<ram:TypeCode>58<\/ram:TypeCode>/);
 assert.match(xml, /<ram:DuePayableAmount>127\.50<\/ram:DuePayableAmount>/);
 assert.match(xml, /<ram:TaxTotalAmount currencyID="EUR">0\.00<\/ram:TaxTotalAmount>/);
+
+const discountXml = invoice.buildInvoiceXml({
+  number: "R-2026-0007",
+  title: "Rollladen einstellen",
+  lines: parsed.lines,
+  invoiceDate: parsed.invoiceDate,
+  serviceDate: parsed.serviceDate,
+  dueDate: parsed.dueDate,
+  taxNumber: "12/345/67890",
+  buyerName: "Erika Muster",
+  buyerEmail: "erika@example.com",
+  buyerStreet: "Musterweg 1",
+  buyerPostalCode: "22850",
+  buyerCity: "Norderstedt",
+  discount: { kind: "percent", percent: 10 },
+});
+assert.match(discountXml, /<ram:LineTotalAmount>127\.50<\/ram:LineTotalAmount>/);
+assert.match(discountXml, /<ram:AllowanceTotalAmount>12\.75<\/ram:AllowanceTotalAmount>/);
+assert.match(discountXml, /<ram:DuePayableAmount>114\.75<\/ram:DuePayableAmount>/);
+assert.match(discountXml, /Rabatt 10 %/);
 assert.ok(xml.includes(RETENTION));
 assert.ok(xml.includes("unitCode=\"HUR\">2.50"));
 assert.ok(xml.includes("unitCode=\"C62\">1.00"));
@@ -214,6 +267,36 @@ assert.match(text, /Zahlen mit Code/);
 assert.match(text, /Mit der Banking-App scannen/);
 assert.match(raw, /\/Im2 /);
 assert.match(raw, /\/BitsPerComponent 1/);
+
+const discountPdf = buildInvoicePdf({
+  number: "R-2026-0007",
+  invoiceDateLabel: "20. Oktober 2026",
+  serviceDateLabel: "18. Oktober 2026",
+  dueDateLabel: "3. November 2026",
+  taxNumber: "12/345/67890",
+  buyerName: "Erika Muster",
+  buyerEmail: "erika@example.com",
+  buyerPhone: "+49 155 000",
+  buyerStreet: "Musterweg 1",
+  buyerPostalCode: "22850",
+  buyerCity: "Norderstedt",
+  title: "Rollladen einstellen",
+  greeting: "Guten Tag Frau Muster,",
+  intro: "für die ausgeführte Leistung.",
+  lines: parsed.lines,
+  invoiceDate: "2026-10-20",
+  serviceDate: "2026-10-18",
+  dueDate: "2026-11-03",
+  authorName: "Leon Lütcke",
+  discount: { kind: "euro", cents: 2750 },
+});
+const discountText = new TextDecoder("latin1")
+  .decode(discountPdf)
+  .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+assert.match(discountText, /Zwischensumme 127,50 EUR/);
+assert.match(discountText, /Rabatt -27,50 EUR/);
+assert.match(discountText, /Rechnungsbetrag/);
+assert.match(discountText, /100,00 EUR/);
 
 const epcPayload = epc.buildEpcPaymentPayload({
   name: "ZEUS-SERVICE",

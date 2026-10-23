@@ -2,7 +2,16 @@
 import InvoiceNotes from "./InvoiceNotes.astro";
 import SalutationSelect from "./SalutationSelect.astro";
 import { DUE_DAY_OPTIONS, paymentTermsForDays } from "../lib/billing";
-import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, OFFER_UNITS, formatEuro, formatQuantity, type OfferLine, type OfferUnit } from "../lib/quote";
+import {
+  OFFER_BANK_LINES,
+  OFFER_UNIT_LABELS,
+  OFFER_UNITS,
+  formatEuro,
+  formatQuantity,
+  type OfferDiscount,
+  type OfferLine,
+  type OfferUnit,
+} from "../lib/quote";
 
 interface CatalogPick {
   label: string;
@@ -18,6 +27,7 @@ interface Props {
   invoiceDate: string;
   serviceDate: string;
   lines?: OfferLine[];
+  discount?: OfferDiscount | null;
   salutation?: string;
   hidden?: Array<{ name: string; value: string }>;
   submitLabel?: string;
@@ -39,6 +49,7 @@ const {
   invoiceDate,
   serviceDate,
   lines = [],
+  discount = null,
   salutation,
   hidden = [],
   submitLabel = "Rechnung festschreiben und senden",
@@ -60,6 +71,13 @@ const euroField = (cents: number) =>
   cents > 0
     ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100)
     : "";
+const discountKind = discount?.kind ?? "none";
+const discountValue =
+  discount?.kind === "percent"
+    ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(discount.percent)
+    : discount?.kind === "euro"
+      ? euroField(discount.cents)
+      : "";
 ---
 
 <form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid min-w-0 gap-4" data-catalog={JSON.stringify(catalog)} onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
@@ -117,7 +135,34 @@ const euroField = (cents: number) =>
       </div>
     ))}
   </div>
-  <p class="text-sm text-ink-800 dark:text-ink-100">Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
+  <div class="grid gap-3 rounded-2xl border border-ink-200 p-4 dark:border-white/10 sm:grid-cols-3">
+    <div>
+      <label class="label" for="discount-kind">Rabatt</label>
+      <select class="input" id="discount-kind" name="discount_kind" data-discount-kind>
+        <option value="none" selected={discountKind === "none"}>Kein Rabatt</option>
+        <option value="percent" selected={discountKind === "percent"}>Prozent</option>
+        <option value="euro" selected={discountKind === "euro"}>Euro</option>
+      </select>
+    </div>
+    <div>
+      <label class="label" for="discount-value">Wert</label>
+      <input
+        class="input"
+        id="discount-value"
+        name="discount_value"
+        data-discount-value
+        inputmode="decimal"
+        maxlength="12"
+        placeholder="z. B. 10 oder 25,00"
+        value={discountValue}
+      />
+    </div>
+    <div class="flex flex-col justify-end gap-1 text-sm text-ink-800 dark:text-ink-100">
+      <p>Zwischensumme <strong id="invoice-subtotal">0,00 €</strong></p>
+      <p id="invoice-discount-row" class="hidden">Rabatt <strong id="invoice-discount">−0,00 €</strong></p>
+      <p>Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
+    </div>
+  </div>
   <InvoiceNotes paymentTerms={terms} />
   <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
   <div class="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -212,6 +257,11 @@ const euroField = (cents: number) =>
   const root = document.getElementById("invoice-lines");
   const template = document.getElementById("invoice-line-template");
   const total = document.getElementById("invoice-total");
+  const subtotalEl = document.getElementById("invoice-subtotal");
+  const discountEl = document.getElementById("invoice-discount");
+  const discountRow = document.getElementById("invoice-discount-row");
+  const discountKindEl = form?.querySelector("[data-discount-kind]");
+  const discountValueEl = form?.querySelector("[data-discount-value]");
   if (form instanceof HTMLFormElement && root && template instanceof HTMLTemplateElement && total && form.dataset.ready !== "1") {
     form.dataset.ready = "1";
     const presets = {
@@ -231,6 +281,23 @@ const euroField = (cents: number) =>
       return Number(cleaned);
     };
     const money = (cents) => (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+    const discountOf = (subtotal) => {
+      const kind = discountKindEl instanceof HTMLSelectElement ? discountKindEl.value : "none";
+      const raw = discountValueEl instanceof HTMLInputElement ? discountValueEl.value : "";
+      if (!subtotal || kind === "none" || !String(raw || "").trim()) return 0;
+      if (kind === "percent") {
+        const cleaned = String(raw).trim().replace(/\s/g, "").replace("%", "").replace(",", ".");
+        if (!/^\d{1,2}(\.\d{1,2})?$/.test(cleaned)) return 0;
+        const percent = Number(cleaned);
+        if (!(percent > 0) || percent >= 100) return 0;
+        return Math.min(subtotal - 1, Math.round((subtotal * percent) / 100));
+      }
+      if (kind === "euro") {
+        const cents = centsOf(raw);
+        return cents > 0 ? Math.min(subtotal - 1, cents) : 0;
+      }
+      return 0;
+    };
     const refresh = () => {
       let sum = 0;
       root.querySelectorAll("[data-line]").forEach((row) => {
@@ -241,8 +308,15 @@ const euroField = (cents: number) =>
         const out = row.querySelector("[data-line-total]");
         if (out) out.textContent = qty > 0 && price > 0 ? money(line) : "–";
       });
-      total.textContent = money(sum);
+      const off = discountOf(sum);
+      const payable = Math.max(0, sum - off);
+      if (subtotalEl) subtotalEl.textContent = money(sum);
+      if (discountEl) discountEl.textContent = `−${money(off)}`;
+      if (discountRow) discountRow.classList.toggle("hidden", off <= 0);
+      total.textContent = money(payable);
     };
+    discountKindEl?.addEventListener("change", refresh);
+    discountValueEl?.addEventListener("input", refresh);
     const bind = (row) => {
       row.querySelector("[data-remove]")?.addEventListener("click", () => {
         if (root.querySelectorAll("[data-line]").length <= 1) return;

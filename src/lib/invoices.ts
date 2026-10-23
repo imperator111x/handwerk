@@ -18,7 +18,16 @@ import {
   invoicePlainText,
   type ParsedInvoice,
 } from "./invoice";
-import { formatEuro, formatOfferDate, offerTotalCents, readStoredOffer, serializeOffer, type OfferLine, type StoredOffer } from "./quote";
+import {
+  documentTotalCents,
+  formatEuro,
+  formatOfferDate,
+  offerTotalCents,
+  readStoredOffer,
+  serializeOffer,
+  type OfferLine,
+  type StoredOffer,
+} from "./quote";
 import { applyOnlinePayment, applyRefund, applyTestPayment, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
 export interface InvoiceRow {
@@ -175,7 +184,13 @@ export async function saveInvoice(
       input.quoteId,
       input.timesheetId ?? null,
       input.invoice.title,
-      serializeOffer({ greeting: input.greeting, intro: input.invoice.intro, lines: input.invoice.lines, billing: "fest" }),
+      serializeOffer({
+        greeting: input.greeting,
+        intro: input.invoice.intro,
+        lines: input.invoice.lines,
+        billing: "fest",
+        discount: input.invoice.discount ?? null,
+      }),
       input.invoice.priceCents,
       input.invoice.invoiceDate,
       input.invoice.serviceDate,
@@ -349,7 +364,9 @@ export async function beginCreditNote(
 export async function beginStorno(db: D1Database, original: InvoiceRow, today: string, createdAt: number): Promise<number | null> {
   if (original.document_kind === "storno" || original.payment_status === "storniert") return null;
   const stored = readStoredOffer(original.lines_json, "");
-  if (!stored.lines.length || offerTotalCents(stored.lines) !== original.price_cents) return null;
+  if (!stored.lines.length || documentTotalCents(stored.lines, stored.discount) !== original.price_cents) {
+    return null;
+  }
   const serviceDate = original.service_date <= today ? original.service_date : today;
   const marked = await db
     .prepare(
@@ -380,6 +397,7 @@ export async function beginStorno(db: D1Database, original: InvoiceRow, today: s
       dueDays: 0,
       paymentTerms: "Es ist kein Betrag zu zahlen.",
       billingKind: "voll",
+      discount: stored.discount ?? null,
     },
     greeting: stored.greeting,
     taxNumber: original.tax_number,
@@ -630,6 +648,7 @@ export function invoicePdfInput(
     serviceDate: row.service_date,
     dueDate: row.due_date,
     authorName,
+    discount: stored.discount ?? null,
   };
 }
 
