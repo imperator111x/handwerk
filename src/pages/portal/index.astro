@@ -1,15 +1,18 @@
 ---
 import PortalLayout from "../../layouts/PortalLayout.astro";
 import { openAmountCents } from "../../lib/billing";
+import { cfEnv } from "../../lib/cf";
 import { getCustomer } from "../../lib/customers";
 import { getDb } from "../../lib/db";
 import { decodeHtmlEntities } from "../../lib/html-entities";
-import { invoiceNumber } from "../../lib/invoice";
+import { invoiceNumber, SELLER } from "../../lib/invoice";
 import { listInvoicesForCustomer, sumCreditsForInvoice } from "../../lib/invoices";
 import { requirePortalSession } from "../../lib/portal-auth";
 import { formatEuro, formatOfferDate } from "../../lib/quote";
 import { invoiceStatusLabel, stripePaymentsReady } from "../../lib/stripe-pay";
-import { cfEnv } from "../../lib/cf";
+
+const ibanDisplay = SELLER.iban.replace(/(.{4})/g, "$1 ").trim();
+const bicDisplay = SELLER.bic.replace(/(.{4})/g, "$1 ").trim();
 
 export const prerender = false;
 
@@ -108,11 +111,37 @@ const notice = flag ? notices[flag] : undefined;
                 </div>
               </div>
               {!paid && openCents > 0 && (
-                <p class="mt-2 text-xs text-ink-500 dark:text-ink-400">
-                  {canPayOnline
-                    ? `Optional per Überweisung mit Verwendungszweck ${number}.`
-                    : `Bei Überweisung bitte Verwendungszweck ${number} angeben.`}
-                </p>
+                <details open class="mt-3 rounded-2xl border border-ink-200 bg-ink-50 dark:border-white/10 dark:bg-white/5">
+                  <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-ink-800 dark:text-ink-100 [&::-webkit-details-marker]:hidden">
+                    Überweisungsdaten
+                  </summary>
+                  <dl class="grid gap-2 border-t border-ink-200 px-4 py-3 text-sm dark:border-white/10 sm:grid-cols-2">
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">Empfänger</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{SELLER.accountName}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">Betrag</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatEuro(openCents)}</dd>
+                    </div>
+                    <div class="sm:col-span-2">
+                      <dt class="text-ink-500 dark:text-ink-400">IBAN</dt>
+                      <dd class="font-mono font-semibold tracking-wide text-ink-900 dark:text-ink-50">{ibanDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">BIC</dt>
+                      <dd class="font-mono font-semibold tracking-wide text-ink-900 dark:text-ink-50">{bicDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">Fällig am</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatOfferDate(row.due_date)}</dd>
+                    </div>
+                    <div class="sm:col-span-2">
+                      <dt class="text-ink-500 dark:text-ink-400">Verwendungszweck</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{number}</dd>
+                    </div>
+                  </dl>
+                </details>
               )}
             </li>
           );
