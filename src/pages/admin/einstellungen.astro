@@ -4,6 +4,7 @@ import { requireSession } from "../../lib/auth";
 import { getDb, listUsers, type UserPublic } from "../../lib/db";
 import { getTaxNumber } from "../../lib/invoices";
 import { stripeKeyMode, stripePaymentsReady } from "../../lib/stripe-pay";
+import { googleReviewsConfigured } from "../../lib/google-reviews";
 import { listPasskeys } from "../../lib/passkey";
 import { cfEnv } from "../../lib/cf";
 
@@ -247,6 +248,20 @@ function stripeConnectionText(source: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHO
       </div>
       <button type="submit" class="btn-primary">Speichern</button>
     </form>
+    <div id="google-bewertungen" class="border-t border-ink-100 pt-4 dark:border-white/10">
+      <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">Google-Bewertungen</h3>
+      <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
+        Die Startseite holt Sterne und Rezensionen über die Google Places API (New).
+        Dafür braucht es ein verifiziertes Unternehmensprofil unter business.google.com
+        sowie die Secrets <code class="text-xs">GOOGLE_PLACE_ID</code> und{" "}
+        <code class="text-xs">GOOGLE_PLACES_API_KEY</code>.
+      </p>
+      <p class="mt-2 text-sm font-semibold text-ink-800 dark:text-ink-100">
+        {googleReviewsConfigured(env ?? {})
+          ? "Verbunden – Bewertungen werden serverseitig geladen und zwischengespeichert."
+          : "Noch nicht verbunden – Place-ID und API-Key fehlen."}
+      </p>
+    </div>
     <div id="online-zahlung" class="border-t border-ink-100 pt-4 dark:border-white/10">
       <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">Online-Zahlung</h3>
       <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">

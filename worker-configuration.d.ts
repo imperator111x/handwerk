@@ -35,6 +35,10 @@ interface Env {
   VIRUSTOTAL_API_KEY?: string;
   STRIPE_SECRET_KEY?: string;
   STRIPE_WEBHOOK_SECRET?: string;
+  /** Places API (New) – Key für Bewertungen auf der Startseite */
+  GOOGLE_PLACES_API_KEY?: string;
+  /** Google Place ID des Unternehmensprofils, z. B. ChIJ… */
+  GOOGLE_PLACE_ID?: string;
 
   // Static Assets Fetcher (automatisch durch `assets.binding` erzeugt)
   ASSETS: Fetcher;

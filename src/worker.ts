@@ -6,6 +6,7 @@ import { ingestInboundEmail, type IngestResult } from "./lib/inbound-mail";
 import { scanStoredFiles, storeInboundFiles, type RawAttachment } from "./lib/mail-files";
 import { isExternalMailboxAddress } from "./lib/mailbox";
 import { mailNotice, replyNotice, requestNotice } from "./lib/notice-copy";
+import { loadGooglePlaceReviews } from "./lib/google-reviews";
 import { notifyStaff } from "./lib/notify";
 
 interface InboundMessage {
@@ -56,12 +57,20 @@ export default {
     await receiveEmail(message, env, ctx);
   },
   async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (!env.DB) return;
-    ctx.waitUntil(
-      deleteExpiredFreeSlots(env.DB).catch((err) => {
-        console.error("expired_slots_delete_failed", err);
-      }),
-    );
+    if (env.DB) {
+      ctx.waitUntil(
+        deleteExpiredFreeSlots(env.DB).catch((err) => {
+          console.error("expired_slots_delete_failed", err);
+        }),
+      );
+    }
+    if (env.GOOGLE_PLACES_API_KEY && env.GOOGLE_PLACE_ID) {
+      ctx.waitUntil(
+        loadGooglePlaceReviews(env, { force: true }).catch((err) => {
+          console.error("google_reviews_refresh_failed", err);
+        }),
+      );
+    }
   },
 } satisfies ExportedHandler<Env>;
 

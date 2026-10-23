@@ -1,5 +1,28 @@
 ---
-import ObfuscatedEmail from "./ObfuscatedEmail.astro";
+import { cfEnv } from "../lib/cf";
+import { googleReviewsConfigured, loadGooglePlaceReviews, writeReviewUrl } from "../lib/google-reviews";
+
+const env = cfEnv();
+const configured = googleReviewsConfigured(env ?? {});
+let place = null as Awaited<ReturnType<typeof loadGooglePlaceReviews>>;
+if (configured && env) {
+  try {
+    place = await loadGooglePlaceReviews(env);
+  } catch (err) {
+    console.error("google_reviews_failed", err instanceof Error ? err.message : "error");
+  }
+}
+
+const stars = (value: number) =>
+  Array.from({ length: 5 }, (_, index) => (index < Math.round(value) ? "★" : "☆")).join("");
+
+const ratingLabel =
+  place?.rating != null
+    ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(place.rating)
+    : null;
+
+const writeUri = place?.writeReviewUri ?? (env?.GOOGLE_PLACE_ID ? writeReviewUrl(env.GOOGLE_PLACE_ID) : null);
+const hasReviews = Boolean(place && place.reviews.length > 0);
 ---
 
 <section id="referenzen" class="section scroll-mt-24 bg-ink-50 dark:bg-ink-900/50">
@@ -8,48 +31,120 @@ import ObfuscatedEmail from "./ObfuscatedEmail.astro";
       <p class="section-eyebrow">Referenzen</p>
       <h2 class="section-title mt-3">Was Kundinnen und Kunden sagen</h2>
       <p class="mt-4 text-lg text-ink-600 dark:text-ink-300">
-        Wir sind ein neu gegründetes Unternehmen – die ersten Bewertungen
-        folgen bald. Werden Sie Teil unserer Referenzen und testen Sie uns
-        gern unverbindlich.
+        {hasReviews
+          ? "Echte Stimmen von Google – unverändert übernommen."
+          : "Bewertungen kommen direkt von Google. Werden Sie Teil unserer Referenzen."}
       </p>
     </div>
 
-    <div
-      class="rounded-3xl border border-dashed border-ink-300 bg-white p-10 text-center flex flex-col items-center gap-5 dark:border-white/15 dark:bg-ink-900"
-    >
-      <div
-        class="h-14 w-14 rounded-2xl bg-brand-50 text-brand-600 inline-flex items-center justify-center dark:bg-brand-500/15 dark:text-brand-300"
-        aria-hidden="true"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="h-7 w-7"
-        >
-          <polygon
-            points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-          />
-        </svg>
-      </div>
-      <div class="space-y-2 max-w-xl">
-        <h3 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
-          Es gibt noch keine Rezensionen
-        </h3>
-        <p class="text-ink-600 dark:text-ink-300">
-          Seien Sie die erste Person, die eine Bewertung für Zeus-Service
-          hinterlässt – wir freuen uns über Ihr ehrliches Feedback.
+    {hasReviews && place ? (
+      <div class="space-y-8">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="font-display text-4xl font-bold text-ink-900 dark:text-ink-50">
+              {ratingLabel}
+              <span class="ml-2 text-2xl text-amber-500" aria-hidden="true">{stars(place.rating ?? 0)}</span>
+            </p>
+            <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+              {place.userRatingCount} Google-Bewertung{place.userRatingCount === 1 ? "" : "en"}
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            {place.mapsUri && (
+              <a href={place.mapsUri} target="_blank" rel="noopener noreferrer" class="btn-secondary">
+                Auf Google ansehen
+              </a>
+            )}
+            <a href={place.writeReviewUri} target="_blank" rel="noopener noreferrer" class="btn-primary">
+              Bei Google bewerten
+            </a>
+          </div>
+        </div>
+
+        <ul class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {place.reviews.slice(0, 5).map((review) => (
+            <li class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+              <p class="text-amber-500" aria-label={`${review.rating} von 5 Sternen`}>
+                {stars(review.rating)}
+              </p>
+              {review.text ? (
+                <p class="mt-3 text-ink-700 dark:text-ink-200">„{review.text}“</p>
+              ) : (
+                <p class="mt-3 text-ink-500 dark:text-ink-400">Ohne Textkommentar.</p>
+              )}
+              <p class="mt-4 text-sm font-semibold text-ink-900 dark:text-ink-50">
+                {review.authorUri ? (
+                  <a href={review.authorUri} target="_blank" rel="noopener noreferrer" class="underline">
+                    {review.authorName}
+                  </a>
+                ) : (
+                  review.authorName
+                )}
+              </p>
+              {review.relativeTime && (
+                <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">{review.relativeTime}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <p class="text-xs text-ink-500 dark:text-ink-400">
+          Bewertungen von
+          {" "}
+          <a
+            href={place.mapsUri ?? "https://www.google.com/maps"}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline"
+          >
+            Google
+          </a>
+          . Inhalte können gekürzt oder zeitverzögert erscheinen.
         </p>
       </div>
-      <div class="flex flex-wrap items-center justify-center gap-3">
-        <a href="#kontakt" class="btn-primary">Jetzt anfragen</a>
-        <ObfuscatedEmail showAddress={false} class="btn-secondary">
-          Bewertung einreichen
-        </ObfuscatedEmail>
+    ) : (
+      <div
+        class="rounded-3xl border border-dashed border-ink-300 bg-white p-10 text-center flex flex-col items-center gap-5 dark:border-white/15 dark:bg-ink-900"
+      >
+        <div
+          class="h-14 w-14 rounded-2xl bg-brand-50 text-brand-600 inline-flex items-center justify-center dark:bg-brand-500/15 dark:text-brand-300"
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-7 w-7"
+          >
+            <polygon
+              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+            />
+          </svg>
+        </div>
+        <div class="space-y-2 max-w-xl">
+          <h3 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+            {configured ? "Noch keine Google-Bewertungen" : "Google-Bewertungen folgen"}
+          </h3>
+          <p class="text-ink-600 dark:text-ink-300">
+            {configured
+              ? "Sobald Kundinnen und Kunden bei Google bewerten, erscheinen die Stimmen automatisch hier."
+              : "Sobald das Google-Unternehmensprofil und der API-Zugang stehen, holt die Website die Bewertungen selbst."}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          {writeUri ? (
+            <a href={writeUri} target="_blank" rel="noopener noreferrer" class="btn-primary">
+              Bei Google bewerten
+            </a>
+          ) : (
+            <a href="#kontakt" class="btn-primary">Jetzt anfragen</a>
+          )}
+          <a href="#kontakt" class="btn-secondary">Unverbindlich anfragen</a>
+        </div>
       </div>
-    </div>
+    )}
   </div>
 </section>
