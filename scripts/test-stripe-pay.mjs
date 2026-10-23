@@ -132,7 +132,7 @@ assert.equal(pay.applyOnlinePayment(open, { amountCents: 12750, reference: "pi_l
 assert.equal(pay.applyOnlinePayment({ ...open, status: "storniert" }, { amountCents: 12750, reference: "pi_late", method: "Karte", paidAt: now }).kind, "noted");
 const price = pay.stripePriceParams("R-2026-0001", 10000);
 assert.equal(price.get("product_data[name]"), "Rechnung R-2026-0001");
-assert.equal(price.get("product_data[description]"), "Rechnungsnummer R-2026-0001");
+assert.equal(price.get("product_data[description]"), null);
 assert.equal(price.get("unit_amount"), "10000");
 assert.equal(pay.stripeStatementSuffix("R-2026-0001"), "R-2026-0001");
 assert.equal(pay.stripeStatementSuffix("r-2026-0001!!!"), "R-2026-0001");

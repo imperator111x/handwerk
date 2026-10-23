@@ -275,11 +275,11 @@ export async function readCheckoutPaymentMethod(secret: string, sessionId: strin
 }
 
 export function stripePriceParams(number: string, amountCents: number): URLSearchParams {
+  // Prices akzeptieren bei product_data nur name (keine description).
   return new URLSearchParams({
     currency: "eur",
     unit_amount: String(amountCents),
     "product_data[name]": `Rechnung ${number}`.slice(0, 250),
-    "product_data[description]": `Rechnungsnummer ${number}`.slice(0, 500),
   });
 }
 
