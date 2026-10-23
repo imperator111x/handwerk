@@ -7,50 +7,130 @@ interface Props {
 }
 
 const { name, label, hint, required = false } = Astro.props;
+const nameId = `sign-${name}-name`;
 ---
 
-<fieldset class="grid gap-2" data-sign-pad data-sign-name={name}>
+<fieldset class="sign-pad grid gap-2" data-sign-pad data-sign-name={name}>
   <legend class="label">{label}{required ? "" : " (optional)"}</legend>
   <p class="text-xs text-ink-500 dark:text-ink-400">{hint}</p>
+  <label class="sr-only" for={nameId}>Name zur Unterschrift</label>
   <input
     class="input"
+    id={nameId}
     name={`${name}_name`}
     maxlength="80"
-    autocomplete="name"
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="words"
+    spellcheck="false"
+    enterkeyhint="done"
     placeholder="Name in Druckschrift"
     required={required}
   />
-  <canvas
-    data-sign-canvas
-    class="h-52 w-full touch-none rounded-2xl border border-ink-300 bg-white dark:border-white/20"
-    style="touch-action: none; -ms-touch-action: none;"
-  ></canvas>
-  <input type="hidden" name={`${name}_jpeg`} data-sign-jpeg />
+  <div class="sign-surface" data-sign-surface>
+    <canvas data-sign-canvas width="640" height="208" aria-label={label}></canvas>
+  </div>
+  <input type="hidden" name={`${name}_jpeg`} data-sign-jpeg value="" />
+  <p class="hidden text-xs font-semibold text-rose-700 dark:text-rose-200" data-sign-error>
+    Bitte im weißen Feld unterschreiben.
+  </p>
   <button type="button" data-sign-clear class="w-fit text-xs font-semibold text-ink-500">Unterschrift löschen</button>
 </fieldset>
 
+<style>
+  .sign-pad {
+    scroll-margin-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+  }
+  .sign-surface {
+    position: relative;
+    z-index: 5;
+    width: 100%;
+    height: 13rem;
+    border-radius: 1rem;
+    border: 1px solid var(--color-ink-300, #cbd5e1);
+    background: #fff;
+    touch-action: none;
+    -ms-touch-action: none;
+    overscroll-behavior: contain;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  :global(.dark) .sign-surface,
+  :global([data-theme="dark"]) .sign-surface {
+    border-color: rgb(255 255 255 / 0.2);
+  }
+  .sign-surface canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    touch-action: none;
+    -ms-touch-action: none;
+    cursor: crosshair;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>
+
 <script data-astro-rerun>
-  const pads = document.querySelectorAll("[data-sign-pad]");
-  pads.forEach((pad) => {
+  function collapseMobileNav() {
+    const root = document.documentElement;
+    if (root.getAttribute("data-admin-nav") === "closed") return;
+    root.setAttribute("data-admin-nav", "closed");
+    document.querySelectorAll("[data-nav-collapse]").forEach((button) => {
+      if (button instanceof HTMLElement) button.setAttribute("aria-expanded", "false");
+    });
+    try {
+      localStorage.setItem("zs-admin-nav", "closed");
+    } catch (_err) {}
+  }
+
+  function bindPad(pad) {
     if (!(pad instanceof HTMLElement) || pad.dataset.ready === "1") return;
+    const surface = pad.querySelector("[data-sign-surface]");
     const canvas = pad.querySelector("[data-sign-canvas]");
     const hidden = pad.querySelector("[data-sign-jpeg]");
     const clear = pad.querySelector("[data-sign-clear]");
-    if (!(canvas instanceof HTMLCanvasElement) || !(hidden instanceof HTMLInputElement)) return;
+    const error = pad.querySelector("[data-sign-error]");
+    const nameInput = pad.querySelector(`input[name="${pad.dataset.signName}_name"]`);
+    if (
+      !(surface instanceof HTMLElement) ||
+      !(canvas instanceof HTMLCanvasElement) ||
+      !(hidden instanceof HTMLInputElement)
+    ) {
+      return;
+    }
     pad.dataset.ready = "1";
-    const context = canvas.getContext("2d", { alpha: false });
+    const context = canvas.getContext("2d", { alpha: false, desynchronized: true });
     if (!context) return;
+
     let drawing = false;
     let dirty = false;
+    let activePointer = null;
     let last = { x: 0, y: 0 };
-    let fittedW = 0;
-    let fittedH = 0;
+    let cssW = 0;
+    let cssH = 0;
+
+    const showError = (on) => {
+      if (!(error instanceof HTMLElement)) return;
+      error.classList.toggle("hidden", !on);
+    };
 
     const fit = (force = false) => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = surface.getBoundingClientRect();
       if (rect.width < 20 || rect.height < 20) return false;
-      const same = Math.abs(rect.width - fittedW) < 1 && Math.abs(rect.height - fittedH) < 1;
+      const same = Math.abs(rect.width - cssW) < 0.5 && Math.abs(rect.height - cssH) < 0.5;
       if (same && !force) return true;
+      // Schon gezeichnet: nicht löschen, auch wenn die Nav Einklappen die Größe ändert.
       if (dirty && !force) return true;
       const scale = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = Math.max(1, Math.round(rect.width * scale));
@@ -61,80 +141,155 @@ const { name, label, hint, required = false } = Astro.props;
       context.lineCap = "round";
       context.lineJoin = "round";
       context.strokeStyle = "#111827";
-      fittedW = rect.width;
-      fittedH = rect.height;
+      cssW = rect.width;
+      cssH = rect.height;
       dirty = false;
       hidden.value = "";
       return true;
     };
+
     const point = (event) => {
       const rect = canvas.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top, pressure: event.pressure || 0.5 };
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+        pressure: event.pressure > 0 ? event.pressure : 0.5,
+      };
     };
+
     const exportJpeg = () => {
-      if (!dirty) return;
-      hidden.value = canvas.toDataURL("image/jpeg", 0.85);
-    };
-    const paint = () => {
-      if (!fit()) {
-        requestAnimationFrame(paint);
+      if (!dirty) {
+        hidden.value = "";
         return;
       }
+      // Export auf sichere Größe begrenzen (Server prüft JPEG-Maße).
+      const exportW = Math.min(1200, Math.max(320, Math.round(cssW)));
+      const exportH = Math.min(600, Math.max(120, Math.round(cssH)));
+      const out = document.createElement("canvas");
+      out.width = exportW;
+      out.height = exportH;
+      const outCtx = out.getContext("2d", { alpha: false });
+      if (!outCtx) {
+        hidden.value = canvas.toDataURL("image/jpeg", 0.85);
+        return;
+      }
+      outCtx.fillStyle = "#ffffff";
+      outCtx.fillRect(0, 0, exportW, exportH);
+      outCtx.drawImage(canvas, 0, 0, exportW, exportH);
+      hidden.value = out.toDataURL("image/jpeg", 0.82);
     };
-    requestAnimationFrame(paint);
 
-    canvas.addEventListener(
-      "pointerdown",
-      (event) => {
-        if (event.pointerType === "mouse" && event.button !== 0) return;
-        fit();
-        canvas.setPointerCapture(event.pointerId);
-        drawing = true;
-        last = point(event);
-        event.preventDefault();
-      },
-      { passive: false },
-    );
-    canvas.addEventListener(
-      "pointermove",
-      (event) => {
-        if (!drawing) return;
-        const next = point(event);
-        const pressure = event.pointerType === "pen" ? Math.max(0.2, next.pressure || 0.5) : 0.6;
-        context.lineWidth = 1.6 + pressure * 2.4;
-        context.beginPath();
-        context.moveTo(last.x, last.y);
-        context.lineTo(next.x, next.y);
-        context.stroke();
-        last = next;
-        dirty = true;
-        event.preventDefault();
-      },
-      { passive: false },
-    );
     const stop = (event) => {
       if (!drawing) return;
+      if (event && activePointer != null && event.pointerId != null && event.pointerId !== activePointer) return;
+      const pointerId = activePointer;
       drawing = false;
+      activePointer = null;
       exportJpeg();
-      if (event?.pointerId != null && canvas.hasPointerCapture(event.pointerId)) {
-        canvas.releasePointerCapture(event.pointerId);
-      }
+      showError(false);
+      try {
+        if (pointerId != null && surface.hasPointerCapture(pointerId)) {
+          surface.releasePointerCapture(pointerId);
+        }
+      } catch (_err) {}
     };
-    canvas.addEventListener("pointerup", stop);
-    canvas.addEventListener("pointercancel", stop);
-    canvas.addEventListener(
-      "touchstart",
+
+    const start = (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (drawing) return;
+      // Nav zuerst einklappen und Reflow erzwingen, sonst sitzt das Canvas schief.
+      collapseMobileNav();
+      void surface.offsetWidth;
+      if (!dirty) fit(true);
+      try {
+        surface.setPointerCapture(event.pointerId);
+      } catch (_err) {}
+      drawing = true;
+      activePointer = event.pointerId;
+      last = point(event);
+      // Ersten Punkt sofort setzen, damit ein kurzer Stift-Tipp sichtbar bleibt.
+      context.lineWidth = 2.2;
+      context.beginPath();
+      context.arc(last.x, last.y, 1.1, 0, Math.PI * 2);
+      context.fillStyle = "#111827";
+      context.fill();
+      context.fillStyle = "#ffffff";
+      dirty = true;
+      showError(false);
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const move = (event) => {
+      if (!drawing || event.pointerId !== activePointer) return;
+      const next = point(event);
+      const pressure = event.pointerType === "pen" ? Math.max(0.25, next.pressure || 0.5) : 0.55;
+      context.lineWidth = 1.8 + pressure * 2.6;
+      context.beginPath();
+      context.moveTo(last.x, last.y);
+      context.lineTo(next.x, next.y);
+      context.stroke();
+      last = next;
+      dirty = true;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const blockScroll = (event) => {
+      event.preventDefault();
+    };
+
+    // Nur am Surface binden – sonst feuern Bubble-Events doppelt.
+    surface.addEventListener("pointerdown", start, { passive: false });
+    surface.addEventListener("pointermove", move, { passive: false });
+    surface.addEventListener("pointerup", stop, { passive: false });
+    surface.addEventListener("pointercancel", stop, { passive: false });
+    surface.addEventListener("lostpointercapture", stop);
+    surface.addEventListener("touchstart", blockScroll, { passive: false });
+    surface.addEventListener("touchmove", blockScroll, { passive: false });
+
+    clear?.addEventListener("click", () => {
+      dirty = false;
+      hidden.value = "";
+      fit(true);
+      showError(false);
+    });
+
+    const form = pad.closest("form");
+    form?.addEventListener(
+      "submit",
       (event) => {
-        event.preventDefault();
+        exportJpeg();
+        const named = nameInput instanceof HTMLInputElement ? nameInput.value.trim() : "";
+        const needsStroke = Boolean(pad.querySelector("input[required]")) || named.length > 0;
+        if (needsStroke && !dirty) {
+          event.preventDefault();
+          showError(true);
+          pad.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
       },
-      { passive: false },
+      true,
     );
-    clear?.addEventListener("click", () => fit(true));
-    pad.closest("form")?.addEventListener("submit", exportJpeg);
+
+    nameInput?.addEventListener("focus", () => {
+      collapseMobileNav();
+      void surface.offsetWidth;
+      if (!dirty) fit(true);
+      pad.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+
     if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver(() => {
         if (!dirty) fit();
-      }).observe(canvas);
+      }).observe(surface);
     }
-  });
+    requestAnimationFrame(() => {
+      if (!fit()) requestAnimationFrame(() => fit());
+    });
+  }
+
+  if (document.querySelector("[data-sign-form], [data-sign-pad]")) {
+    collapseMobileNav();
+  }
+  document.querySelectorAll("[data-sign-pad]").forEach(bindPad);
 </script>
