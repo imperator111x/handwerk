@@ -149,6 +149,36 @@ export async function readFormUploads(
   return prepared;
 }
 
+/** Einfache Bild-Uploads ohne `{id}--name`-Konvention (Kundenportal). */
+export async function readPlainImageUploads(
+  entries: FormDataEntryValue[],
+  options: { maxFiles?: number; maxTotalBytes?: number } = {},
+): Promise<PreparedUpload[] | "too-many" | "too-large" | "bad"> {
+  const maxFiles = options.maxFiles ?? MAX_FILES;
+  const maxTotal = options.maxTotalBytes ?? MAX_TOTAL_BYTES;
+  const files = entries.filter((entry): entry is File => entry instanceof File && entry.size > 0);
+  if (files.length > maxFiles) return "too-many";
+  const prepared: PreparedUpload[] = [];
+  let total = 0;
+  for (const file of files) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    total += bytes.byteLength;
+    if (total > maxTotal) return "too-large";
+    const inspected = inspectUpload(file.name, file.type, bytes);
+    if (!inspected || inspected.kind !== "image") return "bad";
+    prepared.push(inspected);
+  }
+  return prepared;
+}
+
+export function uploadsAsAttachments(uploads: PreparedUpload[]): RawAttachment[] {
+  return uploads.map((upload) => ({
+    filename: upload.filename,
+    mimeType: upload.type,
+    content: upload.bytes,
+  }));
+}
+
 const INBOUND_MAX_FILES = 12;
 const INBOUND_MAX_BYTES = 15_000_000;
 
@@ -295,6 +325,12 @@ export async function listFilesForRequest(db: D1Database, requestId: number, rep
   const placeholders = replies.map(() => "?").join(", ");
   const where = replies.length ? `request_id = ? OR reply_id IN (${placeholders})` : "request_id = ?";
   return listMailFiles(db, where, [requestId, ...replies]);
+}
+
+export async function listFilesForRequests(db: D1Database, requestIds: number[]): Promise<MailFileRow[]> {
+  const ids = requestIds.filter((id) => Number.isInteger(id) && id > 0);
+  if (ids.length === 0) return [];
+  return listMailFiles(db, `request_id IN (${ids.map(() => "?").join(", ")})`, ids);
 }
 
 export async function getMailFile(db: D1Database, id: number): Promise<MailFileRow | null> {

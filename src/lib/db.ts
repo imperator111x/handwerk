@@ -37,6 +37,7 @@ export interface ContactRequestRow {
   ip: string | null;
   country: string | null;
   user_agent: string | null;
+  source: string;
 }
 
 export interface ContactInsert {
@@ -48,6 +49,7 @@ export interface ContactInsert {
   ip?: string | null;
   country?: string | null;
   user_agent?: string | null;
+  source?: "web" | "portal" | "mail";
 }
 
 export function getDb(_ctx: APIContext | { locals: App.Locals }): D1Database | null {
@@ -84,8 +86,8 @@ export async function insertContactRequest(
   const result = await db
     .prepare(
       `INSERT INTO contact_requests
-         (name, email, phone, topic, message, ip, country, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (name, email, phone, topic, message, ip, country, user_agent, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       data.name,
@@ -96,9 +98,25 @@ export async function insertContactRequest(
       data.ip ?? null,
       data.country ?? null,
       data.user_agent ?? null,
+      data.source ?? "web",
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
+}
+
+/** Offene Kundenaufträge aus dem Portal (noch nicht erledigt). */
+export async function listOpenPortalJobs(db: D1Database): Promise<ContactRequestRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, created_at, updated_at, name, email, phone, topic, message, status, notes,
+              ip, country, user_agent, COALESCE(source, 'web') AS source
+         FROM contact_requests
+        WHERE source = 'portal' AND status IN ('new', 'in_progress')
+        ORDER BY created_at DESC, id DESC
+        LIMIT 50`,
+    )
+    .all<ContactRequestRow>();
+  return results ?? [];
 }
 
 export interface ContactRequestListItem extends ContactRequestRow {

@@ -1,0 +1,86 @@
+---
+import PortalLayout from "../../layouts/PortalLayout.astro";
+import { requirePortalSession } from "../../lib/portal-auth";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requirePortalSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const flag = Astro.url.searchParams.get("auftrag");
+const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  sent: { kind: "ok", text: "Auftrag ist angekommen. Wir melden uns bei Ihnen." },
+  title: { kind: "bad", text: "Bitte einen Betreff mit mindestens 3 Zeichen angeben." },
+  message: { kind: "bad", text: "Bitte kurz beschreiben, was zu tun ist." },
+  files: { kind: "bad", text: "Maximal 6 Bilder." },
+  size: { kind: "bad", text: "Die Bilder zusammen dürfen höchstens 3 MB groß sein." },
+  image: { kind: "bad", text: "Nur JPG, PNG, GIF oder WebP." },
+  db: { kind: "bad", text: "Speichern fehlgeschlagen. Bitte später erneut versuchen." },
+};
+const notice = flag ? notices[flag] : undefined;
+---
+
+<PortalLayout title="Auftrag erstellen" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900">
+    <h1 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Auftrag erstellen</h1>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Beschreiben Sie den Auftrag und laden Sie bei Bedarf Fotos hoch.
+    </p>
+
+    {notice && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          notice.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {notice.text}
+      </p>
+    )}
+
+    <form method="POST" action="/api/portal/auftrag" enctype="multipart/form-data" class="mt-5 space-y-4">
+      <div>
+        <label for="title" class="label">Betreff</label>
+        <input
+          id="title"
+          name="title"
+          type="text"
+          required
+          minlength={3}
+          maxlength={120}
+          class="input"
+          placeholder="z. B. Rohr undicht im Bad"
+        />
+      </div>
+      <div>
+        <label for="message" class="label">Beschreibung</label>
+        <textarea
+          id="message"
+          name="message"
+          required
+          minlength={5}
+          maxlength={4000}
+          rows={5}
+          class="input"
+          placeholder="Was soll gemacht werden? Wo? Wann passt es?"
+        ></textarea>
+      </div>
+      <div>
+        <label for="photos" class="label">Fotos (optional)</label>
+        <input
+          id="photos"
+          name="photos"
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
+          multiple
+          class="input file:mr-3 file:rounded-full file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-brand-800 dark:file:bg-brand-500/15 dark:file:text-brand-100"
+        />
+        <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">Bis zu 6 Bilder, zusammen max. 3 MB.</p>
+      </div>
+      <button type="submit" class="btn-primary w-full justify-center sm:w-auto">Auftrag absenden</button>
+    </form>
+  </section>
+</PortalLayout>

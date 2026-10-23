@@ -1,14 +1,17 @@
 ---
+import MailFiles from "../../../components/MailFiles.astro";
 import OfferComposer from "../../../components/OfferComposer.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
+import { cfEnv } from "../../../lib/cf";
 import { getDb } from "../../../lib/db";
 import {
   JOB_STATUS_LABELS,
   jobStatusForQuote,
   nextJobActions,
 } from "../../../lib/jobs";
+import { listFilesForRequest, refreshPendingFiles } from "../../../lib/mail-files";
 import {
   berlinTodayIso,
   getQuote,
@@ -56,6 +59,15 @@ const jobActions = nextJobActions(job);
 const number = offerNumber(quote.id, quote.created_at);
 const invoiceId = db && status === "abgerechnet" ? await invoiceIdForQuote(db, quote.id) : null;
 const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
+const env = cfEnv();
+let requestFiles =
+  db && quote.request_id ? await listFilesForRequest(db, quote.request_id, []) : [];
+if (env && requestFiles.some((file) => file.scan_status === "pending" || file.scan_status === "error")) {
+  await refreshPendingFiles(env, requestFiles);
+  requestFiles = db && quote.request_id ? await listFilesForRequest(db, quote.request_id, []) : [];
+}
+const customerPhotos = requestFiles.filter((file) => file.reply_id == null);
+const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
 const angebotFlag = Astro.url.searchParams.get("angebot");
 const notices: Record<string, string> = {
   bad: "Bitte Positionen, Preise und das Datum prüfen. Das Datum darf höchstens ein Jahr vor oder nach heute liegen.",
@@ -120,6 +132,13 @@ const statusClass =
         Rechnung:
         <a class="font-semibold text-brand-700 underline dark:text-brand-200" href={`/admin/rechnungen/${invoiceId}`}>Zur Rechnung</a>
       </p>
+    )}
+
+    {customerPhotos.length > 0 && (
+      <div class="mt-5">
+        <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-50">Kundenfotos</h3>
+        <MailFiles files={customerPhotos} redirect={`/admin/angebote/${quote.id}`} ready={virusTotalReady} />
+      </div>
     )}
 
     <div class="mt-5 flex flex-wrap gap-2">
