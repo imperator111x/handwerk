@@ -209,22 +209,14 @@ function layout(input: TimesheetPdfInput, images: PdfImage[]): string {
     y -= 6;
   }
 
-  for (const part of wrap(TIMESHEET_SIGN_NOTE, 96)) {
-    textAt(LEFT, y, 8, "F1", part, MUTED);
-    y -= 11;
-  }
-  if (input.contentHash) {
-    y -= 4;
-    textAt(LEFT, y, 7, "F2", "Prüfwert", MUTED);
-    y -= 10;
-    for (const part of wrap(input.contentHash, 64)) {
-      textAt(LEFT, y, 7, "F1", part, MUTED);
-      y -= 9;
-    }
-  }
-  y -= 14;
+  // Signaturhinweis + Prüfwert fest direkt über der Fußzeile.
+  const signNoteLines = wrap(TIMESHEET_SIGN_NOTE, 96);
+  const hashLines = input.contentHash ? wrap(input.contentHash, 64) : [];
+  const footerNoteHeight =
+    signNoteLines.length * 11 + (hashLines.length ? 14 + hashLines.length * 9 : 0) + 6;
+  const footerNoteTop = FOOTER_TOP + footerNoteHeight;
 
-  // Signature boxes side by side
+  // Signature boxes side by side, oberhalb des Hinweises
   const gap = 14;
   const boxW = (WIDTH - gap) / 2;
   const boxH = 128;
@@ -243,8 +235,8 @@ function layout(input: TimesheetPdfInput, images: PdfImage[]): string {
     },
   ];
 
-  if (y - boxH < FOOTER_TOP + 8) {
-    y = FOOTER_TOP + boxH + 8;
+  if (y - boxH < footerNoteTop + 12) {
+    y = footerNoteTop + boxH + 12;
   }
 
   for (const box of boxes) {
@@ -274,6 +266,21 @@ function layout(input: TimesheetPdfInput, images: PdfImage[]): string {
       );
     } else {
       textAt(box.x + 10, imageAreaBottom + imageAreaH / 2, 9, "F1", "keine Unterschrift", MUTED);
+    }
+  }
+
+  let noteY = footerNoteTop;
+  for (const part of signNoteLines) {
+    textAt(LEFT, noteY, 8, "F1", part, MUTED);
+    noteY -= 11;
+  }
+  if (input.contentHash) {
+    noteY -= 3;
+    textAt(LEFT, noteY, 7, "F2", "Prüfwert", MUTED);
+    noteY -= 10;
+    for (const part of hashLines) {
+      textAt(LEFT, noteY, 7, "F1", part, MUTED);
+      noteY -= 9;
     }
   }
 
