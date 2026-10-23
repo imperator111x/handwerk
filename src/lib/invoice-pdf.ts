@@ -1,5 +1,6 @@
 import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_WIDTH } from "./offer-logo";
 import { siteConfig } from "../config/site";
+import { buildInvoicePaymentQr, type QrPdfImage } from "./epc-qr";
 import {
   FONT_BOLD_META,
   FONT_BOLD_WIDTHS,
@@ -90,6 +91,17 @@ const WIN_EXTRA: Record<string, number> = {
 export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
   const storno = input.documentKind === "storno";
   const credit = input.documentKind === "gutschrift";
+  const amountCents = offerTotalCents(input.lines);
+  const paymentQr =
+    !storno && !credit && amountCents > 0
+      ? buildInvoicePaymentQr({
+          name: SELLER.accountName,
+          iban: SELLER.iban,
+          bic: SELLER.bic,
+          amountCents,
+          remittance: input.number,
+        })
+      : null;
   const xml = buildInvoiceXml({
     number: input.number,
     title: input.title,
@@ -111,7 +123,7 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
         ? "Es ist kein Betrag zu zahlen."
         : input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS,
   });
-  return serializeZugferd(layoutPages(input), xml, input);
+  return serializeZugferd(layoutPages(input, paymentQr), xml, input, paymentQr);
 }
 
 function documentHeading(input: InvoicePdfInput): string {
@@ -151,7 +163,7 @@ function noticeBannerLines(input: InvoicePdfInput): string[] {
   return [];
 }
 
-function layoutPages(input: InvoicePdfInput): string[] {
+function layoutPages(input: InvoicePdfInput, paymentQr: QrPdfImage | null): string[] {
   const heading = documentHeading(input);
   const storno = input.documentKind === "storno";
   const credit = input.documentKind === "gutschrift";
@@ -256,7 +268,7 @@ function layoutPages(input: InvoicePdfInput): string[] {
           ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
           : input.noticeKind === "erinnerung"
             ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
-            : [`${heading}: ${input.number}`, "Bei Zahlung bitte angeben"];
+            : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;
   paymentHint.forEach((line, index) => {
@@ -355,6 +367,18 @@ function layoutPages(input: InvoicePdfInput): string[] {
   y -= 14;
   textRight(RIGHT, y, 10, "F1", "Umsatzsteuer 0 %  0,00 EUR");
   y -= 22;
+
+  if (paymentQr) {
+    const qrPt = 96;
+    need(qrPt + 36);
+    textAt(LEFT, y, 11, "F2", "Zahlen mit Code", BLACK);
+    y -= 6;
+    paint(`q ${round(qrPt)} 0 0 ${round(qrPt)} ${LEFT} ${round(y - qrPt)} cm /Im2 Do Q`);
+    textAt(LEFT + qrPt + 12, y - 14, 10, "F1", "Mit der Banking-App scannen.");
+    textAt(LEFT + qrPt + 12, y - 28, 10, "F1", `Verwendungszweck: ${input.number}`);
+    textAt(LEFT + qrPt + 12, y - 42, 10, "F1", OFFER_BANK_LINES[1] ?? "");
+    y -= qrPt + 18;
+  }
 
   const notes = [
     OFFER_TAX_NOTE,
@@ -460,7 +484,12 @@ function pdfText(value: string): string {
   return `(${out})`;
 }
 
-function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput): Uint8Array {
+function serializeZugferd(
+  streams: string[],
+  xml: string,
+  input: InvoicePdfInput,
+  paymentQr: QrPdfImage | null,
+): Uint8Array {
   const xmlBytes = utf8(xml);
   const created = `D:${input.invoiceDate.replace(/-/g, "")}120000Z`;
   const xmp = xmpPacket(input, created);
@@ -517,6 +546,24 @@ function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput
 
   const pageIds: number[] = [];
   let nextId = 14;
+  let qrId: number | null = null;
+  if (paymentQr) {
+    qrId = nextId;
+    nextId += 1;
+    objects.set(
+      qrId,
+      concat([
+        latin1(
+          `<< /Type /XObject /Subtype /Image /Width ${paymentQr.width} /Height ${paymentQr.height} /ColorSpace /DeviceGray /BitsPerComponent 1 /Interpolate false /Length ${paymentQr.bytes.length} >>\nstream\n`,
+        ),
+        paymentQr.bytes,
+        latin1("\nendstream"),
+      ]),
+    );
+  }
+  const xobjects = qrId
+    ? `/XObject << /Im1 ${imageId} 0 R /Im2 ${qrId} 0 R >>`
+    : `/XObject << /Im1 ${imageId} 0 R >>`;
   for (const stream of streams) {
     const contentId = nextId;
     nextId += 1;
@@ -528,7 +575,7 @@ function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput
     objects.set(
       pageId,
       latin1(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> /XObject << /Im1 ${imageId} 0 R >> >> >>`,
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> ${xobjects} >> >>`,
       ),
     );
   }

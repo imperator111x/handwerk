@@ -14,6 +14,7 @@ registerHooks({
 const invoice = await import("../src/lib/invoice.ts");
 const font = await import("../src/lib/invoice-font.ts");
 const { buildInvoicePdf } = await import("../src/lib/invoice-pdf.ts");
+const epc = await import("../src/lib/epc-qr.ts");
 
 const RETENTION =
   "Der Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren.";
@@ -209,6 +210,29 @@ assert.match(text, /Der Rechnungsempfänger ist verpflichtet/);
 assert.match(text, /mindestens zwei Jahre aufzubewahren/);
 assert.match(text, /Rechnungsnummer: R-2026-0007/);
 assert.match(text, /Bei Zahlung bitte angeben/);
+assert.match(text, /Zahlen mit Code/);
+assert.match(text, /Mit der Banking-App scannen/);
+assert.match(raw, /\/Im2 /);
+assert.match(raw, /\/BitsPerComponent 1/);
+
+const epcPayload = epc.buildEpcPaymentPayload({
+  name: "ZEUS-SERVICE",
+  iban: "DE38100140001598168418",
+  bic: "SWNBDEBB",
+  amountCents: 12750,
+  remittance: "R-2026-0007",
+});
+assert.equal(
+  epcPayload,
+  ["BCD", "002", "1", "SCT", "SWNBDEBB", "ZEUS-SERVICE", "DE38100140001598168418", "EUR127.50", "", "", "R-2026-0007"].join("\n"),
+);
+assert.ok(epc.buildInvoicePaymentQr({
+  name: "ZEUS-SERVICE",
+  iban: "DE38100140001598168418",
+  bic: "SWNBDEBB",
+  amountCents: 12750,
+  remittance: "R-2026-0007",
+}));
 
 const stornoXml = invoice.buildInvoiceXml({
   number: "R-2026-0008",
