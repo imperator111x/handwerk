@@ -19,6 +19,8 @@ import {
   insertContactRequest,
   insertInboundReply,
   insertMailMessage,
+  linkContactRequestCustomer,
+  linkMailThreadCustomer,
   updateContactStatus,
   upsertMailThread,
 } from "./db";
@@ -82,6 +84,12 @@ export async function ingestInboundEmail(
   }
   if (!requestId) {
     const createdName = cleanName(email.fromName) || from.split("@")[0] || "Kunde";
+    let customerId: number | null = null;
+    try {
+      customerId = await ensureCustomer(db, { name: createdName, email: from });
+    } catch (err) {
+      console.error("customer_ensure_failed", err);
+    }
     const createdId = await insertContactRequest(db, {
       name: createdName,
       email: from,
@@ -89,12 +97,9 @@ export async function ingestInboundEmail(
       message:
         clip(extractCustomerText(email.text ?? "", email.html ?? "")) ||
         "(Keine Textnachricht)",
+      source: "mail",
+      customerId,
     });
-    try {
-      await ensureCustomer(db, { name: createdName, email: from });
-    } catch (err) {
-      console.error("customer_ensure_failed", err);
-    }
     return { action: "created", requestId: createdId };
   }
 
@@ -103,7 +108,14 @@ export async function ingestInboundEmail(
     return { action: "reject", reason: "Diese Adresse ist keiner Anfrage zugeordnet." };
   }
   try {
-    await ensureCustomer(db, { name: request.name, email: request.email, phone: request.phone });
+    if (!request.customer_id) {
+      const customerId = await ensureCustomer(db, {
+        name: request.name,
+        email: request.email,
+        phone: request.phone,
+      });
+      await linkContactRequestCustomer(db, requestId, customerId);
+    }
   } catch (err) {
     console.error("customer_ensure_failed", err);
   }
@@ -191,6 +203,17 @@ async function storeMailboxMail(
 
   const peerName = cleanName(email.fromName);
   const subject = clip(decodeHtmlEntities(email.subject?.trim() || "Nachricht"), 200);
+  let customerId: number | null = linked?.customer_id ?? null;
+  if (!customerId) {
+    try {
+      customerId = await ensureCustomer(db, {
+        name: peerName || from.split("@")[0] || "Kunde",
+        email: from,
+      });
+    } catch (err) {
+      console.error("customer_ensure_failed", err);
+    }
+  }
   const threadId = linked
     ? linked.id
     : await upsertMailThread(db, {
@@ -198,9 +221,13 @@ async function storeMailboxMail(
         peerEmail: from,
         peerName,
         subject,
+        customerId,
       });
   if (!threadId) {
     return { action: "reject", reason: "Nachricht konnte gerade nicht gespeichert werden." };
+  }
+  if (customerId && !linked?.customer_id) {
+    await linkMailThreadCustomer(db, threadId, customerId).catch(() => {});
   }
 
   const ownAddress = mailbox

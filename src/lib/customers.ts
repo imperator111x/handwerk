@@ -387,6 +387,8 @@ export async function mergeCustomers(
     db.prepare(`UPDATE timesheets SET customer_id = ? WHERE customer_id = ?`).bind(survivorId, loserId),
     db.prepare(`UPDATE portal_invites SET customer_id = ? WHERE customer_id = ?`).bind(survivorId, loserId),
     db.prepare(`UPDATE portal_accounts SET customer_id = ? WHERE customer_id = ?`).bind(survivorId, loserId),
+    db.prepare(`UPDATE contact_requests SET customer_id = ? WHERE customer_id = ?`).bind(survivorId, loserId),
+    db.prepare(`UPDATE mail_threads SET customer_id = ? WHERE customer_id = ?`).bind(survivorId, loserId),
     db
       .prepare(
         `UPDATE customers

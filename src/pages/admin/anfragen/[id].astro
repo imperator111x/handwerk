@@ -19,7 +19,7 @@ import { listFilesForRequest, refreshPendingFiles, type MailFileRow } from "../.
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { sanitizeMailHtml } from "../../../lib/mail-html";
 import { formatBerlin } from "../../../lib/time";
-import { findCustomerByEmail } from "../../../lib/customers";
+import { findCustomerByEmail, getCustomer } from "../../../lib/customers";
 import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { berlinTodayIso, listQuotes } from "../../../lib/offers";
 import {
@@ -71,7 +71,11 @@ const filesForReply = (replyId: number) => attachedFiles.filter((file) => file.r
 const virusTotalReady = Boolean(env?.VIRUSTOTAL_API_KEY);
 const quotes = db ? await listQuotes(db, id) : [];
 const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
-const linkedCustomer = db ? await findCustomerByEmail(db, request.email) : null;
+const linkedCustomer = db
+  ? request.customer_id
+    ? await getCustomer(db, request.customer_id)
+    : await findCustomerByEmail(db, request.email)
+  : null;
 const offerUntil = new Date(Date.parse(`${berlinTodayIso()}T00:00:00Z`) + 14 * 86_400_000)
   .toISOString()
   .slice(0, 10);

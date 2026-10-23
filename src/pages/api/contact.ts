@@ -88,16 +88,17 @@ export async function POST(ctx: APIContext): Promise<Response> {
   let persistedId: number | null = null;
   if (env?.DB) {
     try {
+      const customerId = await ensureCustomer(env.DB, {
+        name: payload.name,
+        email: payload.email,
+        phone: payload.phone,
+      });
       persistedId = await insertContactRequest(env.DB, {
         ...payload,
         ip,
         country,
         user_agent: userAgent,
-      });
-      await ensureCustomer(env.DB, {
-        name: payload.name,
-        email: payload.email,
-        phone: payload.phone,
+        customerId,
       });
     } catch (err) {
       console.error("contact_persist_failed", err);

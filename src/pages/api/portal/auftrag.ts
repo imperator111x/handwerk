@@ -53,6 +53,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     country: ctx.request.headers.get("cf-ipcountry"),
     user_agent: ctx.request.headers.get("user-agent"),
     source: "portal",
+    customerId: session.customerId,
   });
   if (!requestId) return ctx.redirect("/portal/auftrag?auftrag=db", 303);
 
