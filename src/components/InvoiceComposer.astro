@@ -48,7 +48,7 @@ const euroField = (cents: number) =>
     : "";
 ---
 
-<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid gap-4" data-catalog={JSON.stringify(catalog)} onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
+<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid min-w-0 gap-4" data-catalog={JSON.stringify(catalog)} onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
   {hidden.map((field) => <input type="hidden" name={field.name} value={field.value} />)}
   <div>
     <label class="label" for="invoice-title">Betreff</label>
@@ -106,12 +106,12 @@ const euroField = (cents: number) =>
   <p class="text-sm text-ink-800 dark:text-ink-100">Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
   <InvoiceNotes />
   <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
-  <div class="grid gap-3 sm:grid-cols-2">
-    <div>
+  <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+    <div class="min-w-0">
       <label class="label" for="invoice-date">Rechnungsdatum</label>
       <input class="input" id="invoice-date" name="invoice_date" type="date" required value={invoiceDate} />
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="label" for="service-date">Leistungsdatum</label>
       <input class="input" id="service-date" name="service_date" type="date" required value={serviceDate} />
     </div>

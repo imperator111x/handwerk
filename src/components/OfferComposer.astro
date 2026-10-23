@@ -66,7 +66,7 @@ const festSnapshot = billing === "fest" ? visible : festLines;
   id="offer-form"
   method="POST"
   action={action}
-  class="grid gap-4"
+  class="grid min-w-0 gap-4"
   data-fest-lines={JSON.stringify(festSnapshot)}
   data-hour-lines={JSON.stringify(hourLines)}
   data-catalog={JSON.stringify(catalog)}
@@ -144,12 +144,14 @@ const festSnapshot = billing === "fest" ? visible : festLines;
   <p class="text-sm text-ink-800 dark:text-ink-100"><span id="offer-total-label">{billing === "stunden" ? "Summe" : "Festpreis"}</span> <strong id="offer-total">0,00 €</strong></p>
   <OfferNotes validUntil={validUntil} billing={billing} />
   <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
-  <div class="grid gap-3 sm:grid-cols-2">
-    <div>
+  <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+    <div class="min-w-0">
       <label class="label" for="offer-until">Gültig bis</label>
       <input class="input" id="offer-until" name="valid_until" type="date" required value={validUntil} />
     </div>
-    <SalutationSelect name={customerName} id="salutation-offer" selected={salutation} />
+    <div class="min-w-0">
+      <SalutationSelect name={customerName} id="salutation-offer" selected={salutation} />
+    </div>
   </div>
   <div>
     <label class="label" for="offer-intro">Anschreiben</label>

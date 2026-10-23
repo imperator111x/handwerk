@@ -35,10 +35,10 @@ const lines = Astro.props.lines?.length
   : [{ start: "", end: "", breakMinutes: 0, task: "" }];
 ---
 
-<form id="timesheet-form" method="POST" action="/api/admin/stundenzettel" class="grid gap-4">
+<form id="timesheet-form" method="POST" action="/api/admin/stundenzettel" class="grid min-w-0 gap-4">
   {hidden.map((field) => <input type="hidden" name={field.name} value={field.value} />)}
-  <div class="grid gap-4 sm:grid-cols-2">
-    <div>
+  <div class="grid min-w-0 gap-4 sm:grid-cols-2">
+    <div class="min-w-0">
       <label class="label" for="timesheet-customer">Kunde aus der Kartei</label>
       <select class="input" id="timesheet-customer" name="customer_id">
         <option value="">Ohne Kartei</option>
@@ -56,7 +56,7 @@ const lines = Astro.props.lines?.length
         ))}
       </select>
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="label" for="timesheet-date">Arbeitstag</label>
       <input class="input" id="timesheet-date" name="work_date" type="date" required value={workDate} />
     </div>
@@ -87,24 +87,24 @@ const lines = Astro.props.lines?.length
   </div>
   <div id="timesheet-lines" class="grid gap-3">
     {lines.map((line) => (
-      <div data-time-line class="grid gap-2 rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
-        <div class="sm:col-span-2">
+      <div data-time-line class="grid min-w-0 gap-2 overflow-hidden rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
+        <div class="min-w-0 sm:col-span-2">
           <label class="label">Beginn</label>
           <input class="input" name="line_start" type="time" required value={line.start} />
         </div>
-        <div class="sm:col-span-2">
+        <div class="min-w-0 sm:col-span-2">
           <label class="label">Ende</label>
           <input class="input" name="line_end" type="time" required value={line.end} />
         </div>
-        <div class="sm:col-span-2">
+        <div class="min-w-0 sm:col-span-2">
           <label class="label">Pause Min.</label>
           <input class="input" name="line_break" inputmode="numeric" min="0" max="600" value={line.breakMinutes ? String(line.breakMinutes) : ""} placeholder="0" />
         </div>
-        <div class="sm:col-span-5">
+        <div class="min-w-0 sm:col-span-5">
           <label class="label">Tätigkeit</label>
           <input class="input" name="line_task" maxlength="160" required value={line.task} />
         </div>
-        <div class="flex items-end sm:col-span-1">
+        <div class="flex min-w-0 items-end sm:col-span-1">
           <button type="button" data-time-remove class="pb-2 text-xs font-semibold text-ink-500">Weg</button>
         </div>
       </div>
@@ -118,24 +118,24 @@ const lines = Astro.props.lines?.length
   <button type="submit" class="btn-primary w-fit">{submitLabel}</button>
 </form>
 <template id="timesheet-line-template">
-  <div data-time-line class="grid gap-2 rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
-    <div class="sm:col-span-2">
+  <div data-time-line class="grid min-w-0 gap-2 overflow-hidden rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
+    <div class="min-w-0 sm:col-span-2">
       <label class="label">Beginn</label>
       <input class="input" name="line_start" type="time" required />
     </div>
-    <div class="sm:col-span-2">
+    <div class="min-w-0 sm:col-span-2">
       <label class="label">Ende</label>
       <input class="input" name="line_end" type="time" required />
     </div>
-    <div class="sm:col-span-2">
+    <div class="min-w-0 sm:col-span-2">
       <label class="label">Pause Min.</label>
       <input class="input" name="line_break" inputmode="numeric" placeholder="0" />
     </div>
-    <div class="sm:col-span-5">
+    <div class="min-w-0 sm:col-span-5">
       <label class="label">Tätigkeit</label>
       <input class="input" name="line_task" maxlength="160" required />
     </div>
-    <div class="flex items-end sm:col-span-1">
+    <div class="flex min-w-0 items-end sm:col-span-1">
       <button type="button" data-time-remove class="pb-2 text-xs font-semibold text-ink-500">Weg</button>
     </div>
   </div>

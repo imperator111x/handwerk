@@ -49,22 +49,22 @@ const today = new Intl.DateTimeFormat("en-CA", {
       </p>
     )}
 
-    <form method="POST" action="/api/admin/termine" class="mt-6 grid gap-4 sm:grid-cols-4">
+    <form method="POST" action="/api/admin/termine" class="mt-6 grid min-w-0 gap-4 sm:grid-cols-4">
       <input type="hidden" name="action" value="create" />
       <input type="hidden" name="redirect" value="/admin/termine" />
-      <div>
+      <div class="min-w-0">
         <label class="label" for="slot-date">Datum</label>
         <input class="input" id="slot-date" name="date" type="date" required min={today} value={today} />
       </div>
-      <div>
+      <div class="min-w-0">
         <label class="label" for="slot-start">Von</label>
         <input class="input" id="slot-start" name="start" type="time" required value="09:00" />
       </div>
-      <div>
+      <div class="min-w-0">
         <label class="label" for="slot-end">Bis</label>
         <input class="input" id="slot-end" name="end" type="time" required value="10:00" />
       </div>
-      <div>
+      <div class="min-w-0">
         <label class="label" for="slot-note">Notiz</label>
         <input class="input" id="slot-note" name="note" type="text" maxlength="120" placeholder="optional" />
       </div>
