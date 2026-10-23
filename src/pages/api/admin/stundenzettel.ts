@@ -1,6 +1,7 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
-import { getDb } from "../../../lib/db";
+import { cfEnv } from "../../../lib/cf";
+import { getDb, signatureNameForUser } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { getCustomer } from "../../../lib/customers";
 import {
@@ -14,8 +15,10 @@ import {
   deleteTimesheet,
   getTimesheet,
   insertTimesheet,
+  sendTimesheetEmail,
   signTimesheet,
   timesheetContent,
+  timesheetPdf,
   updateTimesheet,
 } from "../../../lib/timesheets";
 
@@ -34,6 +37,31 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const form = await ctx.request.formData();
   const action = String(form.get("action") ?? "create");
   if (!db) return ctx.redirect("/admin/stundenzettel?zettel=db", 303);
+
+  if (action === "email") {
+    const env = cfEnv();
+    const id = Number.parseInt(String(form.get("id") ?? ""), 10);
+    const row = Number.isFinite(id) ? await getTimesheet(db, id) : null;
+    if (!row) return ctx.redirect("/admin/stundenzettel?zettel=missing", 303);
+    if (!row.customer_id) return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=mail-kunde`, 303);
+    const customer = await getCustomer(db, row.customer_id);
+    if (!customer?.email?.trim()) return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=mail-kunde`, 303);
+    if (!env) return ctx.redirect(`/admin/stundenzettel/${row.id}?zettel=mail-fail`, 303);
+    const authorName = await signatureNameForUser(db, session.userId, session.username);
+    const pdf = await timesheetPdf(row);
+    const delivery = await sendTimesheetEmail(env, {
+      to: customer.email.trim(),
+      recipientName: decodeHtmlEntities(customer.name),
+      authorName,
+      row,
+      filename: pdf.filename,
+      pdf: pdf.bytes,
+    });
+    return ctx.redirect(
+      `/admin/stundenzettel/${row.id}?zettel=${delivery.sentAt ? "mailed" : "mail-fail"}`,
+      303,
+    );
+  }
 
   if (action === "delete") {
     const id = Number.parseInt(String(form.get("id") ?? ""), 10);

@@ -1,5 +1,8 @@
+import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildTimesheetPdf, type TimesheetPdfInput } from "./timesheet-pdf";
 import {
+  formatDecimalHours,
+  formatMinutes,
   readTimesheetLines,
   timesheetContentHash,
   timesheetNumber,
@@ -204,4 +207,81 @@ function decodeStoredJpeg(raw: string): Uint8Array | null {
 
 export function workDateLabel(iso: string): string {
   return formatOfferDate(iso);
+}
+
+export async function sendTimesheetEmail(
+  env: Env,
+  input: {
+    to: string;
+    recipientName: string;
+    authorName: string;
+    row: TimesheetRow;
+    filename: string;
+    pdf: Uint8Array;
+  },
+): Promise<{ sentAt: number | null; emailStatus: string }> {
+  const number = timesheetNumber(input.row.id, input.row.created_at);
+  const dateLabel = formatOfferDate(input.row.work_date);
+  const hours = `${formatMinutes(input.row.total_minutes)} (${formatDecimalHours(input.row.total_minutes)} Std.)`;
+  const tasks = readTimesheetLines(input.row.lines_json)
+    .map((line) => line.task)
+    .filter(Boolean)
+    .join("; ");
+  const bodyText = [
+    `anbei der Stundenzettel ${number}.`,
+    "",
+    `Arbeitstag: ${dateLabel}`,
+    `Mitarbeiter: ${input.row.employee_name}`,
+    `Arbeitszeit: ${hours}`,
+    tasks ? `Tätigkeiten: ${tasks}` : "",
+    input.row.note.trim() ? `Bemerkung: ${input.row.note.trim()}` : "",
+    "",
+    "Das PDF ist dieser Mail angehängt.",
+  ]
+    .filter((line) => line !== null)
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+  const subject = `Stundenzettel ${number} · ${dateLabel}`;
+  const from = "info@zeus-service.de";
+  const footerNote = "Sie können direkt auf diese E-Mail antworten.";
+  const result = await sendEmail(env, {
+    from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",
+    fromName: env.SITE_NAME ?? "Zeus-Service",
+    to: input.to,
+    replyTo: from,
+    subject,
+    html: renderReplyEmailHtml({
+      siteName: env.SITE_NAME ?? "Zeus-Service",
+      siteUrl: env.SITE_URL ?? "https://zeus-service.de",
+      recipientName: input.recipientName,
+      subject,
+      bodyText,
+      authorName: input.authorName,
+      fromEmail: from,
+      replyToEmail: from,
+      eyebrow: "Stundenzettel",
+      footerNote,
+    }),
+    text: renderReplyEmailText({
+      siteName: env.SITE_NAME ?? "Zeus-Service",
+      siteUrl: env.SITE_URL ?? "https://zeus-service.de",
+      recipientName: input.recipientName,
+      subject,
+      bodyText,
+      authorName: input.authorName,
+      fromEmail: from,
+      replyToEmail: from,
+      footerNote,
+    }),
+    attachments: [
+      {
+        filename: input.filename,
+        type: "application/pdf",
+        disposition: "attachment",
+        content: input.pdf,
+      },
+    ],
+  });
+  if (result.ok) return { sentAt: Math.floor(Date.now() / 1000), emailStatus: `sent:${result.via}` };
+  return { sentAt: null, emailStatus: result.via === "none" ? "skipped:no_transport" : `failed:${result.via}` };
 }

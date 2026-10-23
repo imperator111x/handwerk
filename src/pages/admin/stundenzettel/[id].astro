@@ -29,6 +29,9 @@ const messages: Record<string, string> = {
   sign: "Die Unterschrift ist unvollständig. Beim Mitarbeiter gehören Name und Stiftstrich zusammen. Beim Auftraggeber ebenso, wenn du ihn mit unterschreiben lässt.",
   bad: "Bitte die Zeiten prüfen. Das Ende muss nach dem Beginn liegen.",
   locked: "Dieser Stundenzettel ist schon festgeschrieben.",
+  mailed: "Der Stundenzettel wurde per E-Mail an den Kunden geschickt.",
+  "mail-fail": "Die E-Mail ließ sich nicht senden. Bitte später erneut versuchen.",
+  "mail-kunde": "Zum Versand braucht der Zettel einen Kunden aus der Kartei mit E-Mail-Adresse.",
 };
 ---
 
@@ -45,6 +48,11 @@ const messages: Record<string, string> = {
       </div>
       <div class="flex flex-wrap gap-2">
         <a href={`/api/admin/stundenzettel-pdf?id=${row.id}&v=2`} target="_blank" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">PDF</a>
+        <form method="POST" action="/api/admin/stundenzettel">
+          <input type="hidden" name="action" value="email" />
+          <input type="hidden" name="id" value={row.id} />
+          <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Per E-Mail senden</button>
+        </form>
         <a href={`/admin/rechnungen/neu?stundenzettel=${row.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Zur Rechnung übernehmen</a>
       </div>
     </div>

@@ -25,6 +25,7 @@ import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive
 import { berlinTodayIso, getQuote } from "../../../lib/offers";
 import { formatOfferDate, readStoredOffer } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
+import { getTimesheet, timesheetPdf } from "../../../lib/timesheets";
 
 export const prerender = false;
 
@@ -88,6 +89,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   const customerId = Number.parseInt(String(form.get("customer_id") ?? ""), 10);
   const quoteId = Number.parseInt(String(form.get("quote_id") ?? ""), 10);
+  const timesheetId = Number.parseInt(String(form.get("timesheet_id") ?? ""), 10);
   const back = Number.isFinite(customerId) && customerId > 0 ? `/admin/rechnungen/neu?kunde=${customerId}` : "/admin/rechnungen/neu";
   const customer = Number.isFinite(customerId) ? await getCustomer(db, customerId) : null;
   if (!customer) return ctx.redirect("/admin/rechnungen/neu?rechnung=missing", 303);
@@ -104,6 +106,8 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const buyerName = decodeHtmlEntities(customer.name);
   const greeting = greetingFromForm(form, buyerName);
   const linkedQuote = Number.isFinite(quoteId) && quoteId > 0 ? await getQuote(db, quoteId) : null;
+  const linkedTimesheet =
+    Number.isFinite(timesheetId) && timesheetId > 0 ? await getTimesheet(db, timesheetId) : null;
 
   if (String(form.get("preview") ?? "") === "1") {
     const bytes = buildInvoicePdf({
@@ -134,6 +138,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const id = await saveInvoice(db, {
     customerId: customer.id,
     quoteId: linkedQuote?.id ?? null,
+    timesheetId: linkedTimesheet?.id ?? null,
     invoice,
     greeting,
     taxNumber,
@@ -192,6 +197,18 @@ async function deliverInvoice(
   const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row));
   const number = invoiceNumber(row.id, row.invoice_date);
   const paymentUrl = await ensurePaymentUrl(env, db, row, number);
+  const extraAttachments: Array<{ filename: string; pdf: Uint8Array }> = [];
+  if (row.timesheet_id && purpose === "rechnung") {
+    try {
+      const sheet = await getTimesheet(db, row.timesheet_id);
+      if (sheet) {
+        const attached = await timesheetPdf(sheet);
+        extraAttachments.push({ filename: attached.filename, pdf: attached.bytes });
+      }
+    } catch (err) {
+      console.error("invoice_timesheet_attach_failed", err instanceof Error ? err.message : "error");
+    }
+  }
   const delivery = await sendInvoiceEmail(env, {
     to: row.buyer_email,
     recipientName: row.buyer_name,
@@ -214,6 +231,7 @@ async function deliverInvoice(
     paymentStatus: row.payment_status,
     paymentMode: stripeKeyMode(env.STRIPE_SECRET_KEY),
     purpose,
+    extraAttachments,
   });
   await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
   const linkExpected = purpose === "rechnung" && row.payment_status !== "bezahlt" && row.payment_status !== "erstattet" && row.payment_status !== "storniert";
@@ -284,6 +302,7 @@ async function handleCorrection(
   const newId = await saveInvoice(db, {
     customerId: row.customer_id,
     quoteId: row.quote_id,
+    timesheetId: row.timesheet_id,
     invoice: replacement,
     greeting: greetingFromForm(form, row.buyer_name),
     taxNumber: (await getTaxNumber(db)) || row.tax_number,

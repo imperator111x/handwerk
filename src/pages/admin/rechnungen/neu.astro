@@ -135,6 +135,7 @@ const canCompose = Boolean(customer && addressReady && taxNumber && (!wantsTimes
             hidden={[
               { name: "customer_id", value: String(customer.id) },
               ...(quote ? [{ name: "quote_id", value: String(quote.id) }] : []),
+              ...(timesheet ? [{ name: "timesheet_id", value: String(timesheet.id) }] : []),
             ]}
           />
         </div>

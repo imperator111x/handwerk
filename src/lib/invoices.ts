@@ -8,6 +8,7 @@ export interface InvoiceRow {
   id: number;
   customer_id: number | null;
   quote_id: number | null;
+  timesheet_id: number | null;
   title: string;
   lines_json: string;
   price_cents: number;
@@ -35,7 +36,7 @@ export interface InvoiceRow {
   related_invoice_id: number | null;
 }
 
-const COLUMNS = `id, customer_id, quote_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
+const COLUMNS = `id, customer_id, quote_id, timesheet_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
   tax_number, buyer_name, buyer_email, buyer_phone, buyer_street, buyer_postal_code, buyer_city,
   created_at, sent_at, email_status, payment_status, paid_at, payment_method, payment_reference,
   payment_url, payment_link_id, payment_note, document_kind, related_invoice_id`;
@@ -79,6 +80,7 @@ export async function saveInvoice(
   input: {
     customerId: number | null;
     quoteId: number | null;
+    timesheetId?: number | null;
     invoice: ParsedInvoice;
     greeting: string | null;
     taxNumber: string;
@@ -99,14 +101,15 @@ export async function saveInvoice(
   const result = await db
     .prepare(
       `INSERT INTO invoices (
-         customer_id, quote_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
+         customer_id, quote_id, timesheet_id, title, lines_json, price_cents, invoice_date, service_date, due_date,
          tax_number, buyer_name, buyer_email, buyer_phone, buyer_street, buyer_postal_code, buyer_city,
          created_at, sent_at, email_status, document_kind, related_invoice_id, payment_status
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', ?, ?, ?)`,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', ?, ?, ?)`,
     )
     .bind(
       input.customerId,
       input.quoteId,
+      input.timesheetId ?? null,
       input.invoice.title,
       serializeOffer({ greeting: input.greeting, intro: input.invoice.intro, lines: input.invoice.lines, billing: "fest" }),
       input.invoice.priceCents,
@@ -151,6 +154,7 @@ export async function beginStorno(db: D1Database, original: InvoiceRow, today: s
   const id = await saveInvoice(db, {
     customerId: original.customer_id,
     quoteId: original.quote_id,
+    timesheetId: original.timesheet_id,
     invoice: {
       title: original.title,
       intro: `Diese Stornorechnung hebt die Rechnung ${originalNumber} vom ${formatOfferDate(original.invoice_date)} vollständig auf.`,
@@ -412,6 +416,8 @@ export async function sendInvoiceEmail(
     purpose?: "rechnung" | "storno";
     /** Ersetzt den automatischen Fuß, zum Beispiel beim Systemcheck. */
     footerNote?: string | null;
+    /** Zusätzliche PDFs, z. B. der zugehörige Stundenzettel. */
+    extraAttachments?: Array<{ filename: string; pdf: Uint8Array }>;
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const storno = input.purpose === "storno";
@@ -460,7 +466,15 @@ export async function sendInvoiceEmail(
     subject,
     html: renderReplyEmailHtml({ ...mail, bodyText: body }),
     text: renderReplyEmailText({ ...mail, bodyText: body }),
-    attachments: [{ filename: input.filename, type: "application/pdf", disposition: "attachment", content: input.pdf }],
+    attachments: [
+      { filename: input.filename, type: "application/pdf", disposition: "attachment", content: input.pdf },
+      ...(input.extraAttachments ?? []).map((file) => ({
+        filename: file.filename,
+        type: "application/pdf" as const,
+        disposition: "attachment" as const,
+        content: file.pdf,
+      })),
+    ],
   });
   if (result.ok) return { sentAt: Math.floor(Date.now() / 1000), emailStatus: `sent:${result.via}` };
   return { sentAt: null, emailStatus: result.via === "none" ? "skipped:no_transport" : `failed:${result.via}` };
