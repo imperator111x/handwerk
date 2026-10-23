@@ -180,11 +180,12 @@ async function ensurePaymentUrl(env: Env, db: D1Database, row: InvoiceRow, numbe
   if (row.document_kind === "storno" || row.payment_status === "bezahlt" || row.payment_status === "erstattet" || row.payment_status === "storniert") {
     return null;
   }
-  const mode = stripeKeyMode(env.STRIPE_SECRET_KEY);
-  const replaceTestLink = Boolean(row.payment_url?.includes("/test_")) && mode === "live";
-  if (row.payment_url && !replaceTestLink) return paymentLinkForMail(row.payment_url, row.buyer_email) || null;
-  if (!stripePaymentsReady(env) || !env.STRIPE_SECRET_KEY || row.price_cents < 50) return null;
+  if (!stripePaymentsReady(env) || !env.STRIPE_SECRET_KEY || row.price_cents < 50) {
+    return row.payment_url ? paymentLinkForMail(row.payment_url, row.buyer_email) || null : null;
+  }
   try {
+    const previousLinkId = row.payment_link_id;
+    // Neu anlegen bzw. per Idempotenz denselben Link holen – Abbuchung trägt die Rechnungsnummer.
     const link = await createStripePaymentLink(env.STRIPE_SECRET_KEY, {
       invoiceId: row.id,
       number,
@@ -192,13 +193,21 @@ async function ensurePaymentUrl(env: Env, db: D1Database, row: InvoiceRow, numbe
       amountCents: row.price_cents,
       email: row.buyer_email,
     });
-    await saveInvoicePaymentLink(db, row.id, link.url, link.id, replaceTestLink);
+    await saveInvoicePaymentLink(db, row.id, link.url, link.id, true);
+    if (previousLinkId && previousLinkId !== link.id) {
+      try {
+        await setStripePaymentLinkActive(env.STRIPE_SECRET_KEY, previousLinkId, false);
+      } catch (err) {
+        console.error("invoice_payment_link_close_failed", err instanceof Error ? err.message : "error");
+      }
+    }
     return paymentLinkForMail(link.url, row.buyer_email) || null;
   } catch (err) {
     console.error("invoice_payment_link_failed", err instanceof Error ? err.message : "error");
     if (!row.payment_note) {
       await noteInvoicePayment(db, row.id, "Der Zahlungslink konnte nicht angelegt werden. Bitte erneut senden.");
     }
+    if (row.payment_url) return paymentLinkForMail(row.payment_url, row.buyer_email) || null;
     return null;
   }
 }

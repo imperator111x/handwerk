@@ -215,7 +215,7 @@ export async function createStripePaymentLink(
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_AMOUNT_CENTS) {
     throw new Error("Betrag liegt unter dem Stripe-Minimum");
   }
-  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v2`);
+  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v3`);
   const priceId = typeof price.id === "string" ? price.id : "";
   if (!priceId.startsWith("price_")) throw new Error("Stripe hat keinen Preis angelegt");
 
@@ -228,13 +228,21 @@ export async function createStripePaymentLink(
   let lastMessage = "Zahlungslink fehlgeschlagen";
   for (const methods of methodSets) {
     const params = paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test");
-    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-v3-${methods.join("-")}`);
+    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-stmt1-${methods.join("-")}`);
+    if (!result.ok && canDropDescriptor(result.body)) {
+      result = await stripePost(
+        secret,
+        "payment_links",
+        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", true, false),
+        `invoice-${input.invoiceId}-link-stmt1b-${methods.join("-")}`,
+      );
+    }
     if (!result.ok && canDropIntent(result.body)) {
       result = await stripePost(
         secret,
         "payment_links",
-        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false),
-        `invoice-${input.invoiceId}-link-v4-${methods.join("-")}`,
+        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false, false),
+        `invoice-${input.invoiceId}-link-stmt1c-${methods.join("-")}`,
       );
     }
     if (result.ok) {
@@ -271,15 +279,28 @@ export function stripePriceParams(number: string, amountCents: number): URLSearc
     currency: "eur",
     unit_amount: String(amountCents),
     "product_data[name]": `Rechnung ${number}`.slice(0, 250),
+    "product_data[description]": `Rechnungsnummer ${number}`.slice(0, 500),
   });
 }
 
-function paymentLinkParams(
+/** Text für die Kontoabbuchung (Stripe statement_descriptor_suffix, max. 22 Zeichen). */
+export function stripeStatementSuffix(number: string): string {
+  const cleaned = number
+    .toUpperCase()
+    .replace(/[^A-Z0-9*.\- ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const withLetter = /[A-Z]/.test(cleaned) ? cleaned : `R ${cleaned}`.trim();
+  return withLetter.slice(0, 22);
+}
+
+export function paymentLinkParams(
   input: { invoiceId: number; number: string; email: string; confirmation?: string },
   priceId: string,
   methods: string[],
   testMode: boolean,
   withIntent = true,
+  withStatement = true,
 ): URLSearchParams {
   const params = new URLSearchParams({
     "line_items[0][price]": priceId,
@@ -296,8 +317,14 @@ function paymentLinkParams(
     submit_type: "pay",
   });
   if (withIntent) {
-    params.set("payment_intent_data[description]", `Rechnung ${input.number}`.slice(0, 500));
+    const label = `Rechnung ${input.number}`.slice(0, 500);
+    params.set("payment_intent_data[description]", label);
     params.set("payment_intent_data[metadata][invoice_id]", String(input.invoiceId));
+    params.set("payment_intent_data[metadata][invoice_number]", input.number);
+    if (withStatement) {
+      const suffix = stripeStatementSuffix(input.number);
+      if (suffix) params.set("payment_intent_data[statement_descriptor_suffix]", suffix);
+    }
   }
   if (!testMode) params.set("restrictions[completed_sessions][limit]", "1");
   methods.forEach((method, index) => params.append(`payment_method_types[${index}]`, method));
@@ -311,6 +338,14 @@ function canDropIntent(body: unknown): boolean {
   if (code === "parameter_unknown" && param.includes("payment_intent")) return true;
   const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
   return message.includes("payment_intent");
+}
+
+function canDropDescriptor(body: unknown): boolean {
+  const error = asRecord(asRecord(body)?.error);
+  const param = typeof error?.param === "string" ? error.param : "";
+  if (param.includes("statement_descriptor")) return true;
+  const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
+  return message.includes("statement_descriptor");
 }
 
 async function stripeForm(
