@@ -13,6 +13,9 @@
 import { EMAIL_MARK_PNG_BASE64 } from "./email-mark";
 import { htmlToPlainText, sanitizeMailHtml } from "./mail-html";
 
+/** CID fürs Header-Logo. Gmail blockiert data:-URIs im HTML. */
+export const EMAIL_LOGO_CID = "zeus-email-logo";
+
 export interface ReplyEmailInput {
   siteName: string;
   siteUrl: string;
@@ -106,7 +109,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const bodyHtml = richHtml
     ? `<div class="email-rich email-text" style="color:#1e293b;font-size:16px;line-height:1.6;">${richHtml}</div>`
     : textToHtmlParagraphs(input.bodyText);
-  const logoSrc = `data:image/png;base64,${EMAIL_MARK_PNG_BASE64}`;
+  const logoSrc = `cid:${EMAIL_LOGO_CID}`;
   const ctaUrl = input.ctaUrl && /^https:\/\/[^\s<>"]+$/.test(input.ctaUrl) ? input.ctaUrl : "";
   const ctaLabel = escapeHtml(input.ctaLabel?.trim() || "Termin wählen");
   const summaryAmount = input.summaryAmount?.trim() ?? "";
@@ -349,6 +352,37 @@ function attachmentBase64(content: EmailAttachment["content"]): string {
   return btoa(binary);
 }
 
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+/** Header-Logo als Inline-Anhang (multipart/related). */
+export function emailLogoAttachment(): EmailAttachment {
+  return {
+    filename: "email-logo.png",
+    type: "image/png",
+    disposition: "inline",
+    contentId: EMAIL_LOGO_CID,
+    content: decodeBase64(EMAIL_MARK_PNG_BASE64),
+  };
+}
+
+function withEmailLogoAttachment(
+  html: string | undefined,
+  attachments: EmailAttachment[] | undefined,
+): EmailAttachment[] | undefined {
+  if (!html?.includes(`cid:${EMAIL_LOGO_CID}`)) return attachments;
+  const list = attachments ? [...attachments] : [];
+  if (list.some((item) => item.contentId === EMAIL_LOGO_CID)) return list;
+  list.unshift(emailLogoAttachment());
+  return list;
+}
+
 /**
  * Resend-HTTP-Fallback. Nur wenn `env.RESEND_API_KEY` gesetzt ist.
  */
@@ -413,11 +447,15 @@ export async function sendEmail(
   env: Env,
   input: SendInput,
 ): Promise<SendResult> {
+  const payload = {
+    ...input,
+    attachments: withEmailLogoAttachment(input.html, input.attachments),
+  };
   if (env.EMAIL) {
-    return sendViaCloudflare(env.EMAIL, input);
+    return sendViaCloudflare(env.EMAIL, payload);
   }
   if (env.RESEND_API_KEY) {
-    return sendViaResend(env.RESEND_API_KEY, input);
+    return sendViaResend(env.RESEND_API_KEY, payload);
   }
   return { ok: false, via: "none", error: "Kein E-Mail-Transport konfiguriert." };
 }
