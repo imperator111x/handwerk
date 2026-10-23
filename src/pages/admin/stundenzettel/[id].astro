@@ -43,7 +43,7 @@ const messages: Record<string, string> = {
           {row.customer_name} · {workDateLabel(row.work_date)} · {formatMinutes(row.total_minutes)} ({formatDecimalHours(row.total_minutes)} Std.)
         </p>
       </div>
-      <a href={`/api/admin/stundenzettel-pdf?id=${row.id}`} target="_blank" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">PDF</a>
+      <a href={`/api/admin/stundenzettel-pdf?id=${row.id}&v=2`} target="_blank" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">PDF</a>
     </div>
     {flag && messages[flag] && (
       <p class="mt-4 rounded-2xl border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">{messages[flag]}</p>
