@@ -5,6 +5,11 @@ import { requireSession } from "../../../lib/auth";
 import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { getDb } from "../../../lib/db";
 import {
+  JOB_STATUS_LABELS,
+  jobStatusForQuote,
+  nextJobActions,
+} from "../../../lib/jobs";
+import {
   berlinTodayIso,
   getQuote,
   invoiceIdForQuote,
@@ -46,6 +51,8 @@ const salutation = salutationFromGreeting(stored.greeting, customerName);
 const today = berlinTodayIso();
 const validity = offerValidity(quote.valid_until, today);
 const status = quoteStatus(quote.status);
+const job = jobStatusForQuote(quote);
+const jobActions = nextJobActions(job);
 const number = offerNumber(quote.id, quote.created_at);
 const invoiceId = db && status === "abgerechnet" ? await invoiceIdForQuote(db, quote.id) : null;
 const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
@@ -84,6 +91,7 @@ const statusClass =
       <div class="flex flex-wrap gap-2">
         <span class={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
           {QUOTE_STATUS_LABELS[status]}
+          {status !== "offen" ? ` · ${JOB_STATUS_LABELS[job]}` : ""}
         </span>
         <span
           class={`rounded-full px-3 py-1 text-xs font-semibold ${
@@ -129,8 +137,23 @@ const statusClass =
           <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Wieder als Angebot</button>
         </form>
       )}
+      {status === "angenommen" &&
+        jobActions.map((next) => (
+          <form method="POST" action="/api/admin/angebote">
+            <input type="hidden" name="id" value={quote.id} />
+            <input type="hidden" name="action" value="job" />
+            <input type="hidden" name="job_status" value={next} />
+            <input type="hidden" name="redirect" value={`/admin/angebote/${quote.id}?angebot=accepted`} />
+            <button type="submit" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">
+              → {JOB_STATUS_LABELS[next]}
+            </button>
+          </form>
+        ))}
       {status !== "abgerechnet" && (
         <a href={`/admin/rechnungen/neu?angebot=${quote.id}`} class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Als Rechnung übernehmen</a>
+      )}
+      {status !== "offen" && (
+        <a href="/admin/auftraege" class="rounded-full px-4 py-2 text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zur Auftragsliste</a>
       )}
     </div>
 

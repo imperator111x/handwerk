@@ -27,6 +27,8 @@ export function quoteStatus(value: string | null | undefined): QuoteStatus {
   return value === "angenommen" || value === "abgerechnet" ? value : "offen";
 }
 
+export type JobStatus = "offen" | "in_arbeit" | "fertig" | "abgerechnet";
+
 export interface QuoteRow {
   id: number;
   request_id: number | null;
@@ -40,6 +42,7 @@ export interface QuoteRow {
   email_status: string | null;
   lines_json: string;
   status: QuoteStatus;
+  job_status: JobStatus;
 }
 
 export interface OfferParty {
@@ -80,10 +83,23 @@ export function offerValidity(validUntil: string, today: string): OfferValidity 
   return validUntil >= today ? "gueltig" : "abgelaufen";
 }
 
-const QUOTE_COLUMNS = `id, request_id, customer_id, title, body, price_cents, valid_until, created_at, sent_at, email_status, lines_json, status`;
+const QUOTE_COLUMNS = `id, request_id, customer_id, title, body, price_cents, valid_until, created_at, sent_at, email_status, lines_json, status, job_status`;
 
-function withStatus<T extends { status?: string | null }>(row: T): T & { status: QuoteStatus } {
-  return { ...row, status: quoteStatus(row.status) };
+function normalizeJobStatus(value: string | null | undefined): JobStatus {
+  return value === "in_arbeit" || value === "fertig" || value === "abgerechnet" ? value : "offen";
+}
+
+function withStatus<T extends { status?: string | null; job_status?: string | null }>(
+  row: T,
+): T & { status: QuoteStatus; job_status: JobStatus } {
+  const status = quoteStatus(row.status);
+  const job =
+    status === "abgerechnet"
+      ? "abgerechnet"
+      : status === "offen"
+        ? "offen"
+        : normalizeJobStatus(row.job_status);
+  return { ...row, status, job_status: job };
 }
 
 export async function listQuotes(db: D1Database, requestId: number): Promise<QuoteRow[]> {
@@ -101,7 +117,7 @@ export async function listAllQuotes(db: D1Database): Promise<QuoteListItem[]> {
   const { results } = await db
     .prepare(
       `SELECT q.id, q.request_id, q.customer_id, q.title, q.body, q.price_cents, q.valid_until, q.created_at,
-              q.sent_at, q.email_status, q.lines_json, q.status,
+              q.sent_at, q.email_status, q.lines_json, q.status, q.job_status,
               COALESCE(cu.name, c.name, '') AS customer_name,
               COALESCE(cu.email, c.email, '') AS customer_email,
               COALESCE(cu.phone, c.phone) AS customer_phone
@@ -134,13 +150,43 @@ export async function listQuotesForCustomer(db: D1Database, customerId: number):
 }
 
 export async function updateQuoteStatus(db: D1Database, id: number, status: QuoteStatus): Promise<boolean> {
-  const result = await db.prepare(`UPDATE quotes SET status = ? WHERE id = ?`).bind(status, id).run();
+  const job =
+    status === "angenommen" ? "offen" : status === "abgerechnet" ? "abgerechnet" : "offen";
+  const result = await db
+    .prepare(`UPDATE quotes SET status = ?, job_status = ? WHERE id = ?`)
+    .bind(status, job, id)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
+}
+
+export async function updateQuoteJobStatus(
+  db: D1Database,
+  id: number,
+  job: JobStatus,
+): Promise<boolean> {
+  if (job === "abgerechnet") {
+    const result = await db
+      .prepare(`UPDATE quotes SET status = 'abgerechnet', job_status = 'abgerechnet' WHERE id = ?`)
+      .bind(id)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+  const result = await db
+    .prepare(
+      `UPDATE quotes SET job_status = ?, status = 'angenommen'
+        WHERE id = ? AND status IN ('angenommen', 'abgerechnet')`,
+    )
+    .bind(job, id)
+    .run();
   return (result.meta.changes ?? 0) > 0;
 }
 
 export async function markQuoteInvoiced(db: D1Database, quoteId: number): Promise<void> {
   await db
-    .prepare(`UPDATE quotes SET status = 'abgerechnet' WHERE id = ? AND status != 'abgerechnet'`)
+    .prepare(
+      `UPDATE quotes SET status = 'abgerechnet', job_status = 'abgerechnet'
+        WHERE id = ? AND status != 'abgerechnet'`,
+    )
     .bind(quoteId)
     .run();
 }

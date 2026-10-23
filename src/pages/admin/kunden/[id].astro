@@ -4,14 +4,16 @@ import OfferComposer from "../../../components/OfferComposer.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
+import { loadCustomerDossier } from "../../../lib/customer-dossier";
 import { customerAddress, getCustomer } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { invoiceNumber } from "../../../lib/invoice";
-import { listInvoicesForCustomer } from "../../../lib/invoices";
+import { JOB_STATUS_LABELS, jobStatusForQuote } from "../../../lib/jobs";
 import { invoiceStatusLabel } from "../../../lib/stripe-pay";
-import { berlinTodayIso, listQuotesForCustomer, offerValidity, QUOTE_STATUS_LABELS, quoteStatus } from "../../../lib/offers";
+import { berlinTodayIso, offerValidity, QUOTE_STATUS_LABELS, quoteStatus } from "../../../lib/offers";
 import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
+import { isRecurringDue, recurringLineTotal } from "../../../lib/recurring";
 import { formatBerlin } from "../../../lib/time";
 
 export const prerender = false;
@@ -29,8 +31,10 @@ if (!customer) return Astro.redirect("/admin/kunden?kunde=missing");
 
 const name = decodeHtmlEntities(customer.name);
 const address = customerAddress(customer);
-const quotes = db ? await listQuotesForCustomer(db, customer.id) : [];
-const invoices = db ? await listInvoicesForCustomer(db, customer.id) : [];
+const dossier = db
+  ? await loadCustomerDossier(db, customer.id, customer.email)
+  : { quotes: [], auftraege: [], invoices: [], timesheets: [], requests: [], mails: [], recurring: [] };
+const { quotes, auftraege, invoices, timesheets, requests, mails, recurring } = dossier;
 const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
 const today = berlinTodayIso();
 const offerUntil = new Date(Date.parse(`${today}T00:00:00Z`) + 14 * 86_400_000).toISOString().slice(0, 10);
@@ -111,6 +115,59 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
   </section>
 
   <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Kundenakte</h3>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Anfragen {requests.length} · Angebote {quotes.length} · Aufträge {auftraege.length} · Stundenzettel {timesheets.length} · Rechnungen {invoices.length} · Post {mails.length}
+    </p>
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Anfragen</h3>
+    {requests.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Keine Anfragen mit dieser E-Mail.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {requests.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <a href={`/admin/anfragen/${row.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+              #{row.id} · {row.topic || "Ohne Thema"}
+            </a>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              {row.status} · {formatBerlin(row.created_at)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Aufträge</h3>
+      <a href="/admin/auftraege" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Alle Aufträge</a>
+    </div>
+    {auftraege.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch kein angenommener Auftrag.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {auftraege.map((quote) => {
+          const job = jobStatusForQuote(quote);
+          return (
+            <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+              <a href={`/admin/angebote/${quote.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+                {offerNumber(quote.id, quote.created_at)} · {quote.title}
+              </a>
+              <p class="mt-1 text-ink-600 dark:text-ink-300">
+                {JOB_STATUS_LABELS[job]} · {formatEuro(quote.price_cents)}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
     <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Angebote</h3>
     <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
       Hier stehen die Angebote, die {name} schon bekommen hat.
@@ -165,6 +222,77 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
             </a>
             <p class="mt-1 text-ink-600 dark:text-ink-300">
               {formatEuro(row.price_cents)} · {formatOfferDate(row.invoice_date)} · {invoiceStatusLabel(row.payment_status, row.document_kind)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Stundenzettel</h3>
+      <a href="/admin/stundenzettel/neu" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Neuer Zettel</a>
+    </div>
+    {timesheets.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch kein Stundenzettel.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {timesheets.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <a href={`/admin/stundenzettel/${row.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+              {formatOfferDate(row.work_date)} · {row.employee_name}
+            </a>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              {Math.round(row.total_minutes / 60)} Std. {row.total_minutes % 60} Min.
+              {row.signed_at ? " · unterschrieben" : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Postfach</h3>
+      <a href="/admin/postfach" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zum Postfach</a>
+    </div>
+    {mails.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Keine Threads mit {customer.email}.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {mails.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <a href={`/admin/postfach/${row.mailbox_id}?offen=${row.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+              {row.subject || "Ohne Betreff"}
+            </a>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              {row.local_part}@ · {formatBerlin(row.updated_at)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Wiederkehrend</h3>
+      <a href="/admin/wiederkehrend" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Verwalten</a>
+    </div>
+    {recurring.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Keine wiederkehrenden Leistungen.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {recurring.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <p class="font-semibold text-ink-900 dark:text-ink-50">
+              {row.label} · {formatEuro(recurringLineTotal(row))}
+              {isRecurringDue(row, today) ? " · fällig" : ""}
+            </p>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              nächste Fälligkeit {formatOfferDate(row.next_due)}
             </p>
           </li>
         ))}

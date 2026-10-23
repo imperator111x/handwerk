@@ -4,7 +4,7 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { cfEnv } from "../../../lib/cf";
-import { canSendPaymentReminder, invoiceNumber } from "../../../lib/invoice";
+import { canSendPaymentReminder, invoiceNumber, nextReminderLevel } from "../../../lib/invoice";
 import { getInvoice, listRelatedInvoices } from "../../../lib/invoices";
 import { berlinTodayIso } from "../../../lib/offers";
 import { invoiceStatusLabel, paymentLinkForMail, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
@@ -43,6 +43,10 @@ const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
   erinnerung: { kind: "ok", text: "Die Zahlungserinnerung ist verschickt. In der Mail steht „Jetzt bezahlen“." },
   "erinnerung-ohne-link": { kind: "bad", text: "Die Zahlungserinnerung ist verschickt. Der Zahlungslink fehlt in der Mail." },
   "erinnerung-fail": { kind: "bad", text: "Die Zahlungserinnerung ließ sich nicht senden." },
+  mahnung: { kind: "ok", text: "Die 2. Mahnung ist verschickt. In der Mail steht „Jetzt bezahlen“." },
+  "mahnung-ohne-link": { kind: "bad", text: "Die 2. Mahnung ist verschickt. Der Zahlungslink fehlt in der Mail." },
+  "mahnung-fail": { kind: "bad", text: "Die 2. Mahnung ließ sich nicht senden." },
+  draft: { kind: "ok", text: "Entwurfsrechnung aus wiederkehrender Leistung angelegt." },
   "erinnerung-frueh": {
     kind: "bad",
     text: "Zahlungserinnerung erst nach Fälligkeit und wenn die Rechnung schon einmal verschickt wurde.",
@@ -56,6 +60,7 @@ const cancelled = row.payment_status === "storniert" || row.document_kind === "s
 const paid = row.payment_status === "bezahlt" || row.payment_status === "erstattet";
 const canCorrect = row.document_kind !== "storno" && row.payment_status !== "storniert";
 const canRemind = canSendPaymentReminder(row, berlinTodayIso());
+const remindLevel = nextReminderLevel(row);
 const notice = flag ? notices[flag] : undefined;
 ---
 
@@ -205,7 +210,9 @@ const notice = flag ? notices[flag] : undefined;
         <form method="POST" action="/api/admin/rechnung">
           <input type="hidden" name="action" value="erinnerung" />
           <input type="hidden" name="id" value={row.id} />
-          <button type="submit" class="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100">Zahlungserinnerung</button>
+          <button type="submit" class="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100">
+            {remindLevel === 2 ? "2. Mahnung senden" : "Zahlungserinnerung"}
+          </button>
         </form>
       )}
       {row.document_kind === "storno" && (

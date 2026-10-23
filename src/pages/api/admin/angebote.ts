@@ -2,6 +2,7 @@ import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { cfEnv } from "../../../lib/cf";
 import { getDb, signatureNameForUser } from "../../../lib/db";
+import { JOB_STATUSES, type JobStatus } from "../../../lib/jobs";
 import {
   berlinTodayIso,
   cleanOffer,
@@ -14,6 +15,7 @@ import {
   sendOfferEmail,
   updateQuote,
   updateQuoteDelivery,
+  updateQuoteJobStatus,
   updateQuoteStatus,
 } from "../../../lib/offers";
 import { hourlyOfferMissingWage, offerNumber } from "../../../lib/quote";
@@ -56,6 +58,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
     }
     await updateQuoteStatus(db, id, "offen");
     return ctx.redirect(`/admin/angebote/${id}?angebot=reopened`, 303);
+  }
+
+  if (action === "job") {
+    const job = String(form.get("job_status") ?? "") as JobStatus;
+    if (!JOB_STATUSES.includes(job) || job === "abgerechnet") {
+      return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
+    }
+    if (quoteStatus(quote.status) === "offen") {
+      await updateQuoteStatus(db, id, "angenommen");
+    }
+    if (quoteStatus(quote.status) === "abgerechnet") {
+      return ctx.redirect(`/admin/angebote/${id}?angebot=locked`, 303);
+    }
+    await updateQuoteJobStatus(db, id, job);
+    const back = String(form.get("redirect") ?? "").trim();
+    if (back.startsWith("/admin/")) return ctx.redirect(back, 303);
+    return ctx.redirect(`/admin/auftraege?auftrag=saved`, 303);
   }
 
   if (action !== "save" && action !== "resend") {

@@ -124,6 +124,8 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
 export const INVOICE_MAIL_LEAD = "Hiermit übersende ich Ihnen die Rechnung in Höhe von:";
 export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:";
 export const REMINDER_MAIL_LEAD = "Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:";
+export const MAHNUNG_MAIL_LEAD =
+  "Hiermit mahne ich die offene Rechnung an. Bitte überweisen Sie den Betrag umgehend in Höhe von:";
 
 /** Kurzer Mailtext. Positionen und Steuerhinweis bleiben im PDF. */
 export function invoicePlainText(input: {
@@ -156,14 +158,34 @@ export function invoicePlainText(input: {
 
 /** Offene, bereits versandte Rechnung nach Fälligkeit – bereit für Zahlungserinnerung. */
 export function canSendPaymentReminder(
-  row: { document_kind: string; payment_status: string; sent_at: number | null; due_date: string },
+  row: {
+    document_kind: string;
+    payment_status: string;
+    sent_at: number | null;
+    due_date: string;
+    reminder_level?: number | null;
+  },
   today: string,
 ): boolean {
   if (row.document_kind === "storno") return false;
   if (row.payment_status !== "offen" && row.payment_status !== "test") return false;
   if (!row.sent_at) return false;
   if (!isIsoDate(row.due_date) || !isIsoDate(today)) return false;
-  return row.due_date <= today;
+  if (row.due_date > today) return false;
+  const level = Number(row.reminder_level ?? 0);
+  return level < 2;
+}
+
+export function nextReminderLevel(row: { reminder_level?: number | null; reminded_at?: number | null }): 1 | 2 {
+  const level = Number(row.reminder_level ?? 0);
+  if (level >= 1 || row.reminded_at) return 2;
+  return 1;
+}
+
+export function reminderStageLabel(level: number | null | undefined): string {
+  if ((level ?? 0) >= 2) return "2. Mahnung";
+  if ((level ?? 0) >= 1) return "Zahlungserinnerung";
+  return "Keine";
 }
 
 export function buildInvoiceXml(input: {
