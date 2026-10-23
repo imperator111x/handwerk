@@ -108,14 +108,32 @@
     @apply outline-2 outline-offset-2 outline-brand-500 rounded-sm;
   }
 
-  /* Native date/time pickers ship with a large intrinsic min-width. */
+  /*
+   * iOS Safari: native date/time controls keep a huge intrinsic width and
+   * expand the parent card past the viewport. Reset appearance, force a
+   * definite width, and clip wrappers so the field cannot grow the layout.
+   */
   input[type="date"],
   input[type="time"],
   input[type="datetime-local"],
   input[type="month"],
   input[type="week"] {
-    min-width: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
     max-width: 100%;
+    min-width: 0;
+    /* smaller side padding: calendar glyph + DE date need less room */
+    padding-inline: 0.75rem;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value,
+  input[type="time"]::-webkit-date-and-time-value,
+  input[type="datetime-local"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-width: 0;
     width: 100%;
   }
 
@@ -124,6 +142,19 @@
   input[type="datetime-local"]::-webkit-datetime-edit {
     min-width: 0;
     max-width: 100%;
+    padding: 0;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    margin-inline-start: 0.25rem;
+  }
+
+  :where(:has(> input[type="date"]), :has(> input[type="time"]), :has(> input[type="datetime-local"])) {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
 }
 
@@ -215,6 +246,23 @@
     dark:border-white/10 dark:bg-white/5 dark:text-ink-50
     dark:placeholder:text-ink-500 dark:focus:border-brand-400
     dark:focus:ring-brand-500/20;
+}
+
+/* Must beat .input { padding-inline } from the utility above (same layer). */
+@layer utilities {
+  input.input[type="date"],
+  input.input[type="time"],
+  input.input[type="datetime-local"],
+  input.input[type="month"],
+  input.input[type="week"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-inline: 0.75rem;
+  }
 }
 
 @utility label {
