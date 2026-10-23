@@ -5,7 +5,7 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
 import { loadCustomerDossier } from "../../../lib/customer-dossier";
-import { customerAddress, getCustomer } from "../../../lib/customers";
+import { customerAddress, findCustomerDuplicates, getCustomer } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { invoiceNumber } from "../../../lib/invoice";
@@ -44,12 +44,23 @@ const kunde = Astro.url.searchParams.get("kunde");
 const angebot = Astro.url.searchParams.get("angebot");
 const portal = Astro.url.searchParams.get("portal");
 
-const kundeText =
-  kunde === "saved"
-    ? "Kunde gespeichert."
-    : kunde === "bad"
-      ? "Bitte Name und E-Mail prüfen."
-      : "";
+const duplicates = db ? await findCustomerDuplicates(db, customer) : [];
+const reasonLabel = (reasons: Array<"email" | "phone" | "address">) =>
+  reasons
+    .map((reason) => (reason === "email" ? "E-Mail" : reason === "phone" ? "Telefon" : "Adresse"))
+    .join(", ");
+const kundeNotices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  saved: { kind: "ok", text: "Kunde gespeichert." },
+  bad: { kind: "bad", text: "Bitte Name und E-Mail prüfen." },
+  merged: { kind: "ok", text: "Kunden zusammengeführt. Angebote, Rechnungen und Aufträge liegen jetzt hier." },
+  "merge-portal": {
+    kind: "bad",
+    text: "Zusammenführen nicht möglich: Beide Kunden haben einen Portal-Zugang. Bitte einen Zugang entfernen.",
+  },
+  "merge-missing": { kind: "bad", text: "Zusammenführen fehlgeschlagen: Kunde nicht gefunden." },
+  "merge-same": { kind: "bad", text: "Gleichen Kunden kann man nicht mit sich selbst zusammenführen." },
+};
+const kundeMessage = kunde ? kundeNotices[kunde] : undefined;
 const portalNotices: Record<string, { kind: "ok" | "bad"; text: string }> = {
   sent: { kind: "ok", text: "Einladung zum Kundenportal ist verschickt." },
   exists: { kind: "ok", text: "Dieser Kunde hat bereits einen Portal-Zugang." },
@@ -90,16 +101,16 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
       <a href="/admin/kunden" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Alle Kunden</a>
     </div>
 
-    {kundeText && (
+    {kundeMessage && (
       <p
         class:list={[
           "mt-4 rounded-xl border px-4 py-3 text-sm",
-          kunde === "saved"
+          kundeMessage.kind === "ok"
             ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
             : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
         ]}
       >
-        {kundeText}
+        {kundeMessage.text}
       </p>
     )}
     {portalMessage && (
@@ -137,6 +148,48 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
         )}
       </div>
     </div>
+
+    {duplicates.length > 0 && (
+      <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-400/30 dark:bg-amber-500/10">
+        <h3 class="text-sm font-semibold text-amber-950 dark:text-amber-50">Mögliche Dubletten</h3>
+        <p class="mt-1 text-sm text-amber-900 dark:text-amber-100">
+          Gleicher Treffer bei E-Mail, Telefon oder Adresse. Zusammenführen behält diesen Kunden und übernimmt die Daten des anderen.
+        </p>
+        <ul class="mt-3 space-y-3">
+          {duplicates.map((dup) => (
+            <li class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-amber-200/80 bg-white/70 px-3 py-3 dark:border-amber-400/20 dark:bg-ink-950/40">
+              <div>
+                <a href={`/admin/kunden/${dup.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+                  {dup.name}
+                </a>
+                <p class="mt-0.5 text-sm text-ink-600 dark:text-ink-300">
+                  {dup.email}
+                  {dup.phone ? ` · ${dup.phone}` : ""}
+                </p>
+                <p class="mt-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                  Treffer: {reasonLabel(dup.reasons)}
+                </p>
+              </div>
+              <form
+                method="POST"
+                action="/api/admin/kunden"
+                onsubmit={`return confirm(${JSON.stringify(`„${dup.name}“ in diesen Kunden zusammenführen? Angebote und Rechnungen wandern hierher.`)})`}
+              >
+                <input type="hidden" name="action" value="merge" />
+                <input type="hidden" name="survivor_id" value={String(customer.id)} />
+                <input type="hidden" name="loser_id" value={String(dup.id)} />
+                <button
+                  type="submit"
+                  class="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 hover:bg-amber-100 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-50"
+                >
+                  Hierher zusammenführen
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
 
     <div class="mt-5">
       <CustomerForm customer={customer} submitLabel="Änderungen speichern" />

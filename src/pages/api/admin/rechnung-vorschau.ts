@@ -40,6 +40,7 @@ export async function GET(ctx: APIContext): Promise<Response> {
     today,
     dueDays: Number(customer.default_due_days ?? 14),
     billingKind: "voll",
+    discount: stored.discount ?? null,
   });
   if (!invoice) return new Response("Rechnung ungültig", { status: 400 });
 
@@ -71,6 +72,7 @@ export async function GET(ctx: APIContext): Promise<Response> {
     serviceDate: invoice.serviceDate,
     dueDate: invoice.dueDate,
     authorName,
+    discount: invoice.discount ?? null,
   });
 
   return new Response(bytes, {

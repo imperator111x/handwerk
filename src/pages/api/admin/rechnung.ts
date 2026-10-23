@@ -84,6 +84,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       today,
       dueDays: Number(customer.default_due_days ?? 14),
       billingKind: "voll",
+      discount: stored.discount ?? null,
     });
     if (!invoice) return ctx.redirect(`/admin/rechnungen/neu?angebot=${quote.id}&rechnung=bad`, 303);
     const authorName = await signatureNameForUser(db, session.userId, session.username);

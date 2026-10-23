@@ -92,6 +92,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       validUntilLabel: formatOfferDate(offer.validUntil),
       authorName,
       billing: offer.billing,
+      discount: offer.discount ?? null,
     });
     return pdfResponse(bytes, "Angebot-Entwurf.pdf");
   }
@@ -121,6 +122,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     validUntilLabel: formatOfferDate(offer.validUntil),
     authorName,
     billing: offer.billing,
+    discount: offer.discount ?? null,
   });
   const delivery = await sendOfferEmail(env, {
     to: party.email,

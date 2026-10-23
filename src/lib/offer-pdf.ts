@@ -5,6 +5,9 @@ import {
   OFFER_PAYMENT_TERMS,
   OFFER_TAX_NOTE,
   OFFER_UNIT_LABELS,
+  discountCents,
+  documentTotalCents,
+  formatDiscountLabel,
   formatEuroAmount,
   formatQuantity,
   lineTotalCents,
@@ -13,6 +16,7 @@ import {
   offerTotalCents,
   offerTotalLabel,
   type OfferBilling,
+  type OfferDiscount,
   type OfferLine,
 } from "./quote";
 
@@ -32,6 +36,7 @@ export interface OfferPdfInput {
   validUntilLabel: string;
   authorName: string;
   billing?: OfferBilling;
+  discount?: OfferDiscount | null;
 }
 
 const PAGE_W = 595.28;
@@ -205,12 +210,24 @@ function layoutPages(input: OfferPdfInput): string[] {
     y -= rowHeight;
   });
 
+  const subtotalCents = offerTotalCents(input.lines);
+  const offCents = discountCents(subtotalCents, input.discount);
+  const payableCents = documentTotalCents(input.lines, input.discount);
+  if (offCents > 0) {
+    need(48);
+    y -= 6;
+    textRight(RIGHT, y, 10, "F1", `Zwischensumme ${formatEuroAmount(subtotalCents)}`);
+    y -= 14;
+    const rabattLabel = formatDiscountLabel(input.discount, offCents) || "Rabatt";
+    textRight(RIGHT, y, 10, "F1", `${rabattLabel} -${formatEuroAmount(offCents)}`);
+    y -= 16;
+  }
   need(36);
   y -= 6;
   paint(`${BLACK} rg`);
   paint(`${LEFT} ${round(y - 6)} ${WIDTH} 24 re f`);
   textAt(LEFT + 8, y, 11, "F2", offerTotalLabel(billing), WHITE);
-  textRight(RIGHT - 6, y, 11, "F2", formatEuroAmount(offerTotalCents(input.lines)), WHITE);
+  textRight(RIGHT - 6, y, 11, "F2", formatEuroAmount(payableCents), WHITE);
   y -= 32;
 
   const notes = [

@@ -9,6 +9,7 @@ import {
   OFFER_UNITS,
   offerBilling,
   type OfferBilling,
+  type OfferDiscount,
   type OfferUnit,
 } from "../lib/quote";
 
@@ -33,6 +34,7 @@ interface Props {
   hidden?: Array<{ name: string; value: string }>;
   billing?: OfferBilling;
   lines?: ComposerLine[];
+  discount?: OfferDiscount | null;
   intro?: string;
   salutation?: string;
   action?: string;
@@ -44,12 +46,20 @@ const {
   title = "",
   validUntil,
   hidden = [],
+  discount = null,
   intro = "",
   salutation = "hallo_name",
   action = "/api/admin/angebot",
   catalog = [],
 } = Astro.props;
 const billing = offerBilling(Astro.props.billing);
+const discountKind = discount?.kind ?? "none";
+const discountValue =
+  discount?.kind === "percent"
+    ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(discount.percent)
+    : discount?.kind === "euro"
+      ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(discount.cents / 100)
+      : "";
 const festLines: ComposerLine[] = Astro.props.lines && billing === "fest"
   ? Astro.props.lines
   : [{ label: "Stundenlohn", quantity: "", unit: "stunde", price: "" }];
@@ -141,7 +151,34 @@ const festSnapshot = billing === "fest" ? visible : festLines;
       </div>
     ))}
   </div>
-  <p class="text-sm text-ink-800 dark:text-ink-100"><span id="offer-total-label">{billing === "stunden" ? "Summe" : "Festpreis"}</span> <strong id="offer-total">0,00 €</strong></p>
+  <div class="grid gap-3 rounded-2xl border border-ink-200 p-4 dark:border-white/10 sm:grid-cols-3">
+    <div>
+      <label class="label" for="offer-discount-kind">Rabatt</label>
+      <select class="input" id="offer-discount-kind" name="discount_kind" data-discount-kind>
+        <option value="none" selected={discountKind === "none"}>Kein Rabatt</option>
+        <option value="percent" selected={discountKind === "percent"}>Prozent</option>
+        <option value="euro" selected={discountKind === "euro"}>Euro</option>
+      </select>
+    </div>
+    <div>
+      <label class="label" for="offer-discount-value">Wert</label>
+      <input
+        class="input"
+        id="offer-discount-value"
+        name="discount_value"
+        data-discount-value
+        inputmode="decimal"
+        maxlength="12"
+        placeholder="z. B. 10 oder 25,00"
+        value={discountValue}
+      />
+    </div>
+    <div class="flex flex-col justify-end gap-1 text-sm text-ink-800 dark:text-ink-100">
+      <p>Zwischensumme <strong id="offer-subtotal">0,00 €</strong></p>
+      <p id="offer-discount-row" class="hidden">Rabatt <strong id="offer-discount">−0,00 €</strong></p>
+      <p><span id="offer-total-label">{billing === "stunden" ? "Summe" : "Festpreis"}</span> <strong id="offer-total">0,00 €</strong></p>
+    </div>
+  </div>
   <OfferNotes validUntil={validUntil} billing={billing} />
   <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
   <div class="grid min-w-0 gap-3 sm:grid-cols-2">
@@ -207,6 +244,11 @@ const festSnapshot = billing === "fest" ? visible : festLines;
   const total = document.getElementById("offer-total");
   const totalLabel = document.getElementById("offer-total-label");
   const hint = document.getElementById("offer-billing-hint");
+  const subtotalEl = document.getElementById("offer-subtotal");
+  const discountEl = document.getElementById("offer-discount");
+  const discountRow = document.getElementById("offer-discount-row");
+  const discountKindEl = form?.querySelector("[data-discount-kind]");
+  const discountValueEl = form?.querySelector("[data-discount-value]");
   if (form instanceof HTMLFormElement && root && template instanceof HTMLTemplateElement && total && form.dataset.ready !== "1") {
     form.dataset.ready = "1";
     const presets = {
@@ -236,6 +278,23 @@ const festSnapshot = billing === "fest" ? visible : festLines;
       return Number(cleaned);
     };
     const money = (cents) => (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+    const discountOf = (subtotal) => {
+      const kind = discountKindEl instanceof HTMLSelectElement ? discountKindEl.value : "none";
+      const raw = discountValueEl instanceof HTMLInputElement ? discountValueEl.value : "";
+      if (!subtotal || kind === "none" || !String(raw || "").trim()) return 0;
+      if (kind === "percent") {
+        const cleaned = String(raw).trim().replace(/\s/g, "").replace("%", "").replace(",", ".");
+        if (!/^\d{1,2}(\.\d{1,2})?$/.test(cleaned)) return 0;
+        const percent = Number(cleaned);
+        if (!(percent > 0) || percent >= 100) return 0;
+        return Math.min(subtotal - 1, Math.round((subtotal * percent) / 100));
+      }
+      if (kind === "euro") {
+        const cents = centsOf(raw);
+        return cents > 0 ? Math.min(subtotal - 1, cents) : 0;
+      }
+      return 0;
+    };
     const paintRow = (row) => {
       const unit = row.querySelector("[data-unit]")?.value;
       const qtyLabel = row.querySelector("[data-qty-label]");
@@ -258,8 +317,15 @@ const festSnapshot = billing === "fest" ? visible : festLines;
         const out = row.querySelector("[data-line-total]");
         if (out) out.textContent = qty > 0 && price > 0 ? money(line) : "–";
       });
-      total.textContent = money(sum);
+      const off = discountOf(sum);
+      const payable = Math.max(0, sum - off);
+      if (subtotalEl) subtotalEl.textContent = money(sum);
+      if (discountEl) discountEl.textContent = `−${money(off)}`;
+      if (discountRow) discountRow.classList.toggle("hidden", off <= 0);
+      total.textContent = money(payable);
     };
+    discountKindEl?.addEventListener("change", refresh);
+    discountValueEl?.addEventListener("input", refresh);
     const bind = (row) => {
       row.querySelector("[data-remove]")?.addEventListener("click", () => {
         if (root.querySelectorAll("[data-line]").length <= 1) return;

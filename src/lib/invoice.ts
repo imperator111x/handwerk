@@ -153,10 +153,12 @@ export function invoiceFromQuoteLines(input: {
   today: string;
   dueDays?: number;
   billingKind?: BillingKind;
+  discount?: OfferDiscount | null;
 }): ParsedInvoice | null {
   if (input.title.trim().length < 3) return null;
   if (!input.lines.length) return null;
-  const priceCents = documentTotalCents(input.lines, null);
+  const discount = input.discount ?? null;
+  const priceCents = documentTotalCents(input.lines, discount);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
   const dueDays = parseDueDays(String(input.dueDays ?? 14), 14);
   return {
@@ -170,7 +172,7 @@ export function invoiceFromQuoteLines(input: {
     dueDays,
     paymentTerms: paymentTermsForDays(dueDays),
     billingKind: input.billingKind ?? "voll",
-    discount: null,
+    discount,
   };
 }
 

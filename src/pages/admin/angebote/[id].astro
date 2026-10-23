@@ -186,6 +186,7 @@ const statusClass =
         validUntil={quote.valid_until}
         action="/api/admin/angebote"
         billing={stored.billing}
+        discount={stored.discount ?? null}
         intro={stored.intro}
         salutation={salutation}
         catalog={catalog}

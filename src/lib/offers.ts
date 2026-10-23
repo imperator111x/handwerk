@@ -237,7 +237,13 @@ export async function saveQuote(
       offer.intro,
       offer.priceCents,
       offer.validUntil,
-      serializeOffer({ greeting, intro: offer.intro, lines: offer.lines, billing: offer.billing }),
+      serializeOffer({
+        greeting,
+        intro: offer.intro,
+        lines: offer.lines,
+        billing: offer.billing,
+        discount: offer.discount ?? null,
+      }),
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
@@ -305,7 +311,13 @@ export async function updateQuote(
       offer.intro,
       offer.priceCents,
       offer.validUntil,
-      serializeOffer({ greeting, intro: offer.intro, lines: offer.lines, billing: offer.billing }),
+      serializeOffer({
+        greeting,
+        intro: offer.intro,
+        lines: offer.lines,
+        billing: offer.billing,
+        discount: offer.discount ?? null,
+      }),
       id,
     )
     .run();
@@ -359,6 +371,7 @@ export function offerPdfForQuote(
     validUntilLabel: formatOfferDate(quote.valid_until),
     authorName,
     billing: stored.billing,
+    discount: stored.discount ?? null,
   };
   return { filename: `Angebot-${number}.pdf`, bytes: buildOfferPdf(input) };
 }
@@ -384,6 +397,7 @@ export async function sendOfferEmail(
     lines: input.offer.lines,
     validUntil: input.offer.validUntil,
     billing: input.offer.billing,
+    discount: input.offer.discount ?? null,
   });
   const subject = `Angebot ${input.number}: ${input.offer.title}`;
   const from = "info@zeus-service.de";

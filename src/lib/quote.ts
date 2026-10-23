@@ -50,6 +50,7 @@ export interface ParsedOffer {
   validUntil: string;
   priceCents: number;
   billing: OfferBilling;
+  discount?: OfferDiscount | null;
 }
 
 export interface StoredOffer {
@@ -280,9 +281,14 @@ export function parseOfferForm(
   }
   if (lines.length < 1) return null;
   if (billing === "stunden" && !lines.some((line) => line.unit === "stunde")) return null;
-  const priceCents = offerTotalCents(lines);
+  const discount = parseDiscountForm(form);
+  if (discount === false) return null;
+  const subtotalCents = offerTotalCents(lines);
+  const offCents = discountCents(subtotalCents, discount);
+  if (discount && offCents <= 0) return null;
+  const priceCents = documentTotalCents(lines, discount);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
-  return { title, intro, lines, validUntil, priceCents, billing };
+  return { title, intro, lines, validUntil, priceCents, billing, discount };
 }
 
 export function serializeOffer(offer: StoredOffer): string {
@@ -348,12 +354,24 @@ export function offerPlainText(input: {
   lines: OfferLine[];
   validUntil: string;
   billing?: OfferBilling;
+  discount?: OfferDiscount | null;
 }): string {
   const billing = input.billing ?? "fest";
   const rows = input.lines.map((line, index) => {
     const total = lineTotalCents(line);
     return `${index + 1}. ${line.label} — ${formatQuantity(line.quantity)} ${OFFER_UNIT_LABELS[line.unit]} × ${formatEuro(line.unitCents)} = ${formatEuro(total)}`;
   });
+  const subtotal = offerTotalCents(input.lines);
+  const off = discountCents(subtotal, input.discount);
+  const payable = documentTotalCents(input.lines, input.discount);
+  const totalLines =
+    off > 0
+      ? [
+          `Zwischensumme: ${formatEuro(subtotal)}`,
+          `${formatDiscountLabel(input.discount, off) || "Rabatt"}: -${formatEuro(off)}`,
+          `${offerTotalLabel(billing)}: ${formatEuro(payable)}`,
+        ]
+      : [`${offerTotalLabel(billing)}: ${formatEuro(payable)}`];
   return [
     `Angebot ${input.number}`,
     input.title,
@@ -362,7 +380,7 @@ export function offerPlainText(input: {
     "",
     ...rows,
     "",
-    `${offerTotalLabel(billing)}: ${formatEuro(offerTotalCents(input.lines))}`,
+    ...totalLines,
     "",
     OFFER_TAX_NOTE,
     "",
