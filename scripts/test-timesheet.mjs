@@ -132,4 +132,35 @@ assert.match(signedText, /\/Im7 Do/);
 assert.match(signedText, /\/Filter \/DCTDecode/);
 assert.match(signedText, /Unterschrift Auftraggeber/);
 
+const draft = sheet.invoiceDraftFromTimesheet(
+  {
+    id: 4,
+    createdAt: Date.parse("2026-10-21T10:00:00Z") / 1000,
+    customerName: parsed.customerName,
+    workDate: parsed.workDate,
+    note: parsed.note,
+    totalMinutes: parsed.totalMinutes,
+    lines: parsed.lines,
+  },
+  { hourlyCents: 4500, extraLines: [{ label: "Anfahrt", quantity: 1, unit: "pauschal", unitCents: 1500 }] },
+);
+assert.ok(draft);
+assert.equal(draft.serviceDate, "2026-10-21");
+assert.match(draft.title, /Hecke|Garten/);
+assert.match(draft.intro, /S-2026-0004/);
+assert.equal(draft.lines[0].unit, "stunde");
+assert.equal(draft.lines[0].quantity, sheet.hoursFromMinutes(parsed.totalMinutes));
+assert.equal(draft.lines[0].unitCents, 4500);
+assert.equal(draft.lines[1].label, "Anfahrt");
+assert.equal(sheet.hoursFromMinutes(90), 1.5);
+assert.equal(sheet.invoiceDraftFromTimesheet({
+  id: 1,
+  createdAt: 1,
+  customerName: "X",
+  workDate: "2026-10-21",
+  note: "",
+  totalMinutes: 0,
+  lines: [],
+}), null);
+
 console.log("timesheet checks ok");

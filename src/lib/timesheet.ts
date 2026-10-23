@@ -1,6 +1,7 @@
-import { offerYear } from "./quote";
+import { formatOfferDate, offerYear, type OfferLine } from "./quote";
 
 export const MAX_TIMESHEET_LINES = 8;
+export const DEFAULT_TIMESHEET_HOURLY_CENTS = 4500;
 export const TIMESHEET_SIGN_NOTE =
   "Die Unterschrift wurde auf diesem Gerät erfasst. Name, Zeitpunkt und der Prüfwert gehören zu diesem Stundenzettel. Danach ist der Inhalt festgeschrieben. Das ist eine einfache elektronische Signatur, keine qualifizierte Signatur mit Ausweis.";
 
@@ -210,4 +211,74 @@ export function readTimesheetLines(raw: string): TimesheetLine[] {
   } catch {
     return [];
   }
+}
+
+export function hoursFromMinutes(minutes: number): number {
+  return Math.round((Math.max(0, minutes) / 60) * 100) / 100;
+}
+
+export interface TimesheetInvoiceDraft {
+  title: string;
+  intro: string;
+  serviceDate: string;
+  lines: OfferLine[];
+}
+
+/** Baut eine Rechnungsvorlage aus Stundenzettel + optionalem Stundensatz / Extra-Positionen. */
+export function invoiceDraftFromTimesheet(
+  input: {
+    id: number;
+    createdAt: number;
+    customerName: string;
+    workDate: string;
+    note: string;
+    totalMinutes: number;
+    lines: TimesheetLine[];
+  },
+  options?: {
+    hourlyCents?: number;
+    extraLines?: OfferLine[];
+  },
+): TimesheetInvoiceDraft | null {
+  const hours = hoursFromMinutes(input.totalMinutes);
+  if (hours <= 0) return null;
+  const number = timesheetNumber(input.id, input.createdAt);
+  const tasks = input.lines.map((line) => line.task).filter(Boolean);
+  const taskSummary = tasks.slice(0, 3).join(", ");
+  const titleBase = taskSummary || input.note.trim() || "Arbeitsleistung";
+  const title = `${titleBase}`.slice(0, 120);
+  const dateLabel = formatOfferDate(input.workDate);
+  const introParts = [
+    `Laut Stundenzettel ${number} vom ${dateLabel} (${formatMinutes(input.totalMinutes)} / ${formatDecimalHours(input.totalMinutes)} Std.).`,
+  ];
+  if (input.note.trim()) introParts.push(input.note.trim());
+  if (tasks.length) introParts.push(`Tätigkeiten: ${tasks.join("; ")}.`);
+  const hourlyCents =
+    typeof options?.hourlyCents === "number" && Number.isInteger(options.hourlyCents) && options.hourlyCents > 0
+      ? options.hourlyCents
+      : DEFAULT_TIMESHEET_HOURLY_CENTS;
+  const lines: OfferLine[] = [
+    {
+      label: "Arbeitslohn",
+      quantity: hours,
+      unit: "stunde",
+      unitCents: hourlyCents,
+    },
+  ];
+  for (const extra of options?.extraLines ?? []) {
+    if (extra.unit === "stunde") continue;
+    if (extra.label.trim().length < 2 || extra.quantity <= 0 || extra.unitCents <= 0) continue;
+    lines.push({
+      label: extra.label.trim().slice(0, 120),
+      quantity: extra.quantity,
+      unit: extra.unit,
+      unitCents: extra.unitCents,
+    });
+  }
+  return {
+    title,
+    intro: introParts.join(" ").slice(0, 2000),
+    serviceDate: input.workDate,
+    lines,
+  };
 }
