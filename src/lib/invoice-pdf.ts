@@ -48,8 +48,8 @@ export interface InvoicePdfInput {
   dueDate: string;
   authorName: string;
   documentKind?: "rechnung" | "storno";
-  /** Optisch als Zahlungserinnerung / 2. Mahnung kennzeichnen (PDF-Anhang). */
-  noticeKind?: "erinnerung" | "mahnung";
+  /** Optisch als Zahlungserinnerung / Mahnung / letzte Mahnung kennzeichnen (PDF-Anhang). */
+  noticeKind?: "erinnerung" | "mahnung" | "inkasso";
   referenceNumber?: string;
   referenceDate?: string;
 }
@@ -105,12 +105,21 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
 }
 
 function documentHeading(input: InvoicePdfInput): string {
+  if (input.noticeKind === "inkasso") return "3. Mahnung";
   if (input.noticeKind === "mahnung") return "2. Mahnung";
   if (input.noticeKind === "erinnerung") return "Zahlungserinnerung";
   return input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
 }
 
 function noticeBannerLines(input: InvoicePdfInput): string[] {
+  if (input.noticeKind === "inkasso") {
+    return [
+      `Letzte Mahnung zur Rechnung ${input.number}`,
+      `Der Rechnungsbetrag ist seit dem ${input.dueDateLabel} fällig.`,
+      "Bitte zahlen Sie den offenen Betrag sofort.",
+      "Andernfalls behalte ich mir vor, ein Inkassounternehmen zu beauftragen.",
+    ];
+  }
   if (input.noticeKind === "mahnung") {
     return [
       `2. Mahnung zur Rechnung ${input.number}`,
@@ -222,11 +231,13 @@ function layoutPages(input: InvoicePdfInput): string[] {
   const customerLines = [input.buyerName, input.buyerStreet.trim(), place, input.buyerEmail, input.buyerPhone?.trim() || ""].filter(Boolean);
   const paymentHint = storno
     ? [`Stornorechnung: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Es ist nichts zu zahlen"]
-    : input.noticeKind === "mahnung"
-      ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
-      : input.noticeKind === "erinnerung"
-        ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
-        : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
+    : input.noticeKind === "inkasso"
+      ? [`3. Mahnung`, `Rechnung ${input.number}`, "Sofort zahlen / Inkasso"]
+      : input.noticeKind === "mahnung"
+        ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
+        : input.noticeKind === "erinnerung"
+          ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
+          : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;
   paymentHint.forEach((line, index) => {

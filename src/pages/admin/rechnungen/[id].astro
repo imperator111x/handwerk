@@ -4,7 +4,13 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { cfEnv } from "../../../lib/cf";
-import { canSendPaymentReminder, invoiceNumber, nextReminderLevel } from "../../../lib/invoice";
+import {
+  canSendPaymentReminder,
+  invoiceNumber,
+  nextReminderLevel,
+  reminderActionLabel,
+  reminderStageLabel,
+} from "../../../lib/invoice";
 import { getInvoice, listRelatedInvoices } from "../../../lib/invoices";
 import { berlinTodayIso } from "../../../lib/offers";
 import { invoiceStatusLabel, paymentLinkForMail, stripeKeyMode, stripePaymentsReady, transferPayment } from "../../../lib/stripe-pay";
@@ -46,6 +52,15 @@ const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
   mahnung: { kind: "ok", text: "Die 2. Mahnung ist verschickt. In der Mail steht „Jetzt bezahlen“." },
   "mahnung-ohne-link": { kind: "bad", text: "Die 2. Mahnung ist verschickt. Der Zahlungslink fehlt in der Mail." },
   "mahnung-fail": { kind: "bad", text: "Die 2. Mahnung ließ sich nicht senden." },
+  inkasso: {
+    kind: "ok",
+    text: "Die 3. Mahnung (Inkasso-Hinweis) ist verschickt. In der Mail steht „Jetzt bezahlen“.",
+  },
+  "inkasso-ohne-link": {
+    kind: "bad",
+    text: "Die 3. Mahnung (Inkasso-Hinweis) ist verschickt. Der Zahlungslink fehlt in der Mail.",
+  },
+  "inkasso-fail": { kind: "bad", text: "Die 3. Mahnung (Inkasso-Hinweis) ließ sich nicht senden." },
   draft: { kind: "ok", text: "Entwurfsrechnung aus wiederkehrender Leistung angelegt." },
   "erinnerung-frueh": {
     kind: "bad",
@@ -94,9 +109,10 @@ const notice = flag ? notices[flag] : undefined;
         <span class="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700 dark:bg-white/10 dark:text-ink-200">
           {row.sent_at ? `Gesendet ${formatBerlin(row.sent_at)}` : "Noch nicht gesendet"}
         </span>
-        {row.reminded_at && (
+        {(row.reminded_at || Number(row.reminder_level ?? 0) > 0) && (
           <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-100">
-            Erinnert {formatBerlin(row.reminded_at)}
+            {reminderStageLabel(row.reminder_level)}
+            {row.reminded_at ? ` · ${formatBerlin(row.reminded_at)}` : ""}
           </span>
         )}
       </div>
@@ -211,7 +227,7 @@ const notice = flag ? notices[flag] : undefined;
           <input type="hidden" name="action" value="erinnerung" />
           <input type="hidden" name="id" value={row.id} />
           <button type="submit" class="rounded-full border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-100">
-            {remindLevel === 2 ? "2. Mahnung senden" : "Zahlungserinnerung"}
+            {reminderActionLabel(remindLevel)}
           </button>
         </form>
       )}

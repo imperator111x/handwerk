@@ -126,6 +126,8 @@ export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung
 export const REMINDER_MAIL_LEAD = "Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:";
 export const MAHNUNG_MAIL_LEAD =
   "Hiermit mahne ich die offene Rechnung an. Bitte überweisen Sie den Betrag umgehend in Höhe von:";
+export const INKASSO_MAIL_LEAD =
+  "Letzte Mahnung: Bitte zahlen Sie den offenen Betrag sofort. Andernfalls behalte ich mir vor, ein Inkassounternehmen zu beauftragen. Offener Betrag:";
 
 /** Kurzer Mailtext. Positionen und Steuerhinweis bleiben im PDF. */
 export function invoicePlainText(input: {
@@ -135,9 +137,13 @@ export function invoicePlainText(input: {
   storno?: boolean;
   settled?: boolean;
   reminder?: boolean;
+  /** Überschreibt den Standard-Einstieg (z. B. Mahnung / Inkasso). */
+  mailLead?: string;
 }): string {
   const amount = formatEuro(input.priceCents);
-  const lead = input.storno ? STORNO_MAIL_LEAD : input.reminder ? REMINDER_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const lead =
+    input.mailLead?.trim() ||
+    (input.storno ? STORNO_MAIL_LEAD : input.reminder ? REMINDER_MAIL_LEAD : INVOICE_MAIL_LEAD);
   const tail = input.storno
     ? ["Es ist kein Betrag zu zahlen.", "", "Die Positionen stehen in der angehängten Stornorechnung."]
     : input.settled
@@ -173,19 +179,38 @@ export function canSendPaymentReminder(
   if (!isIsoDate(row.due_date) || !isIsoDate(today)) return false;
   if (row.due_date > today) return false;
   const level = Number(row.reminder_level ?? 0);
-  return level < 2;
+  return level < 3;
 }
 
-export function nextReminderLevel(row: { reminder_level?: number | null; reminded_at?: number | null }): 1 | 2 {
+export type ReminderLevel = 1 | 2 | 3;
+
+export function nextReminderLevel(row: {
+  reminder_level?: number | null;
+  reminded_at?: number | null;
+}): ReminderLevel {
   const level = Number(row.reminder_level ?? 0);
+  if (level >= 2) return 3;
   if (level >= 1 || row.reminded_at) return 2;
   return 1;
 }
 
+export function reminderPurpose(level: ReminderLevel): "erinnerung" | "mahnung" | "inkasso" {
+  if (level >= 3) return "inkasso";
+  if (level >= 2) return "mahnung";
+  return "erinnerung";
+}
+
 export function reminderStageLabel(level: number | null | undefined): string {
+  if ((level ?? 0) >= 3) return "3. Mahnung (Inkasso)";
   if ((level ?? 0) >= 2) return "2. Mahnung";
   if ((level ?? 0) >= 1) return "Zahlungserinnerung";
   return "Keine";
+}
+
+export function reminderActionLabel(level: ReminderLevel): string {
+  if (level >= 3) return "3. Mahnung (Inkasso) senden";
+  if (level >= 2) return "2. Mahnung senden";
+  return "Zahlungserinnerung senden";
 }
 
 export function buildInvoiceXml(input: {

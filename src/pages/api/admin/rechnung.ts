@@ -9,6 +9,7 @@ import {
   invoiceNumber,
   nextReminderLevel,
   parseInvoiceForm,
+  reminderPurpose,
 } from "../../../lib/invoice";
 import { buildInvoicePdf } from "../../../lib/invoice-pdf";
 import {
@@ -99,19 +100,16 @@ export async function POST(ctx: APIContext): Promise<Response> {
         return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=erinnerung-frueh`, 303);
       }
       const level = nextReminderLevel(row);
+      const purpose = reminderPurpose(level);
       const authorName = await signatureNameForUser(db, session.userId, session.username);
-      const sent = await deliverInvoice(env, db, row, authorName, level === 2 ? "mahnung" : "erinnerung", level);
+      const sent = await deliverInvoice(env, db, row, authorName, purpose, level);
+      const base =
+        purpose === "inkasso" ? "inkasso" : purpose === "mahnung" ? "mahnung" : "erinnerung";
       const flag = sent.sent
         ? sent.paymentUrl
-          ? level === 2
-            ? "mahnung"
-            : "erinnerung"
-          : level === 2
-            ? "mahnung-ohne-link"
-            : "erinnerung-ohne-link"
-        : level === 2
-          ? "mahnung-fail"
-          : "erinnerung-fail";
+          ? base
+          : `${base}-ohne-link`
+        : `${base}-fail`;
       return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${flag}`, 303);
     }
     const authorName = await signatureNameForUser(db, session.userId, session.username);
@@ -234,16 +232,22 @@ async function deliverInvoice(
   db: D1Database,
   row: InvoiceRow,
   authorName: string,
-  purpose: "rechnung" | "storno" | "erinnerung" | "mahnung",
+  purpose: "rechnung" | "storno" | "erinnerung" | "mahnung" | "inkasso",
   reminderLevel = 1,
 ): Promise<{ sent: boolean; paymentUrl: boolean }> {
   const stored = readStoredOffer(row.lines_json, "");
-  const noticeKind = purpose === "erinnerung" || purpose === "mahnung" ? purpose : null;
+  const noticeKind =
+    purpose === "erinnerung" || purpose === "mahnung" || purpose === "inkasso" ? purpose : null;
   const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row), noticeKind);
   const number = invoiceNumber(row.id, row.invoice_date);
   const paymentUrl = await ensurePaymentUrl(env, db, row, number);
   const extraAttachments: Array<{ filename: string; pdf: Uint8Array }> = [];
-  if (row.timesheet_id && (purpose === "rechnung" || purpose === "erinnerung" || purpose === "mahnung")) {
+  const attachTimesheet =
+    purpose === "rechnung" ||
+    purpose === "erinnerung" ||
+    purpose === "mahnung" ||
+    purpose === "inkasso";
+  if (row.timesheet_id && attachTimesheet) {
     try {
       const sheet = await getTimesheet(db, row.timesheet_id);
       if (sheet) {
@@ -278,13 +282,19 @@ async function deliverInvoice(
     purpose,
     extraAttachments,
   });
-  if ((purpose === "erinnerung" || purpose === "mahnung") && delivery.sentAt != null) {
+  if (
+    (purpose === "erinnerung" || purpose === "mahnung" || purpose === "inkasso") &&
+    delivery.sentAt != null
+  ) {
     await updateInvoiceReminder(db, row.id, delivery.sentAt, delivery.emailStatus, reminderLevel);
   } else {
     await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
   }
   const linkExpected =
-    (purpose === "rechnung" || purpose === "erinnerung" || purpose === "mahnung") &&
+    (purpose === "rechnung" ||
+      purpose === "erinnerung" ||
+      purpose === "mahnung" ||
+      purpose === "inkasso") &&
     row.payment_status !== "bezahlt" &&
     row.payment_status !== "erstattet" &&
     row.payment_status !== "storniert";

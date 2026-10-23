@@ -1,6 +1,7 @@
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
 import {
+  INKASSO_MAIL_LEAD,
   INVOICE_MAIL_LEAD,
   MAHNUNG_MAIL_LEAD,
   REMINDER_MAIL_LEAD,
@@ -214,7 +215,7 @@ export async function updateInvoiceReminder(
   emailStatus: string,
   reminderLevel = 1,
 ): Promise<void> {
-  const level = Math.min(2, Math.max(1, Math.floor(reminderLevel)));
+  const level = Math.min(3, Math.max(1, Math.floor(reminderLevel)));
   await db
     .prepare(
       `UPDATE invoices
@@ -394,20 +395,26 @@ export function renderInvoicePdf(
   stored: StoredOffer,
   authorName: string,
   related: InvoiceRow | null = null,
-  noticeKind?: "erinnerung" | "mahnung" | null,
+  noticeKind?: "erinnerung" | "mahnung" | "inkasso" | null,
 ): { filename: string; bytes: Uint8Array } {
+  const kind =
+    noticeKind === "erinnerung" || noticeKind === "mahnung" || noticeKind === "inkasso"
+      ? noticeKind
+      : undefined;
   const input = {
     ...invoicePdfInput(row, stored, authorName, related),
-    noticeKind: noticeKind === "erinnerung" || noticeKind === "mahnung" ? noticeKind : undefined,
+    noticeKind: kind,
   };
   const prefix =
-    noticeKind === "mahnung"
-      ? "Mahnung"
-      : noticeKind === "erinnerung"
-        ? "Zahlungserinnerung"
-        : input.documentKind === "storno"
-          ? "Stornorechnung"
-          : "Rechnung";
+    kind === "inkasso"
+      ? "Letzte-Mahnung"
+      : kind === "mahnung"
+        ? "Mahnung"
+        : kind === "erinnerung"
+          ? "Zahlungserinnerung"
+          : input.documentKind === "storno"
+            ? "Stornorechnung"
+            : "Rechnung";
   return { filename: `${prefix}-${input.number}.pdf`, bytes: buildInvoicePdf(input) };
 }
 
@@ -417,7 +424,7 @@ export async function relatedInvoice(db: D1Database, row: InvoiceRow): Promise<I
 }
 
 export function invoiceMailFooter(input: {
-  purpose?: "rechnung" | "storno" | "erinnerung" | "mahnung" | null;
+  purpose?: "rechnung" | "storno" | "erinnerung" | "mahnung" | "inkasso" | null;
   paymentStatus?: string | null;
   paymentUrl?: string | null;
   paymentMode?: "test" | "live" | "off" | null;
@@ -434,6 +441,9 @@ export function invoiceMailFooter(input: {
   if (cancelled) return "Diese Rechnung ist storniert. Sie können direkt auf diese E-Mail antworten.";
   if (paid) return "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten.";
   if (testPay) return "Testmodus: Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten.";
+  if (input.purpose === "inkasso") {
+    return "Ohne Zahlung behalte ich mir vor, ein Inkassounternehmen zu beauftragen. Sie können direkt auf diese E-Mail antworten.";
+  }
   if (input.purpose === "erinnerung" || input.purpose === "mahnung") {
     return "Falls die Zahlung inzwischen unterwegs ist, bitte diese Erinnerung ignorieren. Sie können direkt auf diese E-Mail antworten.";
   }
@@ -455,7 +465,7 @@ export async function sendInvoiceEmail(
     paymentUrl?: string | null;
     paymentStatus?: string | null;
     paymentMode?: "test" | "live" | "off" | null;
-    purpose?: "rechnung" | "storno" | "erinnerung" | "mahnung";
+    purpose?: "rechnung" | "storno" | "erinnerung" | "mahnung" | "inkasso";
     /** Ersetzt den automatischen Fuß, zum Beispiel beim Systemcheck. */
     footerNote?: string | null;
     /** Zusätzliche PDFs, z. B. der zugehörige Stundenzettel. */
@@ -463,17 +473,30 @@ export async function sendInvoiceEmail(
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
   const storno = input.purpose === "storno";
+  const inkasso = input.purpose === "inkasso";
   const mahnung = input.purpose === "mahnung";
-  const reminder = input.purpose === "erinnerung" || mahnung;
-  const subject = mahnung
-    ? `2. Mahnung · Rechnung ${input.number}: ${input.invoice.title}`
-    : input.purpose === "erinnerung"
-      ? `Zahlungserinnerung · Rechnung ${input.number}: ${input.invoice.title}`
-      : `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}: ${input.invoice.title}`;
+  const reminder = input.purpose === "erinnerung" || mahnung || inkasso;
+  const subject = inkasso
+    ? `Letzte Mahnung · Rechnung ${input.number}: ${input.invoice.title}`
+    : mahnung
+      ? `2. Mahnung · Rechnung ${input.number}: ${input.invoice.title}`
+      : input.purpose === "erinnerung"
+        ? `Zahlungserinnerung · Rechnung ${input.number}: ${input.invoice.title}`
+        : `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}: ${input.invoice.title}`;
   const from = "info@zeus-service.de";
   const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
   const cancelled = input.paymentStatus === "storniert";
   const paymentUrl = paid || cancelled || storno ? "" : input.paymentUrl?.trim() || "";
+  const amount = formatEuro(input.invoice.priceCents);
+  const lead = storno
+    ? STORNO_MAIL_LEAD
+    : inkasso
+      ? INKASSO_MAIL_LEAD
+      : mahnung
+        ? MAHNUNG_MAIL_LEAD
+        : reminder
+          ? REMINDER_MAIL_LEAD
+          : INVOICE_MAIL_LEAD;
   const plain = invoicePlainText({
     priceCents: input.invoice.priceCents,
     dueDate: input.invoice.dueDate,
@@ -481,15 +504,8 @@ export async function sendInvoiceEmail(
     storno,
     settled: paid || cancelled,
     reminder,
+    mailLead: lead,
   });
-  const amount = formatEuro(input.invoice.priceCents);
-  const lead = storno
-    ? STORNO_MAIL_LEAD
-    : mahnung
-      ? MAHNUNG_MAIL_LEAD
-      : reminder
-        ? REMINDER_MAIL_LEAD
-        : INVOICE_MAIL_LEAD;
   const prefix = `${lead}\n${amount}\n\n`;
   const body = plain.startsWith(prefix) ? plain.slice(prefix.length) : plain;
   const footerNote = invoiceMailFooter(input);
@@ -502,11 +518,13 @@ export async function sendInvoiceEmail(
     fromEmail: from,
     replyToEmail: from,
     heading: input.invoice.title,
-    eyebrow: mahnung
-      ? `2. Mahnung · Rechnung ${input.number}`
-      : reminder
-        ? `Zahlungserinnerung · Rechnung ${input.number}`
-        : `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
+    eyebrow: inkasso
+      ? `Letzte Mahnung · Rechnung ${input.number}`
+      : mahnung
+        ? `2. Mahnung · Rechnung ${input.number}`
+        : reminder
+          ? `Zahlungserinnerung · Rechnung ${input.number}`
+          : `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
     greeting: input.greeting,
     footerNote,
     summaryLabel: lead,
