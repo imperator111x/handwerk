@@ -4,10 +4,9 @@
  * Design-Leitplanken:
  *  - Pur-HTML mit Table-Layouts (für maximale Kompatibilität in E-Mail-Clients)
  *  - Inline-Styles + bgcolor-Attribute (Outlook/Gmail)
- *  - Logo als undurchsichtiges PNG (weiß auf Marine) per Data-URI,
- *    damit es ohne Nachladen in Hell und Dunkel sichtbar bleibt
- *  - Eigene Farben für prefers-color-scheme: dark, damit iPhone-Mail
- *    den Text nicht dunkel auf dunkel stellt
+ *  - Logo als Inline-CID (Gmail strippt data:-URIs)
+ *  - color-scheme: light only + linear-gradient-Hintergründe, damit Gmail
+ *    im Dark Mode die Karte nicht invertiert (heller Header / dunkler Body)
  */
 
 import { EMAIL_MARK_PNG_BASE64 } from "./email-mark";
@@ -136,52 +135,51 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
        ${input.hideCtaUrl ? "" : `<p class="email-muted" style="margin:0 0 14px 0;color:#64748b;font-size:13px;line-height:1.5;word-break:break-all;">${escapeHtml(ctaUrl)}</p>`}`
     : "";
 
+  // linear-gradient + light-only: Gmail Dark Mode invertiert sonst bgcolor/#ffffff.
+  const bgOuter = "background-color:#e8eef6;background-image:linear-gradient(#e8eef6,#e8eef6);";
+  const bgCard = "background-color:#ffffff;background-image:linear-gradient(#ffffff,#ffffff);";
+  const bgHeader = "background-color:#0e172a;background-image:linear-gradient(#0e172a,#0e172a);";
+  const bgHelp = "background-color:#f1f5f9;background-image:linear-gradient(#f1f5f9,#f1f5f9);";
+
   return `<!doctype html>
 <html lang="de" xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
-    <meta name="supported-color-schemes" content="light dark" />
+    <meta name="color-scheme" content="light only" />
+    <meta name="supported-color-schemes" content="light" />
     <title>${safeSubject}</title>
     <style>
-      :root { color-scheme: light dark; supported-color-schemes: light dark; }
+      :root { color-scheme: light only; supported-color-schemes: light; }
       .email-rich p { margin: 0 0 14px 0; }
       .email-rich ul, .email-rich ol { margin: 0 0 14px 1.2em; padding: 0; }
       .email-rich a { color: #1d4ed8; }
       .email-rich img { max-width: 100%; height: auto; border: 0; }
-      @media (prefers-color-scheme: dark) {
-        .email-outer, .email-outer td { background-color: #0b1220 !important; }
-        .email-card, .email-card td.email-copy, .email-card td.email-footer { background-color: #162033 !important; }
-        .email-outer td.email-header { background-color: #0e172a !important; color: #ffffff !important; }
-        .email-text, .email-copy, .email-copy p, .email-copy h1, .email-copy span, .email-rich, .email-rich p, .email-rich li { color: #f8fafc !important; }
-        .email-rich a { color: #bfdbfe !important; }
-        .email-muted { color: #cbd5e1 !important; }
-        .email-help, .email-help td { background-color: #1e293b !important; border-color: #334155 !important; }
-        .email-link { color: #bfdbfe !important; }
-        .email-footer, .email-footer p, .email-footer a { color: #cbd5e1 !important; }
-        .email-rule { border-top-color: #334155 !important; }
-        .email-outer td.email-cta { background-color: #2563eb !important; }
-        .email-outer td.email-cta-green,
-        .email-outer a.email-cta-green { background-color: #16a34a !important; }
-        .email-outer td.email-cta,
-        .email-outer a.email-cta { border-radius: 999px !important; }
-        .email-outer a.email-cta { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-      }
+      u + .email-outer { background-color: #e8eef6 !important; }
+      .email-outer, .email-outer td { color-scheme: light only; }
+      .email-card, .email-copy, .email-footer { background-color: #ffffff !important; }
+      .email-header { background-color: #0e172a !important; }
+      .email-text, .email-copy, .email-copy p, .email-copy h1, .email-rich, .email-rich p, .email-rich li { color: #1e293b !important; }
+      .email-copy h1.email-text { color: #0f172a !important; }
+      .email-muted { color: #64748b !important; }
+      .email-link { color: #1d4ed8 !important; }
+      .email-help, .email-help td { background-color: #f1f5f9 !important; border-color: #e2e8f0 !important; }
+      .email-outer a.email-cta { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+      .email-outer a.email-cta-green { background-color: #16a34a !important; }
     </style>
   </head>
-  <body class="email-outer" bgcolor="#e8eef6" style="margin:0;padding:0;background-color:#e8eef6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-outer" bgcolor="#e8eef6" style="background-color:#e8eef6;">
+  <body class="email-outer" bgcolor="#e8eef6" style="margin:0;padding:0;${bgOuter}font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-outer" bgcolor="#e8eef6" style="${bgOuter}">
       <tr>
-        <td align="center" bgcolor="#e8eef6" style="background-color:#e8eef6;padding:28px 12px;">
-          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" class="email-card" bgcolor="#ffffff" style="width:600px;max-width:100%;background-color:#ffffff;border-radius:18px;overflow:hidden;">
+        <td align="center" bgcolor="#e8eef6" style="${bgOuter}padding:28px 12px;">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" class="email-card" bgcolor="#ffffff" style="width:600px;max-width:100%;${bgCard}border-radius:18px;overflow:hidden;">
             <tr>
-              <td class="email-header" bgcolor="#0e172a" align="left" style="background-color:#0e172a;padding:28px 28px 22px 28px;">
-                <img src="${logoSrc}" alt="${safeSite}" width="240" height="97" style="display:block;border:0;outline:none;text-decoration:none;width:240px;max-width:100%;height:auto;background-color:#0e172a;" />
+              <td class="email-header" bgcolor="#0e172a" align="left" style="${bgHeader}padding:28px 28px 22px 28px;">
+                <img src="${logoSrc}" alt="${safeSite}" width="240" height="97" style="display:block;border:0;outline:none;text-decoration:none;width:240px;max-width:100%;height:auto;${bgHeader}" />
               </td>
             </tr>
             <tr>
-              <td class="email-copy" bgcolor="#ffffff" style="padding:28px 28px 8px 28px;background-color:#ffffff;">
+              <td class="email-copy" bgcolor="#ffffff" style="padding:28px 28px 8px 28px;${bgCard}">
                 <p class="email-muted" style="margin:0 0 8px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${eyebrow}</p>
                 <h1 class="email-text" style="margin:0 0 22px 0;color:#0f172a;font-size:22px;line-height:1.35;font-weight:800;">${safeHeading}</h1>
                 ${greetingHtml}
@@ -195,10 +193,10 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
               </td>
             </tr>
             <tr>
-              <td bgcolor="#ffffff" class="email-copy" style="padding:8px 28px 24px 28px;background-color:#ffffff;">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-help" bgcolor="#f1f5f9" style="background-color:#f1f5f9;border-radius:14px;border:1px solid #e2e8f0;">
+              <td bgcolor="#ffffff" class="email-copy" style="padding:8px 28px 24px 28px;${bgCard}">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="email-help" bgcolor="#f1f5f9" style="${bgHelp}border-radius:14px;border:1px solid #e2e8f0;">
                   <tr>
-                    <td bgcolor="#f1f5f9" class="email-help" style="padding:16px 18px;background-color:#f1f5f9;">
+                    <td bgcolor="#f1f5f9" class="email-help" style="padding:16px 18px;${bgHelp}">
                       <p class="email-muted" style="margin:0 0 6px 0;color:#64748b;font-size:12px;letter-spacing:0.06em;text-transform:uppercase;font-weight:700;">Fragen?</p>
                       <p class="email-text" style="margin:0;color:#1e293b;font-size:15px;line-height:1.6;">
                         Antworten Sie einfach auf diese E-Mail. Wir sind unter
@@ -212,7 +210,7 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
               </td>
             </tr>
             <tr>
-              <td class="email-footer" bgcolor="#ffffff" style="padding:0 28px 24px 28px;background-color:#ffffff;">
+              <td class="email-footer" bgcolor="#ffffff" style="padding:0 28px 24px 28px;${bgCard}">
                 <p class="email-rule" style="border:none;border-top:1px solid #e2e8f0;margin:0 0 14px 0;line-height:0;font-size:0;">&nbsp;</p>
                 <p class="email-muted" style="margin:0;color:#64748b;font-size:13px;line-height:1.55;">
                   ${safeSite} · <a class="email-link" href="${safeSiteUrl}" style="color:#64748b;text-decoration:underline;">${displayUrl}</a><br />
