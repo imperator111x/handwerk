@@ -107,6 +107,24 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-500 rounded-sm;
   }
+
+  /* Native date/time pickers ship with a large intrinsic min-width. */
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"],
+  input[type="week"] {
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit,
+  input[type="datetime-local"]::-webkit-datetime-edit {
+    min-width: 0;
+    max-width: 100%;
+  }
 }
 
 @utility container-page {
@@ -183,34 +201,20 @@
 }
 
 @utility input {
-  /* min-w-0 + max-w-full: native date/time controls ignore width:100% alone
-     and overflow grid/flex parents on narrow viewports (iOS/Android). */
-  @apply box-border w-full max-w-full min-w-0 rounded-xl border border-ink-200 bg-white px-4 py-3
+  /* Native date/time controls ignore width:100% alone and overflow
+     grid/flex parents on narrow viewports — set min/max in raw CSS so
+     Tailwind @apply cannot drop them when composing the utility. */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  @apply rounded-xl border border-ink-200 bg-white px-4 py-3
     text-sm text-ink-900 placeholder:text-ink-500
     focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-100
     transition
     dark:border-white/10 dark:bg-white/5 dark:text-ink-50
     dark:placeholder:text-ink-500 dark:focus:border-brand-400
     dark:focus:ring-brand-500/20;
-}
-
-@layer base {
-  input[type="date"],
-  input[type="time"],
-  input[type="datetime-local"],
-  input[type="month"],
-  input[type="week"] {
-    min-width: 0;
-    max-width: 100%;
-    width: 100%;
-  }
-
-  input[type="date"]::-webkit-datetime-edit,
-  input[type="time"]::-webkit-datetime-edit,
-  input[type="datetime-local"]::-webkit-datetime-edit {
-    min-width: 0;
-    max-width: 100%;
-  }
 }
 
 @utility label {
