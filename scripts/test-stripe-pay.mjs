@@ -134,16 +134,17 @@ const price = pay.stripePriceParams("R-2026-0001", 10000);
 assert.equal(price.get("product_data[name]"), "Rechnung R-2026-0001");
 assert.equal(price.get("product_data[description]"), null);
 assert.equal(price.get("unit_amount"), "10000");
-assert.equal(pay.stripeStatementSuffix("R-2026-0001"), "R-2026-0001");
-assert.equal(pay.stripeStatementSuffix("r-2026-0001!!!"), "R-2026-0001");
-assert.ok(pay.stripeStatementSuffix("R-2026-0001-EXTRA-LONG").length <= 22);
+assert.equal(pay.stripeStatementSuffix("R-2026-0001"), "R20260001");
+assert.equal(pay.stripeStatementSuffix("r-2026-0009!!!"), "R20260009");
+assert.ok(pay.stripeStatementSuffix("R-2026-0001").length <= 10);
+assert.equal(pay.stripeStatementSuffix("R-2026-123456"), "R202612345");
 const linkParams = pay.paymentLinkParams(
   { invoiceId: 1, number: "R-2026-0001", email: "kunde@example.com" },
   "price_test",
   ["card"],
   false,
 );
-assert.equal(linkParams.get("payment_intent_data[statement_descriptor_suffix]"), "R-2026-0001");
+assert.equal(linkParams.get("payment_intent_data[statement_descriptor_suffix]"), "R20260001");
 assert.equal(linkParams.get("payment_intent_data[description]"), "Rechnung R-2026-0001");
 assert.equal(linkParams.get("payment_intent_data[metadata][invoice_number]"), "R-2026-0001");
 const linkNoStmt = pay.paymentLinkParams(

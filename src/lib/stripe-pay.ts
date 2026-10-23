@@ -215,7 +215,7 @@ export async function createStripePaymentLink(
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_AMOUNT_CENTS) {
     throw new Error("Betrag liegt unter dem Stripe-Minimum");
   }
-  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v3`);
+  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v4`);
   const priceId = typeof price.id === "string" ? price.id : "";
   if (!priceId.startsWith("price_")) throw new Error("Stripe hat keinen Preis angelegt");
 
@@ -228,13 +228,13 @@ export async function createStripePaymentLink(
   let lastMessage = "Zahlungslink fehlgeschlagen";
   for (const methods of methodSets) {
     const params = paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test");
-    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-stmt1-${methods.join("-")}`);
+    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-stmt2-${methods.join("-")}`);
     if (!result.ok && canDropDescriptor(result.body)) {
       result = await stripePost(
         secret,
         "payment_links",
         paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", true, false),
-        `invoice-${input.invoiceId}-link-stmt1b-${methods.join("-")}`,
+        `invoice-${input.invoiceId}-link-stmt2b-${methods.join("-")}`,
       );
     }
     if (!result.ok && canDropIntent(result.body)) {
@@ -242,7 +242,7 @@ export async function createStripePaymentLink(
         secret,
         "payment_links",
         paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false, false),
-        `invoice-${input.invoiceId}-link-stmt1c-${methods.join("-")}`,
+        `invoice-${input.invoiceId}-link-stmt2c-${methods.join("-")}`,
       );
     }
     if (result.ok) {
@@ -283,15 +283,16 @@ export function stripePriceParams(number: string, amountCents: number): URLSearc
   });
 }
 
-/** Text für die Kontoabbuchung (Stripe statement_descriptor_suffix, max. 22 Zeichen). */
+/**
+ * Text für die Kontoabbuchung (statement_descriptor_suffix).
+ * Kartenauszüge haben nur ~22 Zeichen gesamt inkl. Firmenkürzel (z. B. ZEUS-SERVI*).
+ * Deshalb kompakt ohne Bindestriche: R-2026-0009 → R20260009.
+ */
 export function stripeStatementSuffix(number: string): string {
-  const cleaned = number
-    .toUpperCase()
-    .replace(/[^A-Z0-9*.\- ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const withLetter = /[A-Z]/.test(cleaned) ? cleaned : `R ${cleaned}`.trim();
-  return withLetter.slice(0, 22);
+  const digits = number.replace(/\D/g, "");
+  const compact = `R${digits}`;
+  // Max. 10 Zeichen: lässt Platz für ein ~11 Zeichen langes Firmenkürzel + „*“.
+  return compact.slice(0, 10);
 }
 
 export function paymentLinkParams(
