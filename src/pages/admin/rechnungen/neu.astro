@@ -6,9 +6,11 @@ import { getCustomer, listCustomers } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { getTaxNumber } from "../../../lib/invoices";
-import { berlinTodayIso, getQuote } from "../../../lib/offers";
+import { berlinTodayIso, getQuote, hourlyOfferHintsForCustomer } from "../../../lib/offers";
 import { readStoredOffer } from "../../../lib/quote";
 import { salutationFromGreeting } from "../../../lib/salutation";
+import { invoiceDraftFromTimesheet, readTimesheetLines } from "../../../lib/timesheet";
+import { getTimesheet } from "../../../lib/timesheets";
 
 export const prerender = false;
 
@@ -24,18 +26,51 @@ const messages: Record<string, string> = {
   tax: "Bitte zuerst die Steuernummer unter Einstellungen speichern.",
   missing: "Der Kunde wurde nicht gefunden.",
   db: "Die Rechnung konnte nicht gespeichert werden.",
+  timesheet: "Der Stundenzettel fehlt oder hat keine Stunden.",
 };
 
 const quoteId = Number.parseInt(Astro.url.searchParams.get("angebot") ?? "", 10);
 const quote = db && Number.isFinite(quoteId) && quoteId > 0 ? await getQuote(db, quoteId) : null;
+const timesheetId = Number.parseInt(Astro.url.searchParams.get("stundenzettel") ?? "", 10);
+const timesheet = db && Number.isFinite(timesheetId) && timesheetId > 0 ? await getTimesheet(db, timesheetId) : null;
 const requestedCustomer = Number.parseInt(Astro.url.searchParams.get("kunde") ?? "", 10);
-const customerId = quote?.customer_id ?? (Number.isFinite(requestedCustomer) ? requestedCustomer : 0);
+const customerId =
+  quote?.customer_id ??
+  timesheet?.customer_id ??
+  (Number.isFinite(requestedCustomer) ? requestedCustomer : 0);
 const customer = db && customerId > 0 ? await getCustomer(db, customerId) : null;
 const customers = db && !customer ? await listCustomers(db) : [];
 const taxNumber = db ? await getTaxNumber(db) : "";
 const stored = quote ? readStoredOffer(quote.lines_json, "") : null;
+const hints =
+  db && customer && timesheet && !quote
+    ? await hourlyOfferHintsForCustomer(db, customer.id)
+    : { hourlyCents: null as number | null, extras: [] };
+const timesheetDraft =
+  timesheet && !quote
+    ? invoiceDraftFromTimesheet(
+        {
+          id: timesheet.id,
+          createdAt: timesheet.created_at,
+          customerName: timesheet.customer_name,
+          workDate: timesheet.work_date,
+          note: timesheet.note,
+          totalMinutes: timesheet.total_minutes,
+          lines: readTimesheetLines(timesheet.lines_json),
+        },
+        { hourlyCents: hints.hourlyCents ?? undefined, extraLines: hints.extras },
+      )
+    : null;
 const name = customer ? decodeHtmlEntities(customer.name) : "";
 const addressReady = Boolean(customer?.street?.trim() && customer.postal_code?.trim() && customer.city?.trim());
+const title = quote?.title ?? timesheetDraft?.title ?? "";
+const intro = stored?.intro ?? timesheetDraft?.intro ?? "";
+const serviceDate = timesheetDraft?.serviceDate ?? today;
+const lines = stored?.lines ?? timesheetDraft?.lines;
+const salutation = salutationFromGreeting(stored?.greeting ?? null, name);
+const wantsTimesheet = Boolean(Astro.url.searchParams.get("stundenzettel"));
+const timesheetMissing = wantsTimesheet && !timesheetDraft;
+const canCompose = Boolean(customer && addressReady && taxNumber && (!wantsTimesheet || timesheetDraft));
 ---
 
 <AdminLayout title="Neue Rechnung" session={session}>
@@ -50,13 +85,25 @@ const addressReady = Boolean(customer?.street?.trim() && customer.postal_code?.t
         {messages[flag]}
       </p>
     )}
+    {timesheetMissing && (
+      <p class="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">
+        {messages.timesheet}
+      </p>
+    )}
+    {timesheetDraft && (
+      <p class="mt-4 rounded-xl border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">
+        Übernommen aus Stundenzettel. Stunden und Stundensatz kannst du noch anpassen
+        {hints.hourlyCents ? " (Satz aus dem letzten Stunden-Angebot)." : " (Standard-Stundensatz vorausgefüllt)."}
+      </p>
+    )}
     {!taxNumber && (
       <p class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
         Die Steuernummer fehlt noch. <a class="font-semibold underline" href="/admin/einstellungen#steuernummer">Unter Einstellungen eintragen</a>.
       </p>
     )}
-    {!customer && (
+    {!customer && !timesheetMissing && (
       <form class="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]" method="GET">
+        {timesheet && <input type="hidden" name="stundenzettel" value={String(timesheet.id)} />}
         <label class="label sm:col-span-2" for="kunde">Kunde</label>
         <select class="input" id="kunde" name="kunde" required>
           <option value="">Bitte wählen</option>
@@ -71,7 +118,7 @@ const addressReady = Boolean(customer?.street?.trim() && customer.postal_code?.t
         <a class="font-semibold underline" href={`/admin/kunden/${customer.id}`}>Adresse ergänzen</a>
       </p>
     )}
-    {customer && addressReady && taxNumber && (
+    {canCompose && customer && (
       <div class="mt-5">
         <p class="text-sm text-ink-700 dark:text-ink-200">
           {name} · {customer.street}, {customer.postal_code} {customer.city} · Steuernummer {taxNumber}
@@ -79,12 +126,12 @@ const addressReady = Boolean(customer?.street?.trim() && customer.postal_code?.t
         <div class="mt-4">
           <InvoiceComposer
             customerName={name}
-            title={quote?.title ?? ""}
-            intro={stored?.intro ?? ""}
+            title={title}
+            intro={intro}
             invoiceDate={today}
-            serviceDate={today}
-            lines={stored?.lines}
-            salutation={salutationFromGreeting(stored?.greeting ?? null, name)}
+            serviceDate={serviceDate}
+            lines={lines}
+            salutation={salutation}
             hidden={[
               { name: "customer_id", value: String(customer.id) },
               ...(quote ? [{ name: "quote_id", value: String(quote.id) }] : []),

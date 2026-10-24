@@ -10,6 +10,7 @@ import {
   parseOfferForm,
   readStoredOffer,
   serializeOffer,
+  type OfferLine,
   type ParsedOffer,
 } from "./quote";
 
@@ -112,6 +113,22 @@ export async function listQuotesForCustomer(db: D1Database, customerId: number):
     .bind(customerId)
     .all<QuoteRow>();
   return results ?? [];
+}
+
+/** Stundensatz und Nebenpositionen aus dem neuesten Stunden-Angebot des Kunden. */
+export async function hourlyOfferHintsForCustomer(
+  db: D1Database,
+  customerId: number,
+): Promise<{ hourlyCents: number | null; extras: OfferLine[] }> {
+  const quotes = await listQuotesForCustomer(db, customerId);
+  for (const quote of quotes) {
+    const stored = readStoredOffer(quote.lines_json, "");
+    if (stored.billing !== "stunden") continue;
+    const wage = stored.lines.find((line) => line.unit === "stunde" && line.unitCents > 0);
+    const extras = stored.lines.filter((line) => line.unit !== "stunde" && line.unitCents > 0 && line.quantity > 0);
+    return { hourlyCents: wage?.unitCents ?? null, extras };
+  }
+  return { hourlyCents: null, extras: [] };
 }
 
 export async function saveQuote(
