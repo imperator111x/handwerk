@@ -67,21 +67,32 @@ future.append("line_price", "45,00");
 assert.equal(invoice.parseInvoiceForm(future, "2026-10-20"), null);
 
 const plain = invoice.invoicePlainText({
-  number: "R-2026-0007",
-  title: "Rollladen einstellen",
-  intro: parsed.intro,
-  lines: parsed.lines,
-  invoiceDate: parsed.invoiceDate,
-  serviceDate: parsed.serviceDate,
+  priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
-  taxNumber: "12/345/67890",
+  number: "R-2026-0007",
 });
-assert.match(
-  plain,
-  /Hinweis zur Kleinunternehmerregelung: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet\.\n\nZahlbar innerhalb von 14 Tagen ohne Abzug\.\n\nDer Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren\./,
-);
-assert.match(plain, /Steuernummer: 12\/345\/67890/);
-assert.match(plain, /127,50/);
+assert.equal(invoice.INVOICE_MAIL_LEAD, "Hiermit übersende ich Ihnen die Rechnung in Höhe von:");
+assert.match(plain, /^Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50\s€\n\nFällig am 3\. November 2026\./);
+assert.match(plain, /Bei einer Überweisung bitte angeben:\nVerwendungszweck: R-2026-0007\nKontoinhaber: ZEUS-SERVICE\nIBAN: DE38 1001 4000 1598 1684 18\nSWIFT: SWNB DE BB/);
+assert.match(plain, /Die Positionen stehen in der angehängten Rechnung\.$/);
+assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung/);
+const stornoMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0008",
+  storno: true,
+});
+assert.match(stornoMail, /^Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:\n127,50\s€/);
+assert.match(stornoMail, /Es ist kein Betrag zu zahlen\./);
+assert.match(stornoMail, /angehängten Stornorechnung/);
+assert.doesNotMatch(stornoMail, /Stundenlohn|IBAN|Verwendungszweck/);
+const paidMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0007",
+  settled: true,
+});
+assert.doesNotMatch(paidMail, /IBAN|Verwendungszweck/);
 
 const xml = invoice.buildInvoiceXml({
   number: "R-2026-0007",
@@ -97,7 +108,8 @@ const xml = invoice.buildInvoiceXml({
   buyerPostalCode: "22850",
   buyerCity: "Norderstedt",
 });
-assert.match(xml, /urn:cen\.eu:en16931:2017#compliant#urn:factur-x\.eu:1p0:en16931/);
+assert.match(xml, /<ram:ID>urn:cen\.eu:en16931:2017<\/ram:ID>/);
+assert.doesNotMatch(xml, /factur-x\.eu:1p0:en16931/);
 assert.match(xml, /<ram:TypeCode>380<\/ram:TypeCode>/);
 assert.match(xml, /<ram:CategoryCode>E<\/ram:CategoryCode>/);
 assert.match(xml, /<ram:ID schemeID="FC">12\/345\/67890<\/ram:ID>/);

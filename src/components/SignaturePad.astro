@@ -1,0 +1,140 @@
+---
+interface Props {
+  name: string;
+  label: string;
+  hint: string;
+  required?: boolean;
+}
+
+const { name, label, hint, required = false } = Astro.props;
+---
+
+<fieldset class="grid gap-2" data-sign-pad data-sign-name={name}>
+  <legend class="label">{label}{required ? "" : " (optional)"}</legend>
+  <p class="text-xs text-ink-500 dark:text-ink-400">{hint}</p>
+  <input
+    class="input"
+    name={`${name}_name`}
+    maxlength="80"
+    autocomplete="name"
+    placeholder="Name in Druckschrift"
+    required={required}
+  />
+  <canvas
+    data-sign-canvas
+    class="h-52 w-full touch-none rounded-2xl border border-ink-300 bg-white dark:border-white/20"
+    style="touch-action: none; -ms-touch-action: none;"
+  ></canvas>
+  <input type="hidden" name={`${name}_jpeg`} data-sign-jpeg />
+  <button type="button" data-sign-clear class="w-fit text-xs font-semibold text-ink-500">Unterschrift löschen</button>
+</fieldset>
+
+<script data-astro-rerun>
+  const pads = document.querySelectorAll("[data-sign-pad]");
+  pads.forEach((pad) => {
+    if (!(pad instanceof HTMLElement) || pad.dataset.ready === "1") return;
+    const canvas = pad.querySelector("[data-sign-canvas]");
+    const hidden = pad.querySelector("[data-sign-jpeg]");
+    const clear = pad.querySelector("[data-sign-clear]");
+    if (!(canvas instanceof HTMLCanvasElement) || !(hidden instanceof HTMLInputElement)) return;
+    pad.dataset.ready = "1";
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) return;
+    let drawing = false;
+    let dirty = false;
+    let last = { x: 0, y: 0 };
+    let fittedW = 0;
+    let fittedH = 0;
+
+    const fit = (force = false) => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width < 20 || rect.height < 20) return false;
+      const same = Math.abs(rect.width - fittedW) < 1 && Math.abs(rect.height - fittedH) < 1;
+      if (same && !force) return true;
+      if (dirty && !force) return true;
+      const scale = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(rect.width * scale));
+      canvas.height = Math.max(1, Math.round(rect.height * scale));
+      context.setTransform(scale, 0, 0, scale, 0, 0);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, rect.width, rect.height);
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.strokeStyle = "#111827";
+      fittedW = rect.width;
+      fittedH = rect.height;
+      dirty = false;
+      hidden.value = "";
+      return true;
+    };
+    const point = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top, pressure: event.pressure || 0.5 };
+    };
+    const exportJpeg = () => {
+      if (!dirty) return;
+      hidden.value = canvas.toDataURL("image/jpeg", 0.85);
+    };
+    const paint = () => {
+      if (!fit()) {
+        requestAnimationFrame(paint);
+        return;
+      }
+    };
+    requestAnimationFrame(paint);
+
+    canvas.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        fit();
+        canvas.setPointerCapture(event.pointerId);
+        drawing = true;
+        last = point(event);
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+    canvas.addEventListener(
+      "pointermove",
+      (event) => {
+        if (!drawing) return;
+        const next = point(event);
+        const pressure = event.pointerType === "pen" ? Math.max(0.2, next.pressure || 0.5) : 0.6;
+        context.lineWidth = 1.6 + pressure * 2.4;
+        context.beginPath();
+        context.moveTo(last.x, last.y);
+        context.lineTo(next.x, next.y);
+        context.stroke();
+        last = next;
+        dirty = true;
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+    const stop = (event) => {
+      if (!drawing) return;
+      drawing = false;
+      exportJpeg();
+      if (event?.pointerId != null && canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+    };
+    canvas.addEventListener("pointerup", stop);
+    canvas.addEventListener("pointercancel", stop);
+    canvas.addEventListener(
+      "touchstart",
+      (event) => {
+        event.preventDefault();
+      },
+      { passive: false },
+    );
+    clear?.addEventListener("click", () => fit(true));
+    pad.closest("form")?.addEventListener("submit", exportJpeg);
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => {
+        if (!dirty) fit();
+      }).observe(canvas);
+    }
+  });
+</script>

@@ -68,6 +68,66 @@ const stored = quote.readStoredOffer(
 assert.equal(stored.lines[0].label, "Anfahrt");
 assert.equal(quote.readStoredOffer("[]", "alt").lines.length, 0);
 assert.equal(quote.offerNumber(7, Date.parse("2026-10-20T10:00:00Z") / 1000), "A-2026-0007");
+assert.equal(parsed.billing, "fest");
+
+const hourly = new FormData();
+hourly.set("title", "Gartenpflege");
+hourly.set("billing", "stunden");
+hourly.set("intro", "");
+hourly.set("valid_until", "2026-11-03");
+hourly.append("line_label", "Arbeitslohn");
+hourly.append("line_qty", "3");
+hourly.append("line_unit", "stunde");
+hourly.append("line_price", "45,00");
+hourly.append("line_label", "Material");
+hourly.append("line_qty", "1");
+hourly.append("line_unit", "pauschal");
+hourly.append("line_price", "20,00");
+hourly.append("line_label", "Anfahrt");
+hourly.append("line_qty", "1");
+hourly.append("line_unit", "pauschal");
+hourly.append("line_price", "30,00");
+const hourlyParsed = quote.parseOfferForm(hourly, "2026-10-20");
+assert.ok(hourlyParsed);
+assert.equal(hourlyParsed.billing, "stunden");
+assert.equal(hourlyParsed.priceCents, 18500);
+assert.equal(quote.hourlyOfferMissingWage(hourly), false);
+const missingWage = new FormData();
+missingWage.set("billing", "stunden");
+missingWage.append("line_unit", "pauschal");
+missingWage.append("line_qty", "1");
+missingWage.append("line_price", "20,00");
+assert.equal(quote.hourlyOfferMissingWage(missingWage), true);
+const hourlyText = quote.offerPlainText({
+  number: "A-2026-0008",
+  title: "Gartenpflege",
+  intro: "",
+  lines: hourlyParsed.lines,
+  validUntil: "2026-11-03",
+  billing: "stunden",
+});
+assert.match(hourlyText, /Summe: 185,00/);
+assert.match(hourlyText, /Arbeitslohn wird nach Stunden berechnet/);
+assert.doesNotMatch(hourlyText, /Der Festpreis gilt/);
+const hourlyPdf = buildOfferPdf({
+  number: "A-2026-0008",
+  dateLabel: "20. Oktober 2026",
+  customerName: "Erika Muster",
+  customerEmail: "erika@example.com",
+  title: "Gartenpflege",
+  greeting: null,
+  intro: "",
+  lines: hourlyParsed.lines,
+  validUntilLabel: "3. November 2026",
+  authorName: "Leon Lütcke",
+  billing: "stunden",
+});
+const hourlyRaw = new TextDecoder("latin1").decode(hourlyPdf).replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+assert.match(hourlyRaw, /Summe/);
+assert.match(hourlyRaw, /Arbeitslohn/);
+assert.match(hourlyRaw, /Material/);
+assert.match(hourlyRaw, /Anfahrt/);
+assert.match(hourlyRaw, /nach Stunden berechnet/);
 
 const plain = quote.offerPlainText({
   number: "A-2026-0007",

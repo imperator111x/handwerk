@@ -18,6 +18,8 @@ export interface ReplyEmailInput {
   siteUrl: string;
   recipientName: string;
   subject: string;
+  /** Sichtbare Überschrift. Ohne Angabe steht dort der Betreff. */
+  heading?: string | null;
   bodyText: string;
   bodyHtml?: string | null;
   authorName: string;
@@ -33,6 +35,13 @@ export interface ReplyEmailInput {
   footerNote?: string | null;
   /** Zahlungsknopf steht über dem Rechnungstext. */
   ctaFirst?: boolean | null;
+  /** Großer Betrag über dem Text, zum Beispiel der Rechnungsbetrag. */
+  summaryLabel?: string | null;
+  summaryAmount?: string | null;
+  /** In der HTML-Mail nur den Knopf zeigen. Die Adresse bleibt im Text. */
+  hideCtaUrl?: boolean | null;
+  /** Zahlungsknopf in Grün, damit er auf dunklem Grund sichtbar bleibt. */
+  ctaTone?: "green" | null;
 }
 
 export interface EmailAttachment {
@@ -75,6 +84,7 @@ function textToHtmlParagraphs(text: string): string {
 
 export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const safeSubject = escapeHtml(input.subject);
+  const safeHeading = escapeHtml(input.heading?.trim() || input.subject);
   const safeAuthor = escapeHtml(input.authorName);
   const safeFrom = escapeHtml(input.replyToEmail || input.fromEmail);
   const safeSite = escapeHtml(input.siteName);
@@ -99,15 +109,28 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
   const logoSrc = `data:image/png;base64,${EMAIL_MARK_PNG_BASE64}`;
   const ctaUrl = input.ctaUrl && /^https:\/\/[^\s<>"]+$/.test(input.ctaUrl) ? input.ctaUrl : "";
   const ctaLabel = escapeHtml(input.ctaLabel?.trim() || "Termin wählen");
+  const summaryAmount = input.summaryAmount?.trim() ?? "";
+  const summaryLabel = input.summaryLabel?.trim() || "Gesamtbetrag";
+  const summarySentence = summaryLabel.endsWith(":");
+  const summaryHtml = summaryAmount
+    ? summarySentence
+      ? `<p class="email-text" style="margin:0 0 8px 0;color:#1e293b;font-size:16px;line-height:1.6;">${escapeHtml(summaryLabel)}</p>
+       <p class="email-text" style="margin:0 0 18px 0;color:#0f172a;font-size:32px;line-height:1.15;font-weight:800;">${escapeHtml(summaryAmount)}</p>`
+      : `<p class="email-muted" style="margin:0 0 4px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${escapeHtml(summaryLabel)}</p>
+       <p class="email-text" style="margin:0 0 18px 0;color:#0f172a;font-size:32px;line-height:1.15;font-weight:800;">${escapeHtml(summaryAmount)}</p>`
+    : "";
+  const ctaGreen = input.ctaTone === "green";
+  const ctaBackground = ctaGreen ? "#16a34a" : "#2563eb";
+  const ctaClass = ctaGreen ? "email-cta email-cta-green" : "email-cta";
   const ctaHtml = ctaUrl
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px 0;">
          <tr>
-           <td bgcolor="#2563eb" style="border-radius:999px;background-color:#2563eb;">
-             <a href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">${ctaLabel}</a>
+           <td class="${ctaClass}" bgcolor="${ctaBackground}" style="border-radius:999px;background-color:${ctaBackground};">
+             <a class="${ctaClass}" href="${escapeHtml(ctaUrl)}" style="display:inline-block;padding:12px 22px;border-radius:999px;color:#ffffff;background-color:${ctaBackground};font-size:15px;font-weight:700;text-decoration:none;-webkit-text-fill-color:#ffffff;">${ctaLabel}</a>
            </td>
          </tr>
        </table>
-       <p class="email-muted" style="margin:0 0 14px 0;color:#64748b;font-size:13px;line-height:1.5;word-break:break-all;">${escapeHtml(ctaUrl)}</p>`
+       ${input.hideCtaUrl ? "" : `<p class="email-muted" style="margin:0 0 14px 0;color:#64748b;font-size:13px;line-height:1.5;word-break:break-all;">${escapeHtml(ctaUrl)}</p>`}`
     : "";
 
   return `<!doctype html>
@@ -135,6 +158,12 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
         .email-link { color: #bfdbfe !important; }
         .email-footer, .email-footer p, .email-footer a { color: #cbd5e1 !important; }
         .email-rule { border-top-color: #334155 !important; }
+        .email-outer td.email-cta { background-color: #2563eb !important; }
+        .email-outer td.email-cta-green,
+        .email-outer a.email-cta-green { background-color: #16a34a !important; }
+        .email-outer td.email-cta,
+        .email-outer a.email-cta { border-radius: 999px !important; }
+        .email-outer a.email-cta { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
       }
     </style>
   </head>
@@ -151,8 +180,9 @@ export function renderReplyEmailHtml(input: ReplyEmailInput): string {
             <tr>
               <td class="email-copy" bgcolor="#ffffff" style="padding:28px 28px 8px 28px;background-color:#ffffff;">
                 <p class="email-muted" style="margin:0 0 8px 0;color:#64748b;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;font-weight:700;">${eyebrow}</p>
-                <h1 class="email-text" style="margin:0 0 22px 0;color:#0f172a;font-size:22px;line-height:1.35;font-weight:800;">${safeSubject}</h1>
+                <h1 class="email-text" style="margin:0 0 22px 0;color:#0f172a;font-size:22px;line-height:1.35;font-weight:800;">${safeHeading}</h1>
                 ${greetingHtml}
+                ${summaryHtml}
                 ${input.ctaFirst ? ctaHtml : ""}
                 ${bodyHtml}
                 ${input.ctaFirst ? "" : ctaHtml}
@@ -203,9 +233,17 @@ export function renderReplyEmailText(input: ReplyEmailInput): string {
   const greetingText =
     input.greeting === undefined ? `Hallo ${input.recipientName},` : (input.greeting ?? "");
   const ctaLines = input.ctaUrl ? [`${input.ctaLabel?.trim() || "Termin wählen"}:`, input.ctaUrl, ""] : [];
+  const summaryAmount = input.summaryAmount?.trim() ?? "";
+  const summaryLabel = input.summaryLabel?.trim() || "Gesamtbetrag";
+  const summaryLines = summaryAmount
+    ? summaryLabel.endsWith(":")
+      ? [summaryLabel, summaryAmount, ""]
+      : [`${summaryLabel}: ${summaryAmount}`, ""]
+    : [];
   const bodyLines = [input.bodyHtml ? htmlToPlainText(input.bodyHtml) : input.bodyText.trim(), ""];
   const lines = [
     ...(greetingText ? [greetingText, ""] : []),
+    ...summaryLines,
     ...(input.ctaFirst ? ctaLines : []),
     ...bodyLines,
     ...(input.ctaFirst ? [] : ctaLines),

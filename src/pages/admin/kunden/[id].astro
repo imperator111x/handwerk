@@ -46,6 +46,7 @@ const angebotText: Record<string, { kind: "ok" | "warn" | "bad"; text: string }>
   saved: { kind: "warn", text: "Das Angebot ist gespeichert, aber nicht per E-Mail verschickt." },
   failed: { kind: "bad", text: "Das Angebot ist gespeichert, der Versand ist aber fehlgeschlagen." },
   bad: { kind: "bad", text: "Bitte Position, Menge, Einzelpreis und Gültigkeit prüfen." },
+  hours: { kind: "bad", text: "Beim Angebot nach Stunden braucht der Arbeitslohn Stunden und einen Stundensatz." },
   db: { kind: "bad", text: "Das Angebot konnte nicht gespeichert werden." },
 };
 const angebotMessage = angebot ? angebotText[angebot] : undefined;

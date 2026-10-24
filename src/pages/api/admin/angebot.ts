@@ -6,7 +6,7 @@ import { getContactRequest, getDb, signatureNameForUser } from "../../../lib/db"
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { buildOfferPdf } from "../../../lib/offer-pdf";
 import { cleanOffer, saveQuote, sendOfferEmail, updateQuoteDelivery } from "../../../lib/offers";
-import { formatBerlinDate, formatOfferDate, offerNumber } from "../../../lib/quote";
+import { formatBerlinDate, formatOfferDate, hourlyOfferMissingWage, offerNumber } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
 
 export const prerender = false;
@@ -64,6 +64,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       : null;
   if (!party) return ctx.redirect(`${back}?angebot=db`, 303);
 
+  if (hourlyOfferMissingWage(form)) return ctx.redirect(`${back}?angebot=hours`, 303);
   const offer = cleanOffer(form);
   if (!offer) return ctx.redirect(`${back}?angebot=bad`, 303);
 
@@ -90,6 +91,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       lines: offer.lines,
       validUntilLabel: formatOfferDate(offer.validUntil),
       authorName,
+      billing: offer.billing,
     });
     return pdfResponse(bytes, "Angebot-Entwurf.pdf");
   }
@@ -118,6 +120,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     lines: offer.lines,
     validUntilLabel: formatOfferDate(offer.validUntil),
     authorName,
+    billing: offer.billing,
   });
   const delivery = await sendOfferEmail(env, {
     to: party.email,

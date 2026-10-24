@@ -682,6 +682,17 @@ export async function createMailbox(
   return id;
 }
 
+export async function updateMailboxDisplayName(
+  db: D1Database,
+  mailboxId: number,
+  displayName: string,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE mailboxes SET display_name = ? WHERE id = ?`)
+    .bind(displayName, mailboxId)
+    .run();
+}
+
 export async function setMailboxMembers(
   db: D1Database,
   mailboxId: number,
@@ -862,6 +873,46 @@ export async function countUnreadMailThreads(db: D1Database): Promise<number> {
 }
 
 /** Löscht einen Postfach-Verlauf samt Nachrichten. Anhänge-Schlüssel zum Entfernen aus dem Speicher. */
+export async function deleteMailbox(db: D1Database, mailboxId: number): Promise<string[] | null> {
+  const owned = await db
+    .prepare(`SELECT id FROM mailboxes WHERE id = ? LIMIT 1`)
+    .bind(mailboxId)
+    .first<{ id: number }>();
+  if (!owned) return null;
+  const { results } = await db
+    .prepare(
+      `SELECT f.storage_key
+         FROM mail_files f
+         JOIN mail_messages m ON m.id = f.mail_message_id
+         JOIN mail_threads t ON t.id = m.thread_id
+        WHERE t.mailbox_id = ?`,
+    )
+    .bind(mailboxId)
+    .all<{ storage_key: string }>();
+  await db.batch([
+    db
+      .prepare(
+        `DELETE FROM mail_files
+          WHERE mail_message_id IN (
+            SELECT m.id FROM mail_messages m
+              JOIN mail_threads t ON t.id = m.thread_id
+             WHERE t.mailbox_id = ?
+          )`,
+      )
+      .bind(mailboxId),
+    db
+      .prepare(
+        `DELETE FROM mail_messages
+          WHERE thread_id IN (SELECT id FROM mail_threads WHERE mailbox_id = ?)`,
+      )
+      .bind(mailboxId),
+    db.prepare(`DELETE FROM mail_threads WHERE mailbox_id = ?`).bind(mailboxId),
+    db.prepare(`DELETE FROM mailbox_members WHERE mailbox_id = ?`).bind(mailboxId),
+    db.prepare(`DELETE FROM mailboxes WHERE id = ?`).bind(mailboxId),
+  ]);
+  return (results ?? []).map((row) => row.storage_key);
+}
+
 export async function deleteMailThread(
   db: D1Database,
   threadId: number,

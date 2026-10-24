@@ -1,11 +1,10 @@
 import { siteConfig } from "../config/site";
 import {
+  OFFER_BANK_LINES,
   OFFER_TAX_NOTE,
-  OFFER_UNIT_LABELS,
   formatEuro,
   formatEuroAmount,
   formatOfferDate,
-  formatQuantity,
   isOfferUnit,
   lineTotalCents,
   offerTotalCents,
@@ -122,51 +121,33 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
   };
 }
 
+export const INVOICE_MAIL_LEAD = "Hiermit übersende ich Ihnen die Rechnung in Höhe von:";
+export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:";
+
+/** Kurzer Mailtext. Positionen und Steuerhinweis bleiben im PDF. */
 export function invoicePlainText(input: {
-  number: string;
-  title: string;
-  intro: string;
-  lines: OfferLine[];
-  invoiceDate: string;
-  serviceDate: string;
+  priceCents: number;
   dueDate: string;
-  taxNumber: string;
+  number: string;
   storno?: boolean;
+  settled?: boolean;
 }): string {
-  const rows = input.lines.map((line, index) => {
-    const total = lineTotalCents(line);
-    return `${index + 1}. ${line.label} — ${formatQuantity(line.quantity)} ${OFFER_UNIT_LABELS[line.unit]} × ${formatEuro(line.unitCents)} = ${formatEuro(total)}`;
-  });
-  const paymentTerms = input.storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS;
-  return [
-    `${input.storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
-    input.title,
-    "",
-    input.intro.trim() || INVOICE_DEFAULT_INTRO,
-    "",
-    ...rows,
-    "",
-    `Rechnungsbetrag: ${formatEuro(offerTotalCents(input.lines))}`,
-    `Nettobetrag: ${formatEuro(offerTotalCents(input.lines))}`,
-    "Umsatzsteuer: 0,00 €",
-    "",
-    OFFER_TAX_NOTE,
-    "",
-    paymentTerms,
-    "",
-    INVOICE_RETENTION_NOTE,
-    "",
-    `Rechnungsdatum: ${formatOfferDate(input.invoiceDate)}`,
-    `Leistungsdatum: ${formatOfferDate(input.serviceDate)}`,
-    `Fällig am: ${formatOfferDate(input.dueDate)}`,
-    `Steuernummer: ${input.taxNumber}`,
-    "",
-    `IBAN: ${SELLER.iban}`,
-    `BIC: ${SELLER.bic}`,
-    `Kontoinhaber: ${SELLER.accountName}`,
-    "",
-    input.storno ? "Die Stornorechnung hängt als ZUGFeRD-PDF an." : "Die Rechnung hängt als ZUGFeRD-PDF an.",
-  ].join("\n");
+  const amount = formatEuro(input.priceCents);
+  const lead = input.storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const tail = input.storno
+    ? ["Es ist kein Betrag zu zahlen.", "", "Die Positionen stehen in der angehängten Stornorechnung."]
+    : input.settled
+      ? ["Die Positionen stehen in der angehängten Rechnung."]
+      : [
+          `Fällig am ${formatOfferDate(input.dueDate)}.`,
+          "",
+          "Bei einer Überweisung bitte angeben:",
+          `Verwendungszweck: ${input.number}`,
+          ...OFFER_BANK_LINES,
+          "",
+          "Die Positionen stehen in der angehängten Rechnung.",
+        ];
+  return [lead, amount, "", ...tail].join("\n");
 }
 
 export function buildInvoiceXml(input: {
@@ -237,7 +218,7 @@ export function buildInvoiceXml(input: {
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100" xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100">
   <rsm:ExchangedDocumentContext>
     <ram:GuidelineSpecifiedDocumentContextParameter>
-      <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:en16931</ram:ID>
+      <ram:ID>urn:cen.eu:en16931:2017</ram:ID>
     </ram:GuidelineSpecifiedDocumentContextParameter>
   </rsm:ExchangedDocumentContext>
   <rsm:ExchangedDocument>

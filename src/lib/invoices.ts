@@ -1,7 +1,7 @@
 import { renderReplyEmailHtml, renderReplyEmailText, sendEmail } from "./email";
 import { buildInvoicePdf, type InvoicePdfInput } from "./invoice-pdf";
-import { invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
-import { formatOfferDate, offerTotalCents, readStoredOffer, serializeOffer, type StoredOffer } from "./quote";
+import { INVOICE_MAIL_LEAD, STORNO_MAIL_LEAD, invoiceNumber, invoicePlainText, type ParsedInvoice } from "./invoice";
+import { formatEuro, formatOfferDate, offerTotalCents, readStoredOffer, serializeOffer, type StoredOffer } from "./quote";
 import { applyOnlinePayment, applyRefund, applyTestPayment, applyTransferPayment, type PaymentRow, type PaymentUpdate } from "./stripe-pay";
 
 export interface InvoiceRow {
@@ -108,7 +108,7 @@ export async function saveInvoice(
       input.customerId,
       input.quoteId,
       input.invoice.title,
-      serializeOffer({ greeting: input.greeting, intro: input.invoice.intro, lines: input.invoice.lines }),
+      serializeOffer({ greeting: input.greeting, intro: input.invoice.intro, lines: input.invoice.lines, billing: "fest" }),
       input.invoice.priceCents,
       input.invoice.invoiceDate,
       input.invoice.serviceDate,
@@ -373,6 +373,27 @@ export async function relatedInvoice(db: D1Database, row: InvoiceRow): Promise<I
   return getInvoice(db, row.related_invoice_id);
 }
 
+export function invoiceMailFooter(input: {
+  purpose?: "rechnung" | "storno" | null;
+  paymentStatus?: string | null;
+  paymentUrl?: string | null;
+  paymentMode?: "test" | "live" | "off" | null;
+  footerNote?: string | null;
+}): string {
+  const custom = input.footerNote?.trim();
+  if (custom) return custom;
+  const storno = input.purpose === "storno";
+  const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
+  const cancelled = input.paymentStatus === "storniert";
+  const paymentUrl = paid || cancelled || storno ? "" : input.paymentUrl?.trim() || "";
+  const testPay = Boolean(paymentUrl) && input.paymentMode === "test";
+  if (storno) return "Sie können direkt auf diese E-Mail antworten.";
+  if (cancelled) return "Diese Rechnung ist storniert. Sie können direkt auf diese E-Mail antworten.";
+  if (paid) return "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten.";
+  if (testPay) return "Testmodus: Es wird kein Geld abgebucht. Sie können direkt auf diese E-Mail antworten.";
+  return "Sie können direkt auf diese E-Mail antworten.";
+}
+
 export async function sendInvoiceEmail(
   env: Env,
   input: {
@@ -389,72 +410,56 @@ export async function sendInvoiceEmail(
     paymentStatus?: string | null;
     paymentMode?: "test" | "live" | "off" | null;
     purpose?: "rechnung" | "storno";
+    /** Ersetzt den automatischen Fuß, zum Beispiel beim Systemcheck. */
+    footerNote?: string | null;
   },
 ): Promise<{ sentAt: number | null; emailStatus: string }> {
-  const plain = invoicePlainText({
-    number: input.number,
-    title: input.invoice.title,
-    intro: input.invoice.intro,
-    lines: input.invoice.lines,
-    invoiceDate: input.invoice.invoiceDate,
-    serviceDate: input.invoice.serviceDate,
-    dueDate: input.invoice.dueDate,
-    taxNumber: input.taxNumber,
-    storno: input.purpose === "storno",
-  });
   const storno = input.purpose === "storno";
   const subject = `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}: ${input.invoice.title}`;
   const from = "info@zeus-service.de";
   const paid = input.paymentStatus === "bezahlt" || input.paymentStatus === "erstattet";
   const cancelled = input.paymentStatus === "storniert";
   const paymentUrl = paid || cancelled || storno ? "" : input.paymentUrl?.trim() || "";
-  const testPay = Boolean(paymentUrl) && input.paymentMode === "test";
-  const footerNote = storno
-    ? "Diese Stornorechnung hebt die genannte Rechnung auf. Es ist nichts zu zahlen. Sie können direkt auf diese E-Mail antworten."
-    : cancelled
-      ? "Diese Rechnung ist storniert. Es ist nichts zu zahlen. Sie können direkt auf diese E-Mail antworten."
-      : paid
-        ? "Diese Rechnung ist bezahlt. Sie können direkt auf diese E-Mail antworten."
-        : paymentUrl
-          ? `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Der Knopf „Jetzt bezahlen“ öffnet die Zahlung per Karte, Apple Pay, Google Pay, PayPal oder SEPA-Lastschrift.${testPay ? " Testmodus: Es wird kein Geld abgebucht." : ""} Eine Überweisung auf die IBAN bleibt möglich. Sie können direkt auf diese E-Mail antworten.`
-          : `Fällig am ${formatOfferDate(input.invoice.dueDate)}. Sie können direkt auf diese E-Mail antworten.`;
+  const plain = invoicePlainText({
+    priceCents: input.invoice.priceCents,
+    dueDate: input.invoice.dueDate,
+    number: input.number,
+    storno,
+    settled: paid || cancelled,
+  });
+  const amount = formatEuro(input.invoice.priceCents);
+  const lead = storno ? STORNO_MAIL_LEAD : INVOICE_MAIL_LEAD;
+  const prefix = `${lead}\n${amount}\n\n`;
+  const body = plain.startsWith(prefix) ? plain.slice(prefix.length) : plain;
+  const footerNote = invoiceMailFooter(input);
+  const mail = {
+    siteName: env.SITE_NAME ?? "Zeus-Service",
+    siteUrl: env.SITE_URL ?? "https://zeus-service.de",
+    recipientName: input.recipientName,
+    subject,
+    authorName: input.authorName,
+    fromEmail: from,
+    replyToEmail: from,
+    heading: input.invoice.title,
+    eyebrow: `${storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
+    greeting: input.greeting,
+    footerNote,
+    summaryLabel: lead,
+    summaryAmount: amount,
+    ctaUrl: paymentUrl || null,
+    ctaLabel: "Jetzt bezahlen",
+    ctaFirst: Boolean(paymentUrl),
+    ctaTone: "green",
+    hideCtaUrl: true,
+  };
   const result = await sendEmail(env, {
     from: env.CONTACT_FROM_EMAIL ?? "website@zeus-service.de",
     fromName: env.SITE_NAME ?? "Zeus-Service",
     to: input.to,
     replyTo: from,
     subject,
-    html: renderReplyEmailHtml({
-      siteName: env.SITE_NAME ?? "Zeus-Service",
-      siteUrl: env.SITE_URL ?? "https://zeus-service.de",
-      recipientName: input.recipientName,
-      subject,
-      bodyText: plain,
-      authorName: input.authorName,
-      fromEmail: from,
-      replyToEmail: from,
-      eyebrow: storno ? "Stornorechnung" : "Rechnung",
-      greeting: input.greeting,
-      footerNote,
-      ctaUrl: paymentUrl || null,
-      ctaLabel: "Jetzt bezahlen",
-      ctaFirst: Boolean(paymentUrl),
-    }),
-    text: renderReplyEmailText({
-      siteName: env.SITE_NAME ?? "Zeus-Service",
-      siteUrl: env.SITE_URL ?? "https://zeus-service.de",
-      recipientName: input.recipientName,
-      subject,
-      bodyText: plain,
-      authorName: input.authorName,
-      fromEmail: from,
-      replyToEmail: from,
-      greeting: input.greeting,
-      footerNote,
-      ctaUrl: paymentUrl || null,
-      ctaLabel: "Jetzt bezahlen",
-      ctaFirst: Boolean(paymentUrl),
-    }),
+    html: renderReplyEmailHtml({ ...mail, bodyText: body }),
+    text: renderReplyEmailText({ ...mail, bodyText: body }),
     attachments: [{ filename: input.filename, type: "application/pdf", disposition: "attachment", content: input.pdf }],
   });
   if (result.ok) return { sentAt: Math.floor(Date.now() / 1000), emailStatus: `sent:${result.via}` };

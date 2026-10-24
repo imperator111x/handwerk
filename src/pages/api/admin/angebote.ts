@@ -13,7 +13,7 @@ import {
   updateQuote,
   updateQuoteDelivery,
 } from "../../../lib/offers";
-import { offerNumber } from "../../../lib/quote";
+import { hourlyOfferMissingWage, offerNumber } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
 
 export const prerender = false;
@@ -41,6 +41,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   if (action !== "save" && action !== "resend") {
     return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
   }
+  if (hourlyOfferMissingWage(form)) return ctx.redirect(`/admin/angebote/${id}?angebot=hours`, 303);
   const offer = cleanOffer(form, berlinTodayIso(), { allowPast: true });
   if (!offer) return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
 

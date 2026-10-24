@@ -12,7 +12,9 @@ import {
   findUserById,
   getDb,
   deleteMailThread,
+  deleteMailbox,
   getMailThread,
+  updateMailboxDisplayName,
   insertMailMessage,
   latestInboundMailMessageId,
   setMailboxMembers,
@@ -27,9 +29,11 @@ import {
 import {
   canOpenMailbox,
   cleanLocalPart,
+  isExternalLocalPart,
   cleanRecipient,
   mailboxAddress,
   MAX_MAILBOXES,
+  senderDisplayName,
 } from "../../../lib/mailbox";
 import { DEFAULT_REPLY_DOMAIN, formatMessageIdHeader, normalizeMessageId } from "../../../lib/reply-address";
 
@@ -61,7 +65,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   if (action === "create") {
     const localPart = cleanLocalPart(String(form.get("local_part") ?? ""));
-    const displayName = String(form.get("display_name") ?? "").trim().slice(0, 80);
+    const displayName = senderDisplayName(String(form.get("display_name") ?? ""), localPart);
     if (!localPart) return ctx.redirect(`${redirectBase}?mail=bad_address`, 303);
     if ((await countMailboxes(db)) >= MAX_MAILBOXES) {
       return ctx.redirect(`${redirectBase}?mail=full`, 303);
@@ -71,7 +75,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     }
     const memberIds = await membersFromForm(db, session.role, session.userId, form);
     if (memberIds === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
-    const id = await createMailbox(db, localPart, displayName || localPart, memberIds);
+    const id = await createMailbox(db, localPart, displayName, memberIds);
     return ctx.redirect(`/admin/postfach/${id}?mail=created`, 303);
   }
 
@@ -84,6 +88,18 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (memberIds === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
     await setMailboxMembers(db, mailbox.id, memberIds);
     return ctx.redirect(`${redirectBase}?mail=assigned`, 303);
+  }
+
+  if (action === "delete-address") {
+    const mailboxId = Number.parseInt(String(form.get("mailbox_id") ?? ""), 10);
+    const mailbox = Number.isFinite(mailboxId) ? await findMailboxById(db, mailboxId) : null;
+    if (!mailbox) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    if (isExternalLocalPart(mailbox.local_part)) return ctx.redirect("/admin/postfach?mail=protected", 303);
+    if (!canOpenMailbox(session, mailbox)) return ctx.redirect("/admin/postfach?mail=forbidden", 303);
+    const keys = await deleteMailbox(db, mailbox.id);
+    if (!keys) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    await removeStoredFiles(env, keys);
+    return ctx.redirect("/admin/postfach?mail=address_deleted", 303);
   }
 
   if (action === "delete") {
@@ -125,7 +141,13 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   const authorName = await signatureNameForUser(db, session.userId, session.username);
   const fromEmail = mailboxAddress(mailbox.local_part, domain);
-  const fromName = mailbox.display_name || env?.SITE_NAME || "Zeus-Service";
+  const fromName = senderDisplayName(
+    String(form.get("sender_name") ?? ""),
+    mailbox.display_name || env?.SITE_NAME || "Zeus-Service",
+  );
+  if (fromName !== mailbox.display_name) {
+    await updateMailboxDisplayName(db, mailbox.id, fromName);
+  }
   const siteName = env?.SITE_NAME ?? "Zeus-Service";
   const siteUrl = env?.SITE_URL ?? "https://zeus-service.de";
   const typedName = String(form.get("recipient_name") ?? "").trim().slice(0, 120);
