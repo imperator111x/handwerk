@@ -183,7 +183,7 @@ export function jpegSize(bytes: Uint8Array): { width: number; height: number } |
     if (marker >= 0xc0 && marker <= 0xc2) {
       const height = ((bytes[index + 5] ?? 0) << 8) + (bytes[index + 6] ?? 0);
       const width = ((bytes[index + 7] ?? 0) << 8) + (bytes[index + 8] ?? 0);
-      if (width < 20 || height < 20 || width > 2500 || height > 1600) return null;
+      if (width < 20 || height < 20 || width > 4000 || height > 2500) return null;
       return { width, height };
     }
     index += 2 + length;

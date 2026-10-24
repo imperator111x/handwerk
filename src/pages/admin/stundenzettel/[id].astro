@@ -72,17 +72,24 @@ const messages: Record<string, string> = {
           hidden={[{ name: "action", value: "update" }, { name: "id", value: String(row.id) }]}
           submitLabel="Zeiten speichern"
         />
-        <form method="POST" action="/api/admin/stundenzettel" class="grid gap-4 border-t border-ink-100 pt-6 dark:border-white/10">
+        <form
+          method="POST"
+          action="/api/admin/stundenzettel"
+          class="grid gap-5 border-t border-ink-100 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))] dark:border-white/10"
+          data-sign-form
+        >
           <input type="hidden" name="action" value="sign" />
           <input type="hidden" name="id" value={row.id} />
           <div>
             <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Unterschreiben</h3>
             <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
-              Auf dem Tablet mit dem Stift in das weiße Feld schreiben. Es gilt der gespeicherte Stand, Änderungen oben zuerst speichern. Die Mitarbeiter-Unterschrift schreibt den Zettel fest. Die Unterschrift des Auftraggebers kann dazu, wenn die Person vor Ort ist.
+              Mit dem Stift direkt ins weiße Feld schreiben – nicht mit dem Finger scrollen. Beim Tippen aufs Feld klappt das untere Menü ein. Zuerst oben speichern, dann hier unterschreiben. Die Mitarbeiter-Unterschrift schreibt den Zettel fest; der Auftraggeber kann mit unterschreiben.
             </p>
           </div>
-          <SignaturePad name="employee" label="Unterschrift Mitarbeiter" hint="Pflicht. Name und Stiftstrich." required />
-          <SignaturePad name="client" label="Unterschrift Auftraggeber" hint="Optional. Mit Stift im weißen Feld unterschreiben." />
+          <div class="grid gap-6 xl:grid-cols-2">
+            <SignaturePad name="employee" label="Unterschrift Mitarbeiter" hint="Pflicht. Name und Stiftstrich." required />
+            <SignaturePad name="client" label="Unterschrift Auftraggeber" hint="Optional. Name eintippen, dann mit dem Stift ins weiße Feld." />
+          </div>
           <p class="text-xs text-ink-500 dark:text-ink-400">{TIMESHEET_SIGN_NOTE}</p>
           <button type="submit" class="btn-primary w-fit">Unterschreiben und festschreiben</button>
         </form>
