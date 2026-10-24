@@ -1,6 +1,7 @@
 import { blockedKinds } from "../../lib/blocks";
 import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
+import { contactSpamReason, isContactSpam } from "../../lib/contact-spam";
 import { verifyTurnstile } from "../../lib/turnstile";
 import { parseContact } from "../../lib/validation";
 import { ensureCustomer } from "../../lib/customers";
@@ -59,6 +60,15 @@ export async function POST(ctx: APIContext): Promise<Response> {
     "unknown";
   const country = ctx.request.headers.get("cf-ipcountry") ?? "unknown";
   const userAgent = ctx.request.headers.get("user-agent") ?? "unknown";
+
+  if (isContactSpam(payload.name, payload.topic, payload.message)) {
+    console.log("contact_spam", contactSpamReason(payload.name, payload.topic, payload.message));
+    return json({
+      ok: true,
+      id: null,
+      message: "Vielen Dank für Ihre Anfrage – wir melden uns in Kürze bei Ihnen.",
+    });
+  }
 
   if (env?.DB) {
     try {

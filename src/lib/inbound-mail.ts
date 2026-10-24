@@ -7,6 +7,7 @@
  * Postfach nach dem Wechsel von Lima-City nicht ins Leere läuft.
  */
 
+import { isContactSpam, contactSpamReason } from "./contact-spam";
 import { ensureCustomer } from "./customers";
 import {
   findLatestRequestIdBySender,
@@ -84,6 +85,12 @@ export async function ingestInboundEmail(
   }
   if (!requestId) {
     const createdName = cleanName(email.fromName) || from.split("@")[0] || "Kunde";
+    const bodyText =
+      clip(extractCustomerText(email.text ?? "", email.html ?? "")) || "(Keine Textnachricht)";
+    if (isContactSpam(createdName, email.subject, bodyText)) {
+      console.log("inbound_spam", contactSpamReason(createdName, email.subject, bodyText));
+      return { action: "ignore", reason: "Spam-Inhalt" };
+    }
     let customerId: number | null = null;
     try {
       customerId = await ensureCustomer(db, { name: createdName, email: from });
@@ -94,9 +101,7 @@ export async function ingestInboundEmail(
       name: createdName,
       email: from,
       topic: "sonstiges",
-      message:
-        clip(extractCustomerText(email.text ?? "", email.html ?? "")) ||
-        "(Keine Textnachricht)",
+      message: bodyText,
       source: "mail",
       customerId,
     });
