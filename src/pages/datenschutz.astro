@@ -1,0 +1,195 @@
+---
+import Layout from "../layouts/Layout.astro";
+import ObfuscatedEmail from "../components/ObfuscatedEmail.astro";
+import { siteConfig } from "../config/site";
+---
+
+<Layout
+  title="Datenschutz"
+  description="Datenschutzerklärung von Zeus-Service in Norderstedt: Besuch, Kontaktformular und Terminbuchung."
+  crumbs={[{ name: "Datenschutz", path: "/datenschutz" }]}
+>
+  <section class="section bg-white dark:bg-ink-950">
+    <div class="container-page max-w-3xl space-y-6">
+      <p class="section-eyebrow">Rechtliches</p>
+      <h1 class="section-title">Datenschutzerklärung</h1>
+      <p class="text-ink-700 dark:text-ink-200">
+        Diese Erklärung beschreibt, welche Daten beim Besuch von
+        zeus-service.de, beim Kontakt und bei einer Terminbuchung verarbeitet
+        werden. Werbe-Cookies gibt es nicht. Eine Besucherzählung läuft nur
+        nach Ihrer Zustimmung.
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        1. Verantwortliche Stelle
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Leon Lütcke<br />
+        Zeus-Service<br />
+        {siteConfig.contact.address.street}<br />
+        {siteConfig.contact.address.zip} {siteConfig.contact.address.city}<br />
+        Telefon:
+        <a href={siteConfig.contact.phoneHref} class="underline">
+          {siteConfig.contact.phone}
+        </a><br />
+        E-Mail: <ObfuscatedEmail class="underline" />
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        2. Hosting
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Die Website liegt bei Cloudflare, Inc., 101 Townsend Street, San
+        Francisco, CA 94107, USA, und wird über Cloudflare Workers ausgeliefert.
+        Beim Aufruf verarbeitet Cloudflare insbesondere IP-Adresse, Datum und
+        Uhrzeit, die aufgerufene Adresse, Browsertyp und das Ergebnis der
+        Sicherheitsprüfung. Das ist nötig, um die Seite bereitzustellen und
+        Angriffe abzuwehren. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
+        Cloudflare kann Daten in den USA verarbeiten und ist unter dem EU-US
+        Data Privacy Framework zertifiziert.
+      </p>
+
+      <h2
+        id="cookies"
+        class="scroll-mt-24 font-display text-2xl font-bold text-ink-900 dark:text-ink-50"
+      >
+        3. Cookies und lokale Speicherung
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Technisch nötige Cookies setzt Cloudflare, damit die Auslieferung
+        funktioniert und automatisierte Zugriffe erkannt werden. Dazu können
+        Sicherheitscookies wie <span class="font-medium">__cf_bm</span> und nach
+        einer Sicherheitsprüfung <span class="font-medium">cf_clearance</span>
+        gehören. Diese Cookies sind kurzlebig und nicht für Werbung.
+        Rechtsgrundlage ist § 25 Abs. 2 TDDDG sowie Art. 6 Abs. 1 lit. f DSGVO.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Beim ersten Aufruf läuft ein unsichtbarer Bot-Check von Cloudflare
+        Turnstile. Dafür lädt der Browser ein Skript von challenges.cloudflare.com.
+        Besteht die Prüfung nicht, bleibt die Website gesperrt und es erscheint
+        der Hinweis, dass sie nicht besucht werden kann. Nach bestandener
+        Prüfung merkt ein notwendiges Cookie namens
+        <span class="font-medium">zs_human</span> die Freigabe für zwölf Stunden.
+        Die Hinweise von Cloudflare stehen unter
+        <a class="underline" href="https://www.cloudflare.com/turnstile-privacy-policy/">cloudflare.com/turnstile-privacy-policy</a>.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Wenn Sie im Schalter für das Farbdesign eine feste helle oder dunkle
+        Variante wählen, merkt sich der Browser das lokal unter dem Schlüssel
+        <span class="font-medium">theme</span>. Die Systemeinstellung wird nicht
+        gespeichert. Ihre Auswahl im Cookie-Hinweis steht lokal unter
+        <span class="font-medium">zs-cookie-notice</span>. Beides verlässt
+        Ihren Browser nicht. Über „Cookie-Hinweis“ in der Fußzeile können Sie
+        die Auswahl ändern.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Nach der Anmeldung im internen Bereich setzt die Website das Cookie
+        <span class="font-medium">zs_session</span>. Es enthält nur eine
+        zufällige Sitzungsnummer, ist auf diese Website beschränkt, für Skripte
+        nicht lesbar und läuft nach acht Stunden ab. Rechtsgrundlage ist
+        Art. 6 Abs. 1 lit. b DSGVO. Wer Face ID einschaltet, speichert das Panel
+        nur einen öffentlichen Schlüssel des Geräts, nicht das Gesicht und
+        keinen Fingerabdruck. Der Schlüssel eines Geräts wird gelöscht, wenn
+        dieses Gerät in den Einstellungen entfernt wird.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Wer im Admin-Panel Mitteilungen einschaltet, speichert dafür eine
+        technische Adresse des Geräts. Damit kommen Hinweise auf neue Anfragen
+        und E-Mails auf dieses Gerät. Die Adresse bleibt, bis die Mitteilungen
+        aus sind oder das Gerät sie ablehnt. Rechtsgrundlage ist Art. 6 Abs. 1
+        lit. f DSGVO.
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        4. Besucherzählung
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Wenn Sie „Alle erlauben“ wählen, speichern wir nach bestandenem
+        Bot-Check einmal pro Tag und Gerät die Herkunft, die zuerst aufgerufene
+        Seite, die Geräteart (zum Beispiel iPhone oder Windows-PC) und das Land
+        des Anschlusses. Weitere Seiten am selben Tag zählen nicht noch einmal.
+        Aus der IP-Adresse entsteht dafür nur ein täglicher Prüfwert. Die
+        Adresse selbst zeigen wir nicht an und geben sie nicht weiter.
+        Rechtsgrundlage ist Art. 6 Abs. 1 lit. a DSGVO. „Nur technische
+        erlauben“ speichert den Besuch nicht. Ihre Wahl steht lokal unter
+        <span class="font-medium">zs-cookie-notice</span> und lässt sich über
+        „Cookie-Hinweis“ in der Fußzeile ändern.
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        5. Schriftarten
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Schriftarten werden von Google Fonts (Google Ireland Limited, Gordon
+        House, Barrow Street, Dublin 4, Irland) geladen. Dabei erhält Google
+        Ihre IP-Adresse. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO, das
+        einheitliche Schriftbild der Website.
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        6. Kontaktformular und E-Mail
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Wenn Sie das Formular absenden, speichern wir Name, E-Mail-Adresse,
+        Telefonnummer soweit angegeben, Thema und Nachricht, außerdem IP-Adresse,
+        ungefähres Land und Browsertyp. Die Angaben dienen der Bearbeitung Ihrer
+        Anfrage und möglicher Rückfragen. Rechtsgrundlage ist Art. 6 Abs. 1
+        lit. b DSGVO und Art. 6 Abs. 1 lit. f DSGVO.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Vor dem Absenden prüft Cloudflare Turnstile, ob die Anfrage von einem
+        Menschen stammt. Dafür lädt der Browser ein Skript von
+        challenges.cloudflare.com. Cloudflare verarbeitet dabei technische
+        Daten Ihres Browsers. Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Antworten und Terminlinks verschicken wir über Cloudflare Email Sending
+        von website@zeus-service.de. E-Mails an Adressen dieser Domain werden
+        der passenden Anfrage zugeordnet und mit dem Verlauf gespeichert. Die
+        Daten bleiben gespeichert, solange die Anfrage bearbeitet wird und
+        gesetzliche Aufbewahrung das verlangt.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Der Knopf „WhatsApp“ öffnet einen Chat bei WhatsApp zu unserer
+        Telefonnummer. Ab dann gilt die Datenschutzerklärung von WhatsApp (Meta).
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        7. Terminbuchung
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Über den Link in unserer E-Mail können Sie eine freie Zeit wählen.
+        Wir speichern den Zeitpunkt, Vorname, Nachname, Straße, Postleitzahl
+        und Ort zu Ihrer Anfrage. Eine Stornierung wird im selben Verlauf
+        festgehalten. Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Die Straßensuche schickt den eingegebenen Text von unserem Server an
+        Photon von Komoot (OpenStreetMap-Daten), um Vorschläge für Straße,
+        Postleitzahl und Ort zu holen. Es wird kein Konto angelegt.
+      </p>
+
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        8. Ihre Rechte
+      </h2>
+      <p class="text-ink-700 dark:text-ink-200">
+        Sie können Auskunft, Berichtigung, Löschung, Einschränkung der
+        Verarbeitung und Übertragung Ihrer Daten verlangen und einer
+        Verarbeitung auf Grundlage von Art. 6 Abs. 1 lit. f DSGVO widersprechen.
+        Schreiben Sie dafür an <ObfuscatedEmail class="underline" />.
+      </p>
+      <p class="text-ink-700 dark:text-ink-200">
+        Außerdem haben Sie das Recht auf Beschwerde bei einer
+        Aufsichtsbehörde. Zuständig ist das Unabhängige Landeszentrum für
+        Datenschutz Schleswig-Holstein, Holstenstraße 98, 24103 Kiel,
+        www.datenschutzzentrum.de.
+      </p>
+
+      <p class="text-sm text-ink-500 dark:text-ink-400">
+        Diese Erklärung gibt die aktuelle Website wieder und ersetzt keine
+        individuelle Rechtsberatung.
+      </p>
+    </div>
+  </section>
+</Layout>

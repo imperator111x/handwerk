@@ -1,0 +1,133 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireSession } from "../../lib/auth";
+import { getDb } from "../../lib/db";
+import { visitOverview } from "../../lib/visits";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const db = getDb(Astro);
+const stats = db ? await visitOverview(db).catch(() => null) : null;
+
+const cards = stats
+  ? [
+      { label: "Heute", value: stats.today },
+      { label: "7 Tage", value: stats.week },
+      { label: "30 Tage", value: stats.month },
+    ]
+  : [];
+---
+
+<AdminLayout title="Besuche" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 sm:p-8 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Besuche</h2>
+    <p class="mt-2 max-w-2xl text-sm text-ink-600 dark:text-ink-300">
+      Jedes Gerät zählt pro Tag einmal, nachdem der Bot-Check bestanden ist und
+      Statistik erlaubt wurde. Die Herkunft ist zum Beispiel Google oder ein
+      direkter Aufruf.
+    </p>
+
+    {
+      !stats ? (
+        <p class="mt-6 text-sm text-amber-700 dark:text-amber-200">
+          Die Besucherzählung ist gerade nicht erreichbar.
+        </p>
+      ) : (
+        <div class="mt-6 grid gap-4 sm:grid-cols-3">
+          {cards.map((card) => (
+            <article class="rounded-2xl border border-ink-200 p-5 dark:border-white/10">
+              <p class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
+                {card.label}
+              </p>
+              <p class="mt-2 text-3xl font-extrabold text-ink-900 dark:text-ink-50">{card.value}</p>
+            </article>
+          ))}
+        </div>
+      )
+    }
+  </section>
+
+  {
+    stats && (
+      <div class="grid gap-4 lg:grid-cols-2">
+        <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+          <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Herkunft, 30 Tage</h3>
+          {stats.sources.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Besuche.</p>
+          ) : (
+            <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
+              {stats.sources.map((row) => (
+                <li class="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span class="text-ink-800 dark:text-ink-100">{row.source}</span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+          <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Seiten, 30 Tage</h3>
+          {stats.pages.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Aufrufe.</p>
+          ) : (
+            <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
+              {stats.pages.map((row) => (
+                <li class="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span class="truncate text-ink-800 dark:text-ink-100">{row.path}</span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900 lg:col-span-2">
+          <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Geräte, 30 Tage</h3>
+          {stats.devices.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Besuche.</p>
+          ) : (
+            <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
+              {stats.devices.map((row) => (
+                <li class="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span class="text-ink-800 dark:text-ink-100">{row.device}</span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{row.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900 lg:col-span-2">
+          <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Letzte Besuche</h3>
+          {stats.recent.length === 0 ? (
+            <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch keine Besuche.</p>
+          ) : (
+            <ul class="mt-4 divide-y divide-ink-200 dark:divide-white/10">
+              {stats.recent.map((row) => (
+                <li class="grid gap-1 py-3 text-sm sm:grid-cols-[8rem_1fr_auto] sm:items-center">
+                  <span class="text-ink-500 dark:text-ink-400">
+                    {new Intl.DateTimeFormat("de-DE", {
+                      timeZone: "Europe/Berlin",
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(row.created_at * 1000))}
+                  </span>
+                  <span class="text-ink-800 dark:text-ink-100">
+                    {row.device || "Unbekanntes Gerät"}
+                    {row.country ? ` · ${row.country}` : ""}
+                    <span class="block text-ink-500 dark:text-ink-400">{row.path}</span>
+                  </span>
+                  <span class="font-semibold text-ink-900 dark:text-ink-50">{row.source}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    )
+  }
+</AdminLayout>

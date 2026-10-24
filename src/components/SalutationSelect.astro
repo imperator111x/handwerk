@@ -1,0 +1,68 @@
+---
+import { greetingChoices } from "../lib/salutation";
+
+interface Props {
+  name?: string;
+  id?: string;
+  selected?: string;
+}
+
+const { name = "", id = "salutation", selected = "hallo_name" } = Astro.props;
+const choices = greetingChoices(name);
+---
+
+<div>
+  <label class="label" for={id}>Anrede</label>
+  <select class="input" id={id} name="salutation" data-salutation data-person-name={name}>
+    {
+      choices.map((choice) => (
+        <option value={choice.value} selected={choice.value === selected}>
+          {choice.label}
+        </option>
+      ))
+    }
+  </select>
+</div>
+
+<script is:inline data-astro-rerun>
+  (() => {
+    const choicesFor = (raw) => {
+      const parts = String(raw || "").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+      const first = parts[0] || "";
+      const last = parts.length > 1 ? parts.slice(1).join(" ") : first;
+      const full = parts.join(" ");
+      return [
+        ["herr", last ? "Sehr geehrter Herr " + last : "Sehr geehrter Herr …"],
+        ["frau", last ? "Sehr geehrte Frau " + last : "Sehr geehrte Frau …"],
+        ["herren_damen", "Sehr geehrte Herren und Damen"],
+        ["hallo_vorname", first ? "Hallo " + first : "Hallo Vorname"],
+        ["hallo_name", full ? "Hallo " + full : "Hallo Name"],
+      ];
+    };
+    const fill = (select, raw) => {
+      const current = select.value || "hallo_name";
+      select.replaceChildren();
+      choicesFor(raw).forEach(([value, label]) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = label;
+        option.selected = value === current;
+        select.append(option);
+      });
+    };
+    const bind = () => {
+      document.querySelectorAll("[data-salutation]").forEach((select) => {
+        const form = select.form;
+        const input = form && form.querySelector("[name='recipient_name']");
+        if (!input || input.dataset.salutationBound === "1") return;
+        input.dataset.salutationBound = "1";
+        input.addEventListener("input", () => fill(select, input.value));
+      });
+    };
+    bind();
+    if (!window.__salutationBound) {
+      window.__salutationBound = true;
+      document.addEventListener("astro:page-load", bind);
+    }
+  })();
+</script>

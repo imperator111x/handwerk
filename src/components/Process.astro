@@ -1,0 +1,71 @@
+---
+const steps = [
+  {
+    number: "01",
+    title: "Anfrage senden",
+    body: "Beschreiben Sie uns kurz Ihr Anliegen – per Formular, Telefon oder E-Mail.",
+  },
+  {
+    number: "02",
+    title: "Beratung & Angebot",
+    body: "Wir melden uns zeitnah, klären Details und erstellen Ihnen ein transparentes Festpreis-Angebot.",
+  },
+  {
+    number: "03",
+    title: "Termin vereinbaren",
+    body: "Sobald das Angebot passt, finden wir gemeinsam einen Termin – flexibel und schnell.",
+  },
+  {
+    number: "04",
+    title: "Durchführung & Abschluss",
+    body: "Fachgerechte Umsetzung, saubere Arbeit und abschließende Dokumentation inkl. Rechnung.",
+  },
+];
+---
+
+<section id="ablauf" class="section scroll-mt-24 bg-white dark:bg-ink-950">
+  <div class="container-page">
+    <div class="max-w-2xl mb-12">
+      <p class="section-eyebrow">So arbeiten wir</p>
+      <h2 class="section-title mt-3">In vier Schritten zum fertigen Auftrag</h2>
+      <p class="mt-4 text-lg text-ink-600 dark:text-ink-300">
+        Klar, strukturiert und ohne Überraschungen – so läuft die Zusammenarbeit
+        mit Zeus-Service ab.
+      </p>
+    </div>
+
+    <ol class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      {
+        steps.map((step) => (
+          <li class="relative rounded-3xl border border-ink-200 bg-ink-50/60 p-6 dark:border-white/10 dark:bg-white/5">
+            <div class="flex items-center justify-between mb-4">
+              <span class="font-display text-3xl font-extrabold text-brand-600 dark:text-brand-300">
+                {step.number}
+              </span>
+              <span class="h-10 w-10 rounded-full bg-white text-ink-700 inline-flex items-center justify-center shadow-sm dark:bg-ink-900 dark:text-ink-200">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </span>
+            </div>
+            <h3 class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">
+              {step.title}
+            </h3>
+            <p class="mt-2 text-sm text-ink-600 leading-relaxed dark:text-ink-300">
+              {step.body}
+            </p>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>

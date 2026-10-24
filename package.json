@@ -1,0 +1,35 @@
+{
+  "name": "zeus-service-web",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.22.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "typecheck": "astro check",
+    "astro": "astro",
+    "cf:types": "wrangler types",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.4.1",
+    "@astrojs/sitemap": "^3.7.4",
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.0.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "astro": "^7.4.1",
+    "postal-mime": "^4.0.11",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.11",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.151.2"
+  }
+}

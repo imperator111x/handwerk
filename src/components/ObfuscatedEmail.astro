@@ -1,0 +1,27 @@
+---
+import { siteConfig } from "../config/site";
+
+interface Props {
+  class?: string;
+  showAddress?: boolean;
+}
+
+const { class: className = "", showAddress = true } = Astro.props;
+const key = "zs-mail";
+const encoded = [...siteConfig.contact.email]
+  .map(
+    (char, index) =>
+      char.charCodeAt(0) ^ key.charCodeAt(index % key.length),
+  )
+  .join(".");
+---
+
+<a href="#kontakt" data-obfuscated-email={encoded} class={className}>
+  {
+    showAddress ? (
+      <span data-obfuscated-email-label>E-Mail anzeigen</span>
+    ) : (
+      <slot />
+    )
+  }
+</a>

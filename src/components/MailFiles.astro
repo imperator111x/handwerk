@@ -1,0 +1,84 @@
+---
+import { canOpenScan, fileHref, formatFileSize, isPreviewImage, type MailFileRow } from "../lib/mail-files";
+
+interface Props {
+  files: MailFileRow[];
+  redirect: string;
+  ready: boolean;
+}
+
+const { files, redirect, ready } = Astro.props;
+---
+
+{
+  files.length > 0 && (
+    <div class="mt-3 space-y-2">
+      {!ready && (
+        <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100">
+          VirusTotal ist noch nicht verbunden. Dateien bleiben gesperrt, bis der Schlüssel hinterlegt ist.
+        </p>
+      )}
+      {files.map((file) => {
+        const open = canOpenScan(file.scan_status);
+        const image = open && isPreviewImage(file.content_type);
+        return (
+          <div class="rounded-xl border border-ink-200 bg-white/80 px-3 py-2 text-sm dark:border-white/10 dark:bg-ink-950/40">
+            <p class="font-medium text-ink-900 dark:text-ink-50">
+              {file.filename}
+              <span class="ml-2 font-normal text-ink-500 dark:text-ink-400">{formatFileSize(file.size_bytes)}</span>
+            </p>
+            {file.scan_status === "malicious" ? (
+              <p class="mt-1 text-xs text-rose-700 dark:text-rose-200">
+                VirusTotal hat diese Datei als schädlich eingestuft
+                {file.vt_malicious + file.vt_suspicious > 0
+                  ? ` (${file.vt_malicious} schädlich, ${file.vt_suspicious} verdächtig).`
+                  : "."}{" "}
+                Sie kann nicht geöffnet werden.
+              </p>
+            ) : open ? (
+              <div class="mt-2">
+                {image && (
+                  <img
+                    src={fileHref(file.id)}
+                    alt={file.filename}
+                    class="mb-2 max-h-64 max-w-full rounded-lg border border-ink-200 object-contain dark:border-white/10"
+                  />
+                )}
+                <a
+                  href={fileHref(file.id)}
+                  data-astro-reload
+                  class="text-sm font-semibold text-brand-700 underline dark:text-brand-200"
+                >
+                  {image ? "Bild öffnen" : "Datei öffnen"}
+                </a>
+              </div>
+            ) : (
+              <div class="mt-1">
+                <p class="text-xs text-ink-600 dark:text-ink-300">
+                  {ready
+                    ? file.scan_status === "error"
+                      ? "Die Prüfung ist fehlgeschlagen. Die Datei bleibt gesperrt."
+                      : "Wird von VirusTotal geprüft."
+                    : "Die Datei bleibt gesperrt, bis VirusTotal sie geprüft hat."}
+                </p>
+                {ready && (
+                  <form method="POST" action="/api/admin/datei" class="mt-2">
+                    <input type="hidden" name="action" value="check" />
+                    <input type="hidden" name="id" value={file.id} />
+                    <input type="hidden" name="redirect" value={redirect} />
+                    <button
+                      type="submit"
+                      class="rounded-full border border-ink-200 bg-white px-3 py-1 text-xs font-medium text-ink-700 hover:bg-ink-100 dark:border-white/10 dark:bg-white/5 dark:text-ink-200"
+                    >
+                      Prüfung aktualisieren
+                    </button>
+                  </form>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )
+}

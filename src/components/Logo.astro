@@ -1,0 +1,71 @@
+---
+interface Props {
+  class?: string;
+  /**
+   * - "auto": wechselt automatisch zwischen heller und dunkler Logo-Variante
+   *   anhand des aktiven Themes (Standard).
+   * - "light": weißes Logo – nur für dunkle Hintergründe (z. B. Footer).
+   * - "dark": dunkles Logo – nur für helle Hintergründe.
+   */
+  variant?: "auto" | "light" | "dark";
+  /** Höhe in Pixel (das Logo skaliert proportional, Original 250×80) */
+  height?: number;
+}
+
+const { class: className = "", variant = "auto", height = 40 } = Astro.props;
+const width = Math.round((height / 80) * 250);
+
+const alt = "Zeus-Service – Ihr Hausmeisterservice";
+---
+
+<a
+  href="/"
+  class={`inline-flex items-center group ${className}`}
+  aria-label="Zeus-Service Startseite"
+  data-astro-reload
+>
+  {
+    variant === "auto" ? (
+      <>
+        <img
+          src="/logo-dark.png"
+          alt={alt}
+          width={width}
+          height={height}
+          class="block dark:hidden transition-transform group-hover:scale-[1.03]"
+          loading="eager"
+          decoding="async"
+        />
+        <img
+          src="/logo-light.png"
+          alt={alt}
+          width={width}
+          height={height}
+          class="hidden dark:block transition-transform group-hover:scale-[1.03]"
+          loading="eager"
+          decoding="async"
+        />
+      </>
+    ) : variant === "light" ? (
+      <img
+        src="/logo-light.png"
+        alt={alt}
+        width={width}
+        height={height}
+        class="transition-transform group-hover:scale-[1.03]"
+        loading="eager"
+        decoding="async"
+      />
+    ) : (
+      <img
+        src="/logo-dark.png"
+        alt={alt}
+        width={width}
+        height={height}
+        class="transition-transform group-hover:scale-[1.03]"
+        loading="eager"
+        decoding="async"
+      />
+    )
+  }
+</a>

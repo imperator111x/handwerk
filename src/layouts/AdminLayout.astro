@@ -1,0 +1,783 @@
+---
+import "../styles/global.css";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import Logo from "../components/Logo.astro";
+import { ClientRouter } from "astro:transitions";
+import type { SessionData } from "../lib/auth";
+
+interface Props {
+  title: string;
+  session: SessionData;
+}
+
+const { title, session } = Astro.props;
+
+const pathname = Astro.url.pathname;
+
+const booksNav = [
+  { href: "/admin/angebote", label: "Angebote", icon: "file" },
+  { href: "/admin/rechnungen", label: "Rechnungen", icon: "receipt" },
+];
+
+const settingsNav = [
+  { href: "/admin/besuche", label: "Besuche", icon: "chart" },
+  { href: "/admin/termine", label: "Termine", icon: "calendar" },
+  { href: "/admin/leistungen", label: "Leistungen", icon: "list" },
+  { href: "/admin/arbeiten", label: "Arbeiten", icon: "image" },
+];
+
+const nav = [
+  { href: "/admin", label: "Übersicht", icon: "home", menu: "" },
+  { href: "/admin/anfragen", label: "Anfragen", icon: "inbox", menu: "" },
+  { href: "/admin/kunden", label: "Kunden", icon: "users", menu: "" },
+  { href: "", label: "Buchhaltung", icon: "ledger", menu: "books" },
+  { href: "/admin/postfach", label: "Postfach", icon: "mail", menu: "" },
+  { href: "/admin/einstellungen", label: "Einstellungen", icon: "cog", menu: "settings" },
+];
+
+const isCurrent = (href: string) =>
+  pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
+const settingsSection =
+  isCurrent("/admin/einstellungen") || settingsNav.some((item) => isCurrent(item.href));
+const booksSection = booksNav.some((item) => isCurrent(item.href));
+const childNav = (menu: string) => (menu === "settings" ? settingsNav : menu === "books" ? booksNav : []);
+
+const icons: Record<string, string> = {
+  home: "M3 12l9-9 9 9 M5 10v10h14V10",
+  chart: "M4 19V5 M4 19h16 M8 16l3-4 3 3 4-6",
+  inbox:
+    "M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z",
+  mail: "M4 6h16v12H4z M4 6l8 7 8-7",
+  users: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75",
+  file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5",
+  receipt: "M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22z M9 7h6 M9 11h6 M9 15h4",
+  ledger: "M4 4h16v16H4z M4 9h16 M10 9v11",
+  calendar:
+    "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
+  list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
+  image: "M4 6h16v12H4z M8 11l2.5 3 2-2.5L16 15 M9 9h.01",
+  cog:
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z",
+};
+
+---
+
+<!doctype html>
+<html lang="de" transition:animate="none">
+  <head>
+    <ClientRouter fallback="swap" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Zeus Admin" />
+    <title>{title} · Admin · Zeus-Service</title>
+    <link rel="icon" href="/favicon.ico?v=2" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" sizes="180x180" />
+    <link rel="manifest" href="/admin.webmanifest" />
+
+    <script is:inline data-astro-rerun>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var mql = window.matchMedia("(prefers-color-scheme: dark)");
+          var isDark =
+            stored === "dark" || ((!stored || stored === "system") && mql.matches);
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add("dark");
+            root.setAttribute("data-theme", "dark");
+            root.style.colorScheme = "dark";
+          } else {
+            root.setAttribute("data-theme", "light");
+            root.style.colorScheme = "light";
+          }
+          window.__setTheme = function (choice) {
+            if (choice === "system") {
+              localStorage.removeItem("theme");
+            } else {
+              localStorage.setItem("theme", choice);
+            }
+            var dark = choice === "dark" || (choice === "system" && mql.matches);
+            root.classList.toggle("dark", dark);
+            root.setAttribute("data-theme", dark ? "dark" : "light");
+            root.style.colorScheme = dark ? "dark" : "light";
+            window.dispatchEvent(new CustomEvent("themechange"));
+          };
+          if (!window.__themeBound) {
+            window.__themeBound = true;
+            mql.addEventListener("change", function () {
+              if (!localStorage.getItem("theme")) window.__setTheme("system");
+            });
+          }
+          if (localStorage.getItem("zs-admin-nav") === "closed") {
+            root.setAttribute("data-admin-nav", "closed");
+          }
+        } catch (_err) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-ink-100 text-ink-900 min-h-screen dark:bg-ink-950 dark:text-ink-100">
+    <div class="flex min-h-screen">
+      <aside
+        class="hidden lg:flex w-64 flex-col border-r border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900"
+      >
+        <div class="px-5 py-5 border-b border-ink-200 dark:border-white/10">
+          <Logo height={56} />
+          <p class="text-xs uppercase tracking-widest text-brand-600 mt-2 dark:text-brand-300">
+            Admin-Panel
+          </p>
+        </div>
+        <nav class="flex-1 overflow-y-auto p-4 space-y-1 text-sm">
+          {
+            nav.map((item) => {
+              const active = item.menu === "settings" ? settingsSection : item.menu === "books" ? booksSection : isCurrent(item.href);
+              const children = childNav(item.menu);
+              const itemClass = `flex items-center gap-3 rounded-xl px-3 py-2 font-medium ${
+                active
+                  ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                  : "text-ink-700 dark:text-ink-200"
+              }`;
+              return (
+                <div>
+                  {item.href ? (
+                    <a href={item.href} class={`${itemClass}${active ? "" : " transition hover:bg-ink-100 dark:hover:bg-white/10"}`}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d={icons[item.icon]} />
+                      </svg>
+                      {item.label}
+                    </a>
+                  ) : (
+                    <div class={itemClass}>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path d={icons[item.icon]} />
+                      </svg>
+                      {item.label}
+                    </div>
+                  )}
+                  {children.length > 0 && (
+                    <div class="mt-1 space-y-1 border-l border-ink-200 pl-3 ml-5 dark:border-white/10">
+                      {children.map((child) => {
+                        const childActive = isCurrent(child.href);
+                        return (
+                          <a
+                            href={child.href}
+                            class={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[13px] font-medium transition ${
+                              childActive
+                                ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                                : "text-ink-600 hover:bg-ink-100 dark:text-ink-300 dark:hover:bg-white/10"
+                            }`}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="2"
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              class="h-3.5 w-3.5"
+                              aria-hidden="true"
+                            >
+                              <path d={icons[child.icon]} />
+                            </svg>
+                            {child.label}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          }
+        </nav>
+        <div class="p-4 border-t border-ink-200 text-sm dark:border-white/10">
+          <p class="font-semibold text-ink-900 dark:text-ink-50">
+            {session.username}
+          </p>
+          <p class="text-xs text-ink-500 mb-3 dark:text-ink-400">angemeldet</p>
+          <form action="/api/auth/logout" method="POST">
+            <button
+              type="submit"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-2 text-sm font-medium text-ink-700 hover:bg-ink-50 dark:border-white/10 dark:bg-white/5 dark:text-ink-100 dark:hover:bg-white/10"
+            >
+              Abmelden
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <div class="flex-1 flex flex-col min-w-0">
+        <header
+          class="sticky top-0 z-10 border-b border-ink-200 bg-white pt-[env(safe-area-inset-top)] dark:border-white/10 dark:bg-ink-950"
+        >
+          <div class="flex items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
+            <div class="min-w-0">
+              <h1 class="truncate font-display text-xl font-bold text-ink-900 dark:text-ink-50">
+                {title}
+              </h1>
+            </div>
+            <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+              <div class="lg:hidden">
+                <ThemeToggle compact />
+              </div>
+              <div class="hidden lg:block">
+                <ThemeToggle />
+              </div>
+              <div class="lg:hidden">
+                <form action="/api/auth/logout" method="POST">
+                  <button
+                    type="submit"
+                    class="inline-flex min-h-11 items-center rounded-full border border-ink-200 bg-white px-3.5 text-sm font-medium text-ink-700 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                  >
+                    Abmelden
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </header>
+        <main class="admin-main flex-1 p-4 sm:p-6 lg:p-10 lg:pb-10 space-y-8">
+          <div
+            id="ios-install"
+            hidden
+            class="flex items-start justify-between gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900 dark:border-brand-400/30 dark:bg-brand-500/10 dark:text-brand-100"
+          >
+            <p>
+              <span class="font-semibold">App auf dem iPhone.</span>
+              Tippe auf das Teilen-Symbol und dann auf „Zum Home-Bildschirm“. Das Panel öffnet sich danach ohne Browser-Leiste.
+            </p>
+            <button type="button" id="ios-install-dismiss" class="shrink-0 font-semibold">
+              Schließen
+            </button>
+          </div>
+          <slot />
+        </main>
+        <script is:inline data-astro-rerun>
+          (function () {
+            if (!("serviceWorker" in navigator)) return;
+            navigator.serviceWorker.register("/admin-sw.js").then(function (registration) {
+              if (!("Notification" in window) || Notification.permission !== "granted") return;
+              return registration.pushManager.getSubscription().then(function (existing) {
+                if (!existing) return;
+                return fetch("/api/admin/push", {
+                  method: "POST",
+                  credentials: "same-origin",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify(existing),
+                });
+              });
+            }).catch(function () {});
+
+            var button = document.getElementById("push-enable");
+            var status = document.getElementById("push-status");
+            if (!(button instanceof HTMLButtonElement) || !status) return;
+            button.addEventListener("click", function () {
+              enablePush(status);
+            });
+
+            function enablePush(target) {
+              if (!("Notification" in window) || !("PushManager" in window)) {
+                target.textContent = "Dieser Browser kann keine Mitteilungen empfangen.";
+                return;
+              }
+              var standalone =
+                window.navigator.standalone === true ||
+                window.matchMedia("(display-mode: standalone)").matches;
+              var ios = /iPhone|iPad|iPod/.test(navigator.userAgent || "");
+              if (ios && !standalone) {
+                target.textContent = "Auf dem iPhone zuerst über Teilen auf den Home-Bildschirm legen und die App von dort öffnen.";
+                return;
+              }
+              Notification.requestPermission().then(function (permission) {
+                if (permission !== "granted") {
+                  target.textContent = "Mitteilungen sind aus. In den iPhone-Einstellungen kann die App sie wieder erlauben.";
+                  return;
+                }
+                fetch("/api/admin/push", { credentials: "same-origin" })
+                  .then(function (response) { return response.json(); })
+                  .then(function (data) {
+                    if (!data.publicKey) {
+                      target.textContent = "Mitteilungen sind auf dem Server noch nicht eingerichtet.";
+                      return;
+                    }
+                    return navigator.serviceWorker.ready.then(function (registration) {
+                      return registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+                      });
+                    });
+                  })
+                  .then(function (subscription) {
+                    if (!subscription) return;
+                    return fetch("/api/admin/push", {
+                      method: "POST",
+                      credentials: "same-origin",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify(subscription),
+                    });
+                  })
+                  .then(function (response) {
+                    if (response && response.ok) target.textContent = "Mitteilungen sind an. Neue Anfragen und Mails kommen auf dieses Gerät.";
+                  })
+                  .catch(function () {
+                    target.textContent = "Die Mitteilung konnte nicht eingerichtet werden.";
+                  });
+              });
+            }
+
+            function urlBase64ToUint8Array(value) {
+              var padding = "=".repeat((4 - (value.length % 4)) % 4);
+              var base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+              var raw = atob(base64);
+              var output = new Uint8Array(raw.length);
+              for (var i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+              return output;
+            }
+          })();
+          (function () {
+            var box = document.getElementById("ios-install");
+            var dismiss = document.getElementById("ios-install-dismiss");
+            if (!box || !dismiss) return;
+            var ua = navigator.userAgent || "";
+            var ios = /iPhone|iPad|iPod/.test(ua);
+            var standalone =
+              window.navigator.standalone === true ||
+              window.matchMedia("(display-mode: standalone)").matches;
+            var hidden = false;
+            try {
+              hidden = localStorage.getItem("zs-admin-app-hint") === "hide";
+            } catch (_err) {}
+            if (!ios || standalone || hidden) return;
+            box.hidden = false;
+            dismiss.addEventListener("click", function () {
+              try {
+                localStorage.setItem("zs-admin-app-hint", "hide");
+              } catch (_err) {}
+              box.hidden = true;
+            });
+          })();
+        </script>
+      </div>
+    </div>
+    <nav
+      aria-label="Admin-Navigation"
+      class="admin-mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.28)] touch-manipulation dark:border-white/10 dark:bg-ink-950"
+    >
+      <button
+        type="button"
+        data-nav-collapse
+        aria-expanded="true"
+        aria-controls="admin-mobile-links"
+        class="flex min-h-11 w-full items-center justify-center gap-1.5 text-[11px] font-semibold text-ink-600 touch-manipulation dark:text-ink-300"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-chevron-open h-4 w-4" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-chevron-closed h-4 w-4" aria-hidden="true">
+          <path d="M6 15l6-6 6 6" />
+        </svg>
+        <span class="nav-label-open">Menü einklappen</span>
+        <span class="nav-label-closed">Menü</span>
+      </button>
+      <div id="admin-mobile-links" data-nav-links>
+      <div
+        id="admin-books-menu"
+        data-books-menu
+        hidden
+        class="absolute inset-x-2 bottom-full mb-2 rounded-2xl border border-ink-200 bg-white p-2 shadow-[0_-12px_32px_-16px_rgb(15_23_42/0.45)] dark:border-white/10 dark:bg-ink-950"
+      >
+        {
+          booksNav.map((item) => (
+            <a
+              href={item.href}
+              class={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${
+                isCurrent(item.href)
+                  ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                  : "text-ink-800 dark:text-ink-100"
+              }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path d={icons[item.icon]} />
+              </svg>
+              {item.label}
+            </a>
+          ))
+        }
+      </div>
+      <div
+        id="admin-settings-menu"
+        data-settings-menu
+        hidden
+        class="absolute inset-x-2 bottom-full mb-2 rounded-2xl border border-ink-200 bg-white p-2 shadow-[0_-12px_32px_-16px_rgb(15_23_42/0.45)] dark:border-white/10 dark:bg-ink-950"
+      >
+        <a
+          href="/admin/einstellungen"
+          class={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${
+            isCurrent("/admin/einstellungen")
+              ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+              : "text-ink-800 dark:text-ink-100"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-4 w-4"
+            aria-hidden="true"
+          >
+            <path d={icons.cog} />
+          </svg>
+          Einstellungen
+        </a>
+        {
+          settingsNav.map((item) => (
+            <a
+              href={item.href}
+              class={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${
+                isCurrent(item.href)
+                  ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                  : "text-ink-800 dark:text-ink-100"
+              }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path d={icons[item.icon]} />
+              </svg>
+              {item.label}
+            </a>
+          ))
+        }
+      </div>
+      <ul class="grid grid-cols-3">
+        {
+          nav.map((item) => {
+            const active = item.menu === "settings" ? settingsSection : item.menu === "books" ? booksSection : isCurrent(item.href);
+            if (item.menu === "settings" || item.menu === "books") {
+              const menuId = item.menu === "books" ? "admin-books-menu" : "admin-settings-menu";
+              return (
+                <li>
+                  <button
+                    type="button"
+                    data-menu-toggle={item.menu}
+                    aria-expanded="false"
+                    aria-controls={menuId}
+                    class={`flex min-h-16 w-full flex-col items-center justify-center gap-1 px-1 py-2 text-center text-[11px] font-semibold leading-tight tracking-tight touch-manipulation ${
+                      active
+                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                        : "text-ink-700 active:bg-ink-100 dark:text-ink-200 dark:active:bg-white/10"
+                    }`}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="h-5 w-5 shrink-0"
+                      aria-hidden="true"
+                    >
+                      <path d={icons[item.icon]} />
+                    </svg>
+                    <span class="max-w-full">{item.label}</span>
+                  </button>
+                </li>
+              );
+            }
+            return (
+              <li>
+                <a
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  class={`flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 text-center text-[11px] font-semibold leading-tight tracking-tight touch-manipulation ${
+                    active
+                      ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-200"
+                      : "text-ink-700 active:bg-ink-100 dark:text-ink-200 dark:active:bg-white/10"
+                  }`}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    class="h-5 w-5 shrink-0"
+                    aria-hidden="true"
+                  >
+                    <path d={icons[item.icon]} />
+                  </svg>
+                  <span class="max-w-full">{item.label}</span>
+                </a>
+              </li>
+            );
+          })
+        }
+      </ul>
+      </div>
+    </nav>
+    <style>
+      ::view-transition-old(root),
+      ::view-transition-new(root) {
+        animation-duration: 0s;
+      }
+      .admin-mobile-nav a.is-pressed,
+      aside nav a.is-pressed {
+        background-color: var(--color-brand-50);
+        color: var(--color-brand-700);
+      }
+      :where(.dark, [data-theme="dark"]) .admin-mobile-nav a.is-pressed,
+      :where(.dark, [data-theme="dark"]) aside nav a.is-pressed {
+        background-color: rgb(59 130 246 / 0.15);
+        color: var(--color-brand-200);
+      }
+      .nav-label-closed,
+      .nav-chevron-closed {
+        display: none;
+      }
+      @media (max-width: 1023px) {
+        .admin-main {
+          padding-bottom: calc(11rem + env(safe-area-inset-bottom));
+        }
+        html[data-admin-nav="closed"] .admin-main {
+          padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
+        }
+        html[data-admin-nav="closed"] .admin-mobile-nav [data-nav-links] {
+          display: none;
+        }
+        html[data-admin-nav="closed"] .nav-label-open,
+        html[data-admin-nav="closed"] .nav-chevron-open {
+          display: none;
+        }
+        html[data-admin-nav="closed"] .nav-label-closed,
+        html[data-admin-nav="closed"] .nav-chevron-closed {
+          display: inline;
+        }
+      }
+    </style>
+    <script is:inline>
+      (function () {
+        if (window.__adminNavFast) return;
+        window.__adminNavFast = true;
+        var nativeFetch = window.fetch.bind(window);
+        var cache = new Map();
+
+        function keyOf(input) {
+          try {
+            var raw = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+            var url = new URL(raw, location.href);
+            url.hash = "";
+            return url.href;
+          } catch (_err) {
+            return "";
+          }
+        }
+
+        function warm(href) {
+          var key = keyOf(href);
+          if (!key || cache.has(key) || key === keyOf(location.href)) return;
+          if (!key.startsWith(location.origin + "/admin")) return;
+          cache.set(
+            key,
+            nativeFetch(key, { credentials: "same-origin", headers: { accept: "text/html" } })
+              .then(function (res) {
+                var type = res.headers.get("content-type") || "";
+                if (!res.ok || res.redirected || type.indexOf("text/html") === -1) {
+                  cache.delete(key);
+                  return null;
+                }
+                return res.text();
+              })
+              .catch(function () {
+                cache.delete(key);
+                return null;
+              }),
+          );
+        }
+
+        window.fetch = function (input, init) {
+          var method = ((init && init.method) || "GET").toUpperCase();
+          var key = method === "GET" && init && init.signal ? keyOf(input) : "";
+          var pending = key && cache.get(key);
+          if (!pending) return nativeFetch(input, init);
+          cache.delete(key);
+          return pending.then(function (html) {
+            if (!html) return nativeFetch(input, init);
+            return new Response(html, {
+              status: 200,
+              headers: { "content-type": "text/html; charset=utf-8" },
+            });
+          });
+        };
+
+        function warmNav() {
+          document.querySelectorAll("aside nav a, .admin-mobile-nav a").forEach(function (link) {
+            warm(link.href);
+          });
+        }
+
+        function scheduleWarm() {
+          if ("requestIdleCallback" in window) requestIdleCallback(warmNav, { timeout: 300 });
+          else setTimeout(warmNav, 40);
+        }
+
+        var activeClasses = ["is-pressed", "bg-brand-50", "text-brand-700", "dark:bg-brand-500/15", "dark:text-brand-200"];
+        var idleClasses = ["text-ink-700", "dark:text-ink-200"];
+
+        document.addEventListener(
+          "pointerdown",
+          function (event) {
+            var target = event.target;
+            if (!(target instanceof Element)) return;
+            var link = target.closest("a");
+            if (!(link instanceof HTMLAnchorElement)) return;
+            if (link.origin === location.origin && link.pathname.indexOf("/admin") === 0) warm(link.href);
+            var nav = link.closest("aside nav, .admin-mobile-nav");
+            if (!nav) return;
+            nav.querySelectorAll("a").forEach(function (item) {
+              if (item === link) {
+                activeClasses.forEach(function (name) { item.classList.add(name); });
+                item.setAttribute("aria-current", "page");
+                return;
+              }
+              activeClasses.forEach(function (name) { item.classList.remove(name); });
+              idleClasses.forEach(function (name) { item.classList.add(name); });
+              item.removeAttribute("aria-current");
+            });
+          },
+          { passive: true },
+        );
+
+        document.addEventListener(
+          "submit",
+          function (event) {
+            var form = event.target;
+            if (form instanceof HTMLFormElement) form.setAttribute("data-astro-reload", "");
+          },
+          true,
+        );
+
+        document.addEventListener("astro:before-swap", function (event) {
+          var next = event.newDocument && event.newDocument.documentElement;
+          if (!next) return;
+          var current = document.documentElement;
+          next.classList.toggle("dark", current.classList.contains("dark"));
+          next.setAttribute("data-theme", current.getAttribute("data-theme") || "light");
+          next.style.colorScheme = current.style.colorScheme;
+          var navState = current.getAttribute("data-admin-nav");
+          if (navState) next.setAttribute("data-admin-nav", navState);
+        });
+
+        document.addEventListener("click", function (event) {
+          var target = event.target;
+          if (!(target instanceof Element)) return;
+          var collapse = target.closest("[data-nav-collapse]");
+          if (!(collapse instanceof HTMLElement)) return;
+          var root = document.documentElement;
+          var closed = root.getAttribute("data-admin-nav") === "closed";
+          if (closed) {
+            root.removeAttribute("data-admin-nav");
+            collapse.setAttribute("aria-expanded", "true");
+            try { localStorage.removeItem("zs-admin-nav"); } catch (_err) {}
+            return;
+          }
+          root.setAttribute("data-admin-nav", "closed");
+          collapse.setAttribute("aria-expanded", "false");
+          ["books", "settings"].forEach(function (name) {
+            var menu = document.querySelector("[data-" + name + "-menu]");
+            if (menu instanceof HTMLElement) menu.setAttribute("hidden", "");
+            var button = document.querySelector('[data-menu-toggle="' + name + '"]');
+            if (button instanceof HTMLElement) button.setAttribute("aria-expanded", "false");
+          });
+          try { localStorage.setItem("zs-admin-nav", "closed"); } catch (_err) {}
+        });
+
+        document.addEventListener("click", function (event) {
+          var target = event.target;
+          if (!(target instanceof Element)) return;
+          var toggle = target.closest("[data-menu-toggle]");
+          if (toggle instanceof HTMLElement) {
+            var name = toggle.getAttribute("data-menu-toggle") || "";
+            var menu = document.querySelector("[data-" + name + "-menu]");
+            if (!(menu instanceof HTMLElement)) return;
+            var open = menu.hasAttribute("hidden");
+            ["books", "settings"].forEach(function (other) {
+              if (other === name) return;
+              var otherMenu = document.querySelector("[data-" + other + "-menu]");
+              if (otherMenu instanceof HTMLElement) otherMenu.setAttribute("hidden", "");
+              var otherButton = document.querySelector('[data-menu-toggle="' + other + '"]');
+              if (otherButton instanceof HTMLElement) otherButton.setAttribute("aria-expanded", "false");
+            });
+            menu.toggleAttribute("hidden", !open);
+            toggle.setAttribute("aria-expanded", open ? "true" : "false");
+            return;
+          }
+          ["books", "settings"].forEach(function (name) {
+            var menu = document.querySelector("[data-" + name + "-menu]");
+            if (!(menu instanceof HTMLElement) || menu.hasAttribute("hidden") || target.closest("[data-" + name + "-menu]")) return;
+            menu.setAttribute("hidden", "");
+            var button = document.querySelector('[data-menu-toggle="' + name + '"]');
+            if (button instanceof HTMLElement) button.setAttribute("aria-expanded", "false");
+          });
+        });
+
+        function syncNavButton() {
+          var collapse = document.querySelector("[data-nav-collapse]");
+          if (!(collapse instanceof HTMLElement)) return;
+          var closed = document.documentElement.getAttribute("data-admin-nav") === "closed";
+          collapse.setAttribute("aria-expanded", closed ? "false" : "true");
+        }
+
+        document.addEventListener("astro:page-load", function () {
+          syncNavButton();
+          scheduleWarm();
+        });
+        syncNavButton();
+        scheduleWarm();
+      })();
+    </script>
+  </body>
+</html>

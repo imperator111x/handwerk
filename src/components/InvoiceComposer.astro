@@ -1,0 +1,202 @@
+---
+import InvoiceNotes from "./InvoiceNotes.astro";
+import SalutationSelect from "./SalutationSelect.astro";
+import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, OFFER_UNITS, formatEuro, formatQuantity, type OfferLine } from "../lib/quote";
+
+interface Props {
+  customerName: string;
+  title?: string;
+  intro?: string;
+  invoiceDate: string;
+  serviceDate: string;
+  lines?: OfferLine[];
+  salutation?: string;
+  hidden?: Array<{ name: string; value: string }>;
+  submitLabel?: string;
+  hint?: string;
+  confirmMessage?: string;
+}
+
+const {
+  customerName,
+  title = "",
+  intro = "",
+  invoiceDate,
+  serviceDate,
+  lines = [],
+  salutation,
+  hidden = [],
+  submitLabel = "Rechnung festschreiben und senden",
+  hint = "Nach dem Festschreiben bleibt diese Rechnung stehen. Eine Korrektur läuft über Stornieren oder Anpassen und legt eine neue Rechnung an.",
+  confirmMessage = "",
+} = Astro.props;
+const initial = lines.length
+  ? lines
+  : [{ label: "Stundenlohn", quantity: 0, unit: "stunde" as const, unitCents: 0 }];
+const euroField = (cents: number) =>
+  cents > 0
+    ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100)
+    : "";
+---
+
+<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid gap-4" onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
+  {hidden.map((field) => <input type="hidden" name={field.name} value={field.value} />)}
+  <div>
+    <label class="label" for="invoice-title">Betreff</label>
+    <input class="input" id="invoice-title" name="title" required minlength="3" maxlength="120" value={title} />
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <button type="button" data-preset="stunde" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Stundenlohn</button>
+    <button type="button" data-preset="km" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Preis pro km</button>
+    <button type="button" data-preset="anfahrt" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Anfahrt</button>
+    <button type="button" data-preset="material" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Material</button>
+    <button type="button" id="invoice-add" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Weitere Position</button>
+  </div>
+  <div id="invoice-lines" class="grid gap-3">
+    {initial.map((line) => (
+      <div data-line class="grid gap-2 rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
+        <div class="sm:col-span-4">
+          <label class="label">Position</label>
+          <input class="input" name="line_label" maxlength="120" value={line.label} />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label">Menge</label>
+          <input class="input" name="line_qty" data-qty inputmode="decimal" value={line.quantity > 0 ? formatQuantity(line.quantity) : ""} placeholder="2" />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label">Einheit</label>
+          <select class="input" name="line_unit" data-unit>
+            {OFFER_UNITS.map((unit) => <option value={unit} selected={unit === line.unit}>{OFFER_UNIT_LABELS[unit]}</option>)}
+          </select>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label">Einzelpreis</label>
+          <input class="input" name="line_price" data-price inputmode="decimal" value={euroField(line.unitCents)} placeholder="45,00" />
+        </div>
+        <div class="flex items-end justify-between gap-2 sm:col-span-2">
+          <p data-line-total class="pb-2 text-sm font-semibold text-ink-900 dark:text-ink-50">{line.quantity > 0 && line.unitCents > 0 ? formatEuro(Math.round(line.quantity * line.unitCents)) : "–"}</p>
+          <button type="button" data-remove class="pb-2 text-xs font-semibold text-ink-500">Entfernen</button>
+        </div>
+      </div>
+    ))}
+  </div>
+  <p class="text-sm text-ink-800 dark:text-ink-100">Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
+  <InvoiceNotes />
+  <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
+  <div class="grid gap-3 sm:grid-cols-2">
+    <div>
+      <label class="label" for="invoice-date">Rechnungsdatum</label>
+      <input class="input" id="invoice-date" name="invoice_date" type="date" required value={invoiceDate} />
+    </div>
+    <div>
+      <label class="label" for="service-date">Leistungsdatum</label>
+      <input class="input" id="service-date" name="service_date" type="date" required value={serviceDate} />
+    </div>
+  </div>
+  <SalutationSelect name={customerName} id="salutation-invoice" selected={salutation} />
+  <div>
+    <label class="label" for="invoice-intro">Anschreiben</label>
+    <textarea class="input" id="invoice-intro" name="intro" maxlength="2000" rows="3" placeholder="für die ausgeführte Leistung berechnen wir Ihnen folgende Positionen.">{intro}</textarea>
+  </div>
+  <p class="text-sm text-ink-600 dark:text-ink-300">{hint}</p>
+  <div class="flex flex-wrap gap-2">
+    <button type="submit" class="btn-primary">{submitLabel}</button>
+    <button type="submit" name="preview" value="1" formtarget="_blank" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">PDF ansehen</button>
+  </div>
+</form>
+<template id="invoice-line-template">
+  <div data-line class="grid gap-2 rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
+    <div class="sm:col-span-4">
+      <label class="label">Position</label>
+      <input class="input" name="line_label" maxlength="120" />
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label">Menge</label>
+      <input class="input" name="line_qty" data-qty inputmode="decimal" />
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label">Einheit</label>
+      <select class="input" name="line_unit" data-unit>
+        {OFFER_UNITS.map((unit) => <option value={unit}>{OFFER_UNIT_LABELS[unit]}</option>)}
+      </select>
+    </div>
+    <div class="sm:col-span-2">
+      <label class="label">Einzelpreis</label>
+      <input class="input" name="line_price" data-price inputmode="decimal" />
+    </div>
+    <div class="flex items-end justify-between gap-2 sm:col-span-2">
+      <p data-line-total class="pb-2 text-sm font-semibold text-ink-900 dark:text-ink-50">–</p>
+      <button type="button" data-remove class="pb-2 text-xs font-semibold text-ink-500">Entfernen</button>
+    </div>
+  </div>
+</template>
+
+<script data-astro-rerun>
+  const form = document.getElementById("invoice-form");
+  const root = document.getElementById("invoice-lines");
+  const template = document.getElementById("invoice-line-template");
+  const total = document.getElementById("invoice-total");
+  if (form instanceof HTMLFormElement && root && template instanceof HTMLTemplateElement && total && form.dataset.ready !== "1") {
+    form.dataset.ready = "1";
+    const presets = {
+      stunde: ["Stundenlohn", "stunde", "", ""],
+      km: ["Preis pro km", "km", "", ""],
+      anfahrt: ["Anfahrt", "pauschal", "1", ""],
+      material: ["Material", "pauschal", "1", ""],
+    };
+    const centsOf = (raw) => {
+      const cleaned = String(raw || "").trim().replace(/\s/g, "").replace("€", "");
+      if (!/^\d{1,6}([.,]\d{1,2})?$/.test(cleaned)) return 0;
+      return Math.round(Number(cleaned.replace(",", ".")) * 100);
+    };
+    const qtyOf = (raw) => {
+      const cleaned = String(raw || "").trim().replace(/\s/g, "").replace(",", ".");
+      if (!/^\d{1,5}(\.\d{1,2})?$/.test(cleaned)) return 0;
+      return Number(cleaned);
+    };
+    const money = (cents) => (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+    const refresh = () => {
+      let sum = 0;
+      root.querySelectorAll("[data-line]").forEach((row) => {
+        const qty = qtyOf(row.querySelector("[data-qty]")?.value);
+        const price = centsOf(row.querySelector("[data-price]")?.value);
+        const line = Math.round(qty * price);
+        if (qty > 0 && price > 0) sum += line;
+        const out = row.querySelector("[data-line-total]");
+        if (out) out.textContent = qty > 0 && price > 0 ? money(line) : "–";
+      });
+      total.textContent = money(sum);
+    };
+    const bind = (row) => {
+      row.querySelector("[data-remove]")?.addEventListener("click", () => {
+        if (root.querySelectorAll("[data-line]").length <= 1) return;
+        row.remove();
+        refresh();
+      });
+      row.addEventListener("input", refresh);
+    };
+    const addLine = (preset) => {
+      if (root.querySelectorAll("[data-line]").length >= 12) return;
+      const node = template.content.firstElementChild?.cloneNode(true);
+      if (!(node instanceof HTMLElement)) return;
+      const values = presets[preset] || ["", "pauschal", "", ""];
+      const label = node.querySelector("[name='line_label']");
+      const unit = node.querySelector("[data-unit]");
+      const qty = node.querySelector("[data-qty]");
+      const price = node.querySelector("[data-price]");
+      if (label instanceof HTMLInputElement) label.value = values[0];
+      if (unit instanceof HTMLSelectElement) unit.value = values[1];
+      if (qty instanceof HTMLInputElement) qty.value = values[2];
+      if (price instanceof HTMLInputElement) price.value = values[3];
+      root.appendChild(node);
+      bind(node);
+      refresh();
+    };
+    root.querySelectorAll("[data-line]").forEach(bind);
+    document.getElementById("invoice-add")?.addEventListener("click", () => addLine(""));
+    form.querySelectorAll("[data-preset]").forEach((button) => {
+      button.addEventListener("click", () => addLine(button.getAttribute("data-preset") || ""));
+    });
+    refresh();
+  }
+</script>

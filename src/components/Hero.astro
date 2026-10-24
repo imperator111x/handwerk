@@ -1,0 +1,192 @@
+---
+import { siteConfig } from "../config/site";
+---
+
+<section class="hero-gradient relative overflow-hidden">
+  <div class="absolute inset-0 grain opacity-40 pointer-events-none" aria-hidden="true" />
+  <div class="container-page relative pt-20 pb-24 sm:pt-28 sm:pb-32 lg:pt-32">
+    <div class="grid lg:grid-cols-12 gap-12 items-center">
+      <div class="lg:col-span-7 min-w-0 space-y-7">
+        <span class="badge">
+          <span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          Neue Aufträge möglich
+        </span>
+        <h1
+          class="font-display text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.05] tracking-tight text-ink-900 dark:text-ink-50"
+        >
+          Ihr Hausmeisterservice für{" "}
+          <span class="bg-gradient-to-r from-brand-600 to-brand-500 bg-clip-text text-transparent dark:from-brand-400 dark:to-brand-200">
+            Hamburg & Norderstedt
+          </span>
+        </h1>
+        <p class="text-lg text-ink-700 max-w-2xl leading-relaxed dark:text-ink-200">
+          Zuverlässig, kompetent und schnell. Wir übernehmen Reparaturen,
+          Reinigung, Wartung und Objektbetreuung für Privathaushalte,
+          Wohnanlagen und Gewerbeobjekte – mit fundierter Handwerksausbildung
+          und fairen Preisen.
+        </p>
+        <div class="flex flex-wrap gap-4 pt-2">
+          <a href="#kontakt" class="btn-primary">
+            Kostenloses Angebot anfordern
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+              aria-hidden="true"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </a>
+          <a href={siteConfig.contact.phoneHref} class="btn-secondary">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4 text-brand-600"
+              aria-hidden="true"
+            >
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+            </svg>
+            Jetzt anrufen
+          </a>
+        </div>
+
+        <dl
+          class="grid grid-cols-[max-content_max-content_max-content] justify-between gap-x-4 pt-10 border-t border-ink-200/70 sm:max-w-xl sm:grid-cols-3 sm:gap-6 dark:border-white/10"
+        >
+          <div>
+            <dt class="text-[0.68rem] font-medium uppercase tracking-wide text-ink-500 whitespace-nowrap sm:text-xs sm:tracking-wider dark:text-ink-300">
+              Fachwissen
+            </dt>
+            <dd class="mt-1 text-lg font-bold leading-tight text-ink-900 whitespace-nowrap sm:text-2xl dark:text-ink-50">
+              Handwerker
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[0.68rem] font-medium uppercase tracking-wide text-ink-500 whitespace-nowrap sm:text-xs sm:tracking-wider dark:text-ink-300">
+              Einsatz
+            </dt>
+            <dd class="mt-1 text-lg font-bold leading-tight text-ink-900 whitespace-nowrap sm:text-2xl dark:text-ink-50">
+              100 %
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[0.68rem] font-medium uppercase tracking-wide text-ink-500 whitespace-nowrap sm:text-xs sm:tracking-wider dark:text-ink-300">
+              Reaktion
+            </dt>
+            <dd class="mt-1 text-lg font-bold leading-tight text-ink-900 whitespace-nowrap sm:text-2xl dark:text-ink-50">
+              &lt; 24 h
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="relative">
+          <div
+            class="absolute -inset-6 rounded-[2.5rem] bg-gradient-to-br from-brand-500/20 to-accent-500/10 blur-2xl"
+            aria-hidden="true"
+          />
+          <div
+            class="relative rounded-[2rem] border border-ink-200/70 bg-white p-8 shadow-[var(--shadow-glow)] dark:border-white/10 dark:bg-ink-900"
+          >
+            <div class="flex items-center gap-3 mb-6">
+              <div
+                class="h-12 w-12 rounded-2xl bg-brand-50 text-brand-600 inline-flex items-center justify-center dark:bg-brand-500/15 dark:text-brand-300"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="h-6 w-6"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-ink-500 dark:text-ink-400">
+                  Schnelle Hilfe
+                </p>
+                <p class="text-lg font-semibold text-ink-900 dark:text-ink-50">
+                  Transparente Angebote
+                </p>
+              </div>
+            </div>
+            <ul class="space-y-3 text-sm text-ink-800 dark:text-ink-200">
+              {
+                [
+                  "Kostenlose Erstberatung telefonisch oder per E-Mail",
+                  "Festpreis-Angebot vor Beginn der Arbeiten",
+                  "Flexible Termine – auch kurzfristig",
+                  "Sauberer, fachgerechter Abschluss aller Arbeiten",
+                ].map((item) => (
+                  <li class="flex items-start gap-3">
+                    <span
+                      class="mt-0.5 inline-flex h-5 w-5 flex-none items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      aria-hidden="true"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        class="h-3 w-3"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                    {item}
+                  </li>
+                ))
+              }
+            </ul>
+            <div
+              class="mt-6 flex items-center gap-3 rounded-2xl bg-ink-50 p-4 dark:bg-white/5"
+            >
+              <div
+                class="h-10 w-10 rounded-xl bg-white text-brand-600 inline-flex items-center justify-center shadow-sm dark:bg-ink-900 dark:text-brand-300"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path d="M3 11l19-9-9 19-2-8-8-2z" />
+                </svg>
+              </div>
+              <div class="text-sm">
+                <p class="font-semibold text-ink-900 dark:text-ink-50">
+                  Einsatzgebiet
+                </p>
+                <p class="text-ink-600 dark:text-ink-300">
+                  Hamburg, Norderstedt & direktes Umland
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

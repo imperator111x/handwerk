@@ -1,0 +1,662 @@
+---
+import AdminLayout from "../../layouts/AdminLayout.astro";
+import { requireSession } from "../../lib/auth";
+import { getDb, listUsers, type UserPublic } from "../../lib/db";
+import { getTaxNumber } from "../../lib/invoices";
+import { stripeKeyMode, stripePaymentsReady } from "../../lib/stripe-pay";
+import { listPasskeys } from "../../lib/passkey";
+import { cfEnv } from "../../lib/cf";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const env = cfEnv();
+const db = getDb(Astro);
+const users: UserPublic[] = db ? await listUsers(db) : [];
+const taxNumber = db ? await getTaxNumber(db) : "";
+const isAdmin = session.role === "admin";
+const passkeys = db && session.userId ? await listPasskeys(db, session.userId) : [];
+
+function formatPasskeyDate(unix: number): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(new Date(unix * 1000));
+}
+
+const pwFlag = Astro.url.searchParams.get("pw");
+const userFlag = Astro.url.searchParams.get("user");
+const steuerFlag = Astro.url.searchParams.get("steuer");
+
+const pwFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
+  ok: { kind: "ok", text: "Passwort erfolgreich geändert." },
+  too_short: { kind: "err", text: "Neues Passwort braucht mindestens 10 Zeichen." },
+  mismatch: { kind: "err", text: "Die Passwort-Bestätigung stimmt nicht überein." },
+  wrong_current: { kind: "err", text: "Aktuelles Passwort ist falsch." },
+  no_db: { kind: "err", text: "Datenbank nicht verbunden – Passwortänderung über Secret notwendig." },
+  unknown_user: { kind: "err", text: "Benutzer nicht gefunden." },
+};
+
+const userFlags: Record<string, { kind: "ok" | "err"; text: string }> = {
+  created: { kind: "ok", text: "Neuer Benutzer angelegt." },
+  deleted: { kind: "ok", text: "Benutzer entfernt." },
+  role_changed: { kind: "ok", text: "Rolle aktualisiert." },
+  name_saved: { kind: "ok", text: "Vor- und Nachname gespeichert. Sie stehen in der Mail-Signatur." },
+  bad_name: { kind: "err", text: "Vor- und Nachname bitte jeweils mit Buchstaben angeben (bis 60 Zeichen)." },
+  forbidden: { kind: "err", text: "Diesen Namen darfst du nicht ändern." },
+  bad_username: { kind: "err", text: "Ungültiger Benutzername (3–32 Zeichen, nur a–z, 0–9, . _ -)." },
+  weak_password: { kind: "err", text: "Passwort muss mindestens 10 Zeichen haben." },
+  bad_role: { kind: "err", text: "Ungültige Rolle." },
+  bad_id: { kind: "err", text: "Ungültige Benutzer-ID." },
+  exists: { kind: "err", text: "Benutzername ist bereits vergeben." },
+  self_delete: { kind: "err", text: "Du kannst dich nicht selbst löschen." },
+  self_demote: { kind: "err", text: "Du kannst dir nicht selbst Admin-Rechte entziehen." },
+  last_admin: { kind: "err", text: "Mindestens ein Admin muss bestehen bleiben." },
+  not_found: { kind: "err", text: "Benutzer nicht gefunden." },
+  error: { kind: "err", text: "Fehler bei der Verarbeitung." },
+};
+
+const pwFlagMsg = pwFlag ? pwFlags[pwFlag] : null;
+const userFlagMsg = userFlag ? userFlags[userFlag] : null;
+
+const formatDate = (ts: number | null) =>
+  ts ? new Date(ts * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) : "–";
+
+const redirectPath = Astro.url.pathname;
+
+function stripeConnectionText(source: { STRIPE_SECRET_KEY?: string; STRIPE_WEBHOOK_SECRET?: string }): string {
+  if (!stripePaymentsReady(source)) return "Stripe ist noch nicht verbunden. Der Knopf erscheint, sobald das Konto hinterlegt ist.";
+  if (stripeKeyMode(source.STRIPE_SECRET_KEY) === "test") {
+    return "Stripe-Testmodus ist verbunden. Es kommt kein echtes Geld an. Für echte Zahlungen werden die Live-Schlüssel gebraucht.";
+  }
+  return "Stripe ist verbunden.";
+}
+---
+
+<AdminLayout title="Einstellungen" session={session}>
+  <section id="steuernummer" class="rounded-3xl border border-ink-200 bg-white p-8 space-y-4 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Rechnung</h2>
+    <p class="text-sm text-ink-600 dark:text-ink-300">
+      Die Steuernummer steht auf jeder neuen Rechnung und in der ZUGFeRD-Datei. Bereits festgeschriebene Rechnungen behalten die Nummer, die beim Erstellen galt.
+    </p>
+    {steuerFlag === "saved" && (
+      <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100">Steuernummer gespeichert.</p>
+    )}
+    {steuerFlag === "bad" && (
+      <p class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100">Bitte eine Steuernummer mit 10 bis 13 Ziffern angeben.</p>
+    )}
+    <form method="POST" action="/api/admin/steuernummer" class="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div>
+        <label class="label" for="tax-number">Steuernummer</label>
+        <input class="input" id="tax-number" name="tax_number" required maxlength="20" value={taxNumber} placeholder="12/345/67890" />
+      </div>
+      <button type="submit" class="btn-primary">Speichern</button>
+    </form>
+    <div id="online-zahlung" class="border-t border-ink-100 pt-4 dark:border-white/10">
+      <h3 class="font-display text-lg font-bold text-ink-900 dark:text-ink-50">Online-Zahlung</h3>
+      <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
+        In der Rechnungsmail steht der Knopf „Jetzt bezahlen“. Karte, Apple Pay und Google Pay laufen sofort über Stripe. PayPal und SEPA-Lastschrift kommen dazu, sobald sie im Stripe-Dashboard freigegeben sind.
+        Es gibt keine Monatsgebühr. Eine Standardkarte aus dem Europäischen Wirtschaftsraum kostet 1,5 % plus 0,25 €, Apple Pay und Google Pay denselben Satz.
+        SEPA-Lastschrift kostet 0,35 €. PayPal kommt dazu und kostet mehr, weil PayPal eine eigene Gebühr berechnet und Stripe dafür 0,2 % plus 0,10 € aufschlägt.
+        Nach der Zahlung setzt sich die Rechnung von selbst auf Bezahlt. Bei SEPA-Lastschrift erst, wenn die Bank die Zahlung bestätigt.
+        Eine Überweisung auf die IBAN lässt sich auf der Rechnung von Hand speichern, dann schließt sich der Zahlungslink.
+      </p>
+      <p class="mt-2 text-sm font-semibold text-ink-800 dark:text-ink-100">
+        {stripeConnectionText(env ?? {})}
+      </p>
+      <p class="mt-2 text-sm text-ink-600 dark:text-ink-300">
+        Webhook-Adresse: https://zeus-service-web.imperator111x.workers.dev/api/stripe/webhook
+        <br />
+        Diese Adresse empfängt die Zahlungsbestätigung. zeus-service.de hält den Stripe-Server mit der Bot-Prüfung auf, deshalb gilt die Worker-Adresse.
+        <br />
+        Ereignisse: checkout.session.completed, checkout.session.async_payment_succeeded, charge.refunded.
+        Karte, Apple Pay und Google Pay sind eingeschaltet. PayPal und SEPA-Lastschrift müssen im Stripe-Dashboard noch freigegeben werden. Klarna bleibt aus, die Gebühr liegt höher.
+      </p>
+    </div>
+  </section>
+  <section class="rounded-3xl border border-ink-200 bg-white p-8 space-y-5 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+      Umgebung
+    </h2>
+    <dl class="grid gap-4 sm:grid-cols-2 text-sm">
+      <div>
+        <dt class="font-semibold text-ink-700 dark:text-ink-200">Site Name</dt>
+        <dd class="text-ink-900 dark:text-ink-50">{env?.SITE_NAME ?? "–"}</dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-ink-700 dark:text-ink-200">Site URL</dt>
+        <dd class="text-ink-900 dark:text-ink-50">{env?.SITE_URL ?? "–"}</dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-ink-700 dark:text-ink-200">E-Mail Absender</dt>
+        <dd class="text-ink-900 dark:text-ink-50">{env?.CONTACT_FROM_EMAIL ?? "–"}</dd>
+      </div>
+      <div>
+        <dt class="font-semibold text-ink-700 dark:text-ink-200">E-Mail-Versand</dt>
+        <dd class="text-ink-900 dark:text-ink-50">
+          {env?.EMAIL
+            ? "Cloudflare Email Sending aktiv"
+            : env?.RESEND_API_KEY
+              ? "Resend-Fallback aktiv"
+              : "Nicht konfiguriert"}
+        </dd>
+      </div>
+    </dl>
+    {!env?.EMAIL && !env?.RESEND_API_KEY && (
+      <p class="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 dark:bg-amber-500/10 dark:border-amber-400/20 dark:text-amber-100">
+        Es ist noch kein E-Mail-Transport verbunden. Antworten im Panel werden
+        gespeichert, aber nicht per E-Mail verschickt. Empfohlen:
+        <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">zeus-service.de</code>
+        im Cloudflare-Dashboard unter <em>Email&nbsp;→&nbsp;Sending</em>
+        onboarden und das Binding <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">EMAIL</code>
+        wird automatisch bedient. Alternativ Resend per
+        <code class="rounded bg-amber-100 px-1 py-0.5 dark:bg-amber-500/20">npx wrangler secret put RESEND_API_KEY</code>.
+      </p>
+    )}
+    {env?.EMAIL && (
+      <p class="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 dark:bg-emerald-500/10 dark:border-emerald-400/20 dark:text-emerald-100">
+        Cloudflare Email Sending ist verbunden. Antworten gehen direkt über das
+        Worker-Binding <code class="rounded bg-emerald-100 px-1 py-0.5 dark:bg-emerald-500/20">EMAIL</code>
+        an die Empfängerinnen und Empfänger.
+      </p>
+    )}
+  </section>
+
+  <!-- ================================================================= -->
+  <!-- Passwort ändern -->
+  <!-- ================================================================= -->
+  <section
+    class="rounded-3xl border border-ink-200 bg-white p-8 space-y-4 dark:border-white/10 dark:bg-ink-900"
+  >
+    <div>
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        Passwort ändern
+      </h2>
+      <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+        Dein eigenes Login-Passwort. Mindestens 10 Zeichen – idealerweise mit
+        Zahlen, Sonderzeichen und ohne Wörterbuch-Wörter.
+      </p>
+    </div>
+
+    {pwFlagMsg && (
+      <div
+        class={`rounded-xl border px-4 py-3 text-sm ${
+          pwFlagMsg.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-100"
+        }`}
+      >
+        {pwFlagMsg.text}
+      </div>
+    )}
+
+    {!db ? (
+      <p class="text-sm text-ink-600 dark:text-ink-300">
+        Passwortänderung erfordert eine verbundene D1-Datenbank.
+      </p>
+    ) : !session.userId ? (
+      <p class="text-sm text-ink-600 dark:text-ink-300">
+        Dein aktueller Login nutzt noch das Fallback-Secret. Lege erst oben
+        einen echten Benutzer an und melde dich damit neu an, danach kannst du
+        hier das Passwort ändern.
+      </p>
+    ) : (
+      <form
+        method="POST"
+        action="/api/admin/password"
+        class="grid gap-4 sm:max-w-md"
+      >
+        <input type="hidden" name="redirect" value={redirectPath} />
+        <div>
+          <label class="label" for="current_password">Aktuelles Passwort</label>
+          <input
+            class="input"
+            type="password"
+            id="current_password"
+            name="current_password"
+            required
+            autocomplete="current-password"
+          />
+        </div>
+        <div>
+          <label class="label" for="new_password">Neues Passwort</label>
+          <input
+            class="input"
+            type="password"
+            id="new_password"
+            name="new_password"
+            required
+            minlength="10"
+            autocomplete="new-password"
+          />
+        </div>
+        <div>
+          <label class="label" for="confirm_password">Neues Passwort bestätigen</label>
+          <input
+            class="input"
+            type="password"
+            id="confirm_password"
+            name="confirm_password"
+            required
+            minlength="10"
+            autocomplete="new-password"
+          />
+        </div>
+        <button type="submit" class="btn-primary w-fit">Passwort speichern</button>
+      </form>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-8 space-y-4 dark:border-white/10 dark:bg-ink-900">
+    <div>
+      <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+        Face ID
+      </h2>
+      <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+        Einmal auf dem iPhone einschalten, danach öffnet die Admin-App beim
+        Login Face ID. Das Passwort bleibt zusätzlich gültig. Gespeichert wird
+        nur ein Schlüssel des Geräts, nicht das Gesicht. Jedes Gerät lässt sich
+        einzeln entfernen. Der Typ, zum Beispiel „iPhone · Safari“, erscheint,
+        sobald Sie das Gerät hier erkennen oder sich damit anmelden.
+      </p>
+    </div>
+    {!session.userId ? (
+      <p class="text-sm text-ink-600 dark:text-ink-300">
+        Face ID geht erst mit einem richtigen Benutzerkonto, nicht mit dem alten Fallback-Login.
+      </p>
+    ) : (
+      <>
+        <p id="faceid-settings-status" class="text-sm text-ink-700 dark:text-ink-200">
+          {passkeys.length > 0
+            ? "Face ID ist eingeschaltet. Auf dem Login steht „Mit Face ID anmelden“."
+            : "Face ID ist noch nicht eingeschaltet."}
+        </p>
+        {passkeys.length > 0 && (
+          <ul class="divide-y divide-ink-200/80 rounded-2xl border border-ink-200 dark:divide-white/10 dark:border-white/10">
+            {passkeys.map((device) => {
+              const name = device.label.trim() || "Unbekanntes Gerät";
+              return (
+                <li class="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                  <div>
+                    <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">{name}</p>
+                    <p class="mt-0.5 text-xs text-ink-500 dark:text-ink-400">
+                      Eingerichtet am {formatPasskeyDate(device.created_at)}
+                      {device.last_used_at
+                        ? ` · Zuletzt am ${formatPasskeyDate(device.last_used_at)}`
+                        : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-secondary px-4 py-2"
+                    data-remove-passkey={device.id}
+                    data-device-name={name}
+                  >
+                    Entfernen
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <div class="flex flex-wrap gap-3">
+          <button type="button" id="faceid-enroll" class="btn-primary w-fit">
+            {passkeys.length > 0 ? "Weiteres Gerät einschalten" : "Face ID einschalten"}
+          </button>
+          {passkeys.length > 0 && (
+            <button type="button" id="faceid-identify" class="btn-secondary w-fit">
+              Gerät erkennen
+            </button>
+          )}
+        </div>
+      </>
+    )}
+  </section>
+  {session.userId && (
+    <script data-astro-rerun>
+      import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
+
+      const enroll = document.getElementById("faceid-enroll");
+      const identify = document.getElementById("faceid-identify");
+      const status = document.getElementById("faceid-settings-status");
+
+      function setStatus(text: string) {
+        if (status) status.textContent = text;
+      }
+
+      if (enroll instanceof HTMLButtonElement) {
+        enroll.addEventListener("click", async () => {
+          if (!browserSupportsWebAuthn()) {
+            setStatus("Dieses Gerät kann Face ID hier nicht verwenden. Bitte die Admin-App auf dem iPhone öffnen.");
+            return;
+          }
+          enroll.disabled = true;
+          try {
+            const prepared = await fetch("/api/admin/passkey", { headers: { accept: "application/json" } });
+            if (!prepared.ok) throw new Error("options");
+            const payload = (await prepared.json()) as { options: Parameters<typeof startRegistration>[0]["optionsJSON"] };
+            const credential = await startRegistration({ optionsJSON: payload.options });
+            const saved = await fetch("/api/admin/passkey", {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json" },
+              body: JSON.stringify({ response: credential }),
+            });
+            if (!saved.ok) throw new Error("save");
+            window.location.assign("/admin/einstellungen");
+          } catch (err) {
+            const name = err instanceof Error ? err.name : "";
+            setStatus(
+              name === "NotAllowedError"
+                ? "Face ID wurde abgebrochen."
+                : "Face ID konnte nicht eingeschaltet werden. Bitte die Seite in der Admin-App auf dem iPhone öffnen.",
+            );
+          } finally {
+            enroll.disabled = false;
+          }
+        });
+      }
+
+      if (identify instanceof HTMLButtonElement) {
+        identify.addEventListener("click", async () => {
+          if (!browserSupportsWebAuthn()) {
+            setStatus("Dieses Gerät kann Face ID hier nicht verwenden. Bitte die Admin-App auf dem iPhone öffnen.");
+            return;
+          }
+          identify.disabled = true;
+          try {
+            const prepared = await fetch("/api/admin/passkey?intent=identify", { headers: { accept: "application/json" } });
+            if (!prepared.ok) throw new Error("options");
+            const payload = (await prepared.json()) as { options: Parameters<typeof startAuthentication>[0]["optionsJSON"] };
+            const credential = await startAuthentication({ optionsJSON: payload.options });
+            const saved = await fetch("/api/admin/passkey", {
+              method: "POST",
+              headers: { "content-type": "application/json", accept: "application/json" },
+              body: JSON.stringify({ purpose: "identify", response: credential }),
+            });
+            if (!saved.ok) throw new Error("save");
+            window.location.assign("/admin/einstellungen");
+          } catch (err) {
+            const name = err instanceof Error ? err.name : "";
+            setStatus(
+              name === "NotAllowedError"
+                ? "Die Erkennung wurde abgebrochen."
+                : "Dieses Gerät steht noch nicht in der Liste. Bitte die Seite auf dem eingeschalteten Gerät öffnen.",
+            );
+          } finally {
+            identify.disabled = false;
+          }
+        });
+      }
+
+      for (const remove of document.querySelectorAll("[data-remove-passkey]")) {
+        if (!(remove instanceof HTMLButtonElement)) continue;
+        remove.addEventListener("click", async () => {
+          const id = remove.dataset.removePasskey ?? "";
+          const name = remove.dataset.deviceName || "Dieses Gerät";
+          if (!window.confirm(`${name} wirklich entfernen? Face ID geht dort danach nicht mehr.`)) return;
+          remove.disabled = true;
+          const response = await fetch(`/api/admin/passkey?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+          if (!response.ok) {
+            setStatus("Das Gerät konnte nicht entfernt werden.");
+            remove.disabled = false;
+            return;
+          }
+          window.location.assign("/admin/einstellungen");
+        });
+      }
+    </script>
+  )}
+
+  <!-- ================================================================= -->
+  <!-- Admin-Benutzer verwalten -->
+  <!-- ================================================================= -->
+  <section
+    class="rounded-3xl border border-ink-200 bg-white p-8 space-y-5 dark:border-white/10 dark:bg-ink-900"
+  >
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+          Admin-Benutzer
+        </h2>
+        <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+          Admins haben vollen Zugriff. Editors können Anfragen bearbeiten und
+          beantworten, aber keine Nutzer verwalten. Vor- und Nachname stehen in
+          ausgehenden E-Mails unter „Mit freundlichen Grüßen“.
+        </p>
+      </div>
+    </div>
+
+    {userFlagMsg && (
+      <div
+        class={`rounded-xl border px-4 py-3 text-sm ${
+          userFlagMsg.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/20 dark:bg-rose-500/10 dark:text-rose-100"
+        }`}
+      >
+        {userFlagMsg.text}
+      </div>
+    )}
+
+    {!db ? (
+      <p class="text-sm text-ink-600 dark:text-ink-300">
+        Benutzerverwaltung erfordert eine verbundene D1-Datenbank.
+      </p>
+    ) : (
+      <>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-left text-xs uppercase tracking-wider text-ink-500 dark:text-ink-400">
+              <tr>
+                <th class="py-2 pr-4 font-semibold">Benutzer</th>
+                <th class="py-2 pr-4 font-semibold">Name</th>
+                <th class="py-2 pr-4 font-semibold">Rolle</th>
+                <th class="py-2 pr-4 font-semibold">Erstellt</th>
+                <th class="py-2 pr-4 font-semibold">Letzter Login</th>
+                <th class="py-2 pr-4 font-semibold text-right">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-ink-200 dark:divide-white/10">
+              {users.map((u) => (
+                <tr>
+                  <td class="py-3 pr-4 text-ink-900 dark:text-ink-50">
+                    <span class="font-semibold">{u.username}</span>
+                    {u.id === session.userId && (
+                      <span class="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-brand-700 dark:bg-brand-500/15 dark:text-brand-200">
+                        du
+                      </span>
+                    )}
+                  </td>
+                  <td class="py-3 pr-4">
+                    {isAdmin || u.id === session.userId ? (
+                      <form
+                        method="POST"
+                        action="/api/admin/users"
+                        class="flex flex-wrap items-center gap-2"
+                      >
+                        <input type="hidden" name="action" value="name" />
+                        <input type="hidden" name="id" value={u.id} />
+                        <input type="hidden" name="redirect" value={redirectPath} />
+                        <input
+                          class="w-28 rounded-md border border-ink-200 bg-white px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                          name="first_name"
+                          value={u.first_name}
+                          placeholder="Vorname"
+                          required
+                          maxlength="60"
+                          autocomplete="given-name"
+                          aria-label={`Vorname von ${u.username}`}
+                        />
+                        <input
+                          class="w-32 rounded-md border border-ink-200 bg-white px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                          name="last_name"
+                          value={u.last_name}
+                          placeholder="Nachname"
+                          required
+                          maxlength="60"
+                          autocomplete="family-name"
+                          aria-label={`Nachname von ${u.username}`}
+                        />
+                        <button
+                          type="submit"
+                          class="rounded-md bg-ink-100 px-2 py-1 text-xs font-medium hover:bg-ink-200 dark:bg-white/10 dark:text-ink-100 dark:hover:bg-white/20"
+                        >
+                          Speichern
+                        </button>
+                      </form>
+                    ) : (
+                      <span class="text-ink-700 dark:text-ink-200">
+                        {u.first_name && u.last_name ? `${u.first_name} ${u.last_name}` : "–"}
+                      </span>
+                    )}
+                  </td>
+                  <td class="py-3 pr-4">
+                    {isAdmin && u.id !== session.userId ? (
+                      <form
+                        method="POST"
+                        action="/api/admin/users"
+                        class="inline-flex items-center gap-2"
+                      >
+                        <input type="hidden" name="action" value="role" />
+                        <input type="hidden" name="id" value={u.id} />
+                        <input type="hidden" name="redirect" value={redirectPath} />
+                        <select
+                          name="role"
+                          class="rounded-md border border-ink-200 bg-white px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                        >
+                          <option value="admin" selected={u.role === "admin"}>Admin</option>
+                          <option value="editor" selected={u.role === "editor"}>Editor</option>
+                        </select>
+                        <button
+                          type="submit"
+                          class="rounded-md bg-ink-100 px-2 py-1 text-xs font-medium hover:bg-ink-200 dark:bg-white/10 dark:text-ink-100 dark:hover:bg-white/20"
+                        >
+                          Speichern
+                        </button>
+                      </form>
+                    ) : (
+                      <span class="rounded-full bg-ink-100 px-2 py-0.5 text-xs text-ink-700 dark:bg-white/10 dark:text-ink-200">
+                        {u.role}
+                      </span>
+                    )}
+                  </td>
+                  <td class="py-3 pr-4 text-ink-600 dark:text-ink-400">
+                    {formatDate(u.created_at)}
+                  </td>
+                  <td class="py-3 pr-4 text-ink-600 dark:text-ink-400">
+                    {formatDate(u.last_login_at)}
+                  </td>
+                  <td class="py-3 pr-4 text-right">
+                    {isAdmin && u.id !== session.userId && (
+                      <form
+                        method="POST"
+                        action="/api/admin/users"
+                        class="inline"
+                        onsubmit={`return confirm('Benutzer "${u.username}" wirklich löschen?')`}
+                      >
+                        <input type="hidden" name="action" value="delete" />
+                        <input type="hidden" name="id" value={u.id} />
+                        <input type="hidden" name="redirect" value={redirectPath} />
+                        <button
+                          type="submit"
+                          class="rounded-md border border-rose-200 bg-white px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:bg-rose-500/5 dark:text-rose-200 dark:hover:bg-rose-500/15"
+                        >
+                          Löschen
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {isAdmin ? (
+          <details class="rounded-xl border border-dashed border-ink-300 bg-ink-50 p-4 open:bg-white dark:border-white/15 dark:bg-white/5 dark:open:bg-ink-900">
+            <summary class="cursor-pointer text-sm font-semibold text-ink-900 dark:text-ink-100">
+              + Neuen Benutzer anlegen
+            </summary>
+            <form
+              method="POST"
+              action="/api/admin/users"
+              class="mt-4 grid gap-4 sm:grid-cols-2"
+            >
+              <input type="hidden" name="action" value="create" />
+              <input type="hidden" name="redirect" value={redirectPath} />
+              <div>
+                <label class="label" for="new_first_name">Vorname</label>
+                <input
+                  class="input"
+                  id="new_first_name"
+                  name="first_name"
+                  required
+                  maxlength="60"
+                  autocomplete="given-name"
+                  placeholder="z. B. Leon"
+                />
+              </div>
+              <div>
+                <label class="label" for="new_last_name">Nachname</label>
+                <input
+                  class="input"
+                  id="new_last_name"
+                  name="last_name"
+                  required
+                  maxlength="60"
+                  autocomplete="family-name"
+                  placeholder="z. B. Lütcke"
+                />
+              </div>
+              <div>
+                <label class="label" for="new_username">Benutzername</label>
+                <input
+                  class="input"
+                  id="new_username"
+                  name="username"
+                  required
+                  pattern="[a-z0-9_.\-]{3,32}"
+                  placeholder="z. B. max"
+                />
+                <p class="mt-1 text-xs text-ink-500">3–32 Zeichen, nur a–z, 0–9, . _ -</p>
+              </div>
+              <div>
+                <label class="label" for="new_role">Rolle</label>
+                <select class="input" id="new_role" name="role">
+                  <option value="admin">Admin (volle Rechte)</option>
+                  <option value="editor">Editor (Anfragen bearbeiten)</option>
+                </select>
+              </div>
+              <div class="sm:col-span-2">
+                <label class="label" for="new_user_password">Start-Passwort</label>
+                <input
+                  class="input"
+                  id="new_user_password"
+                  name="password"
+                  type="password"
+                  required
+                  minlength="10"
+                  autocomplete="new-password"
+                />
+                <p class="mt-1 text-xs text-ink-500">
+                  Mindestens 10 Zeichen. Der neue Benutzer kann das Passwort nach dem ersten Login hier ändern.
+                </p>
+              </div>
+              <div class="sm:col-span-2">
+                <button type="submit" class="btn-primary">Benutzer anlegen</button>
+              </div>
+            </form>
+          </details>
+        ) : (
+          <p class="text-xs text-ink-500 dark:text-ink-400">
+            Nur Admins können neue Benutzer anlegen oder löschen.
+          </p>
+        )}
+      </>
+    )}
+  </section>
+</AdminLayout>

@@ -1,0 +1,208 @@
+---
+import "../styles/global.css";
+import { siteConfig } from "../config/site";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import CookieNotice from "../components/CookieNotice.astro";
+import PageGuard from "../components/PageGuard.astro";
+import BotGate from "../components/BotGate.astro";
+import CallButton from "../components/CallButton.astro";
+import { humanPassValid } from "../lib/human-pass";
+import { cfEnv } from "../lib/cf";
+import { isSearchCrawler } from "../lib/search-crawler";
+import { breadcrumbJsonLd, businessJsonLd, publicCanonical } from "../lib/seo";
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonical?: string;
+  ogImage?: string;
+  noindex?: boolean;
+  showHeader?: boolean;
+  showFooter?: boolean;
+  crumbs?: Array<{ name: string; path: string }>;
+}
+
+const {
+  title,
+  description = siteConfig.description,
+  canonical,
+  ogImage = "/og-image.png",
+  noindex = false,
+  showHeader = true,
+  showFooter = true,
+  crumbs = [],
+} = Astro.props;
+
+const fullTitle = title
+  ? `${title} | ${siteConfig.name}`
+  : `${siteConfig.name} – ${siteConfig.tagline}`;
+
+const canonicalUrl = canonical ?? publicCanonical(Astro.url.pathname);
+const searchCrawler = isSearchCrawler(Astro.request);
+const humanAllowed = searchCrawler || (await humanPassValid(Astro.cookies.get("zs_human")?.value, cfEnv()));
+const ogImageUrl = new URL(ogImage, siteConfig.url).toString();
+const jsonLd = noindex ? null : businessJsonLd();
+const breadcrumbLd = !noindex && crumbs.length > 0 ? breadcrumbJsonLd(crumbs) : null;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="generator" content={Astro.generator} />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Zeus-Service" />
+
+    <link rel="icon" href="/favicon.ico?v=2" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="canonical" href={canonicalUrl} />
+    <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" title="Sitemap" />
+
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var mql = window.matchMedia("(prefers-color-scheme: dark)");
+          var isDark =
+            stored === "dark" || ((!stored || stored === "system") && mql.matches);
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add("dark");
+            root.setAttribute("data-theme", "dark");
+            root.style.colorScheme = "dark";
+          } else {
+            root.classList.remove("dark");
+            root.setAttribute("data-theme", "light");
+            root.style.colorScheme = "light";
+          }
+
+          window.__setTheme = function (choice) {
+            if (choice === "system") {
+              localStorage.removeItem("theme");
+            } else {
+              localStorage.setItem("theme", choice);
+            }
+            var dark =
+              choice === "dark" ||
+              (choice === "system" && mql.matches);
+            root.classList.toggle("dark", dark);
+            root.setAttribute("data-theme", dark ? "dark" : "light");
+            root.style.colorScheme = dark ? "dark" : "light";
+            document
+              .querySelector('meta[name="theme-color"]')
+              ?.setAttribute("content", dark ? "#060a16" : "#2563eb");
+            window.dispatchEvent(new CustomEvent("themechange"));
+          };
+
+          mql.addEventListener("change", function () {
+            if (!localStorage.getItem("theme")) {
+              window.__setTheme("system");
+            }
+          });
+        } catch (_err) {}
+      })();
+    </script>
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+
+    <meta
+      name="robots"
+      content={noindex ? "noindex,nofollow" : "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"}
+    />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteConfig.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:locale" content="de_DE" />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:alt" content="Zeus-Service, Hausmeisterservice in Hamburg und Norderstedt" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:image:alt" content="Zeus-Service, Hausmeisterservice in Hamburg und Norderstedt" />
+
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+      crossorigin
+    />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
+    />
+
+    {jsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    {breadcrumbLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />}
+    <script is:inline>
+      window.__turnstileQueue = window.__turnstileQueue || [];
+      window.onTurnstileLoad = function () {
+        var queued = window.__turnstileQueue || [];
+        window.__turnstileQueue = {
+          push: function (fn) {
+            fn();
+          },
+        };
+        queued.forEach(function (fn) {
+          fn();
+        });
+      };
+    </script>
+    <script
+      id="cf-turnstile-api"
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad"
+      async
+    ></script>
+  </head>
+  <body class="min-h-screen flex flex-col">
+    {
+      humanAllowed ? (
+        <>
+          {showHeader && <Header />}
+          <main class:list={["flex-1", showHeader && "max-sm:pb-36"]}>
+            <slot />
+          </main>
+          {showFooter && <Footer />}
+          {showHeader && <CallButton />}
+          <CookieNotice />
+          {!searchCrawler && <PageGuard />}
+        </>
+      ) : (
+        <BotGate />
+      )
+    }
+    <script is:inline>
+      (() => {
+        const key = "zs-mail";
+        const decode = (encoded) =>
+          encoded
+            .split(".")
+            .map((part, index) =>
+              String.fromCharCode(Number(part) ^ key.charCodeAt(index % key.length)),
+            )
+            .join("");
+        document.querySelectorAll("[data-obfuscated-email]").forEach((node) => {
+          const email = decode(node.getAttribute("data-obfuscated-email") || "");
+          if (!email.includes("@")) return;
+          node.setAttribute("href", "mailto:" + email);
+          const label = node.querySelector("[data-obfuscated-email-label]");
+          if (label) label.textContent = email;
+        });
+      })();
+    </script>
+  </body>
+</html>

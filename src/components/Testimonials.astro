@@ -1,0 +1,55 @@
+---
+import ObfuscatedEmail from "./ObfuscatedEmail.astro";
+---
+
+<section id="referenzen" class="section scroll-mt-24 bg-ink-50 dark:bg-ink-900/50">
+  <div class="container-page">
+    <div class="max-w-2xl mb-12">
+      <p class="section-eyebrow">Referenzen</p>
+      <h2 class="section-title mt-3">Was Kundinnen und Kunden sagen</h2>
+      <p class="mt-4 text-lg text-ink-600 dark:text-ink-300">
+        Wir sind ein neu gegründetes Unternehmen – die ersten Bewertungen
+        folgen bald. Werden Sie Teil unserer Referenzen und testen Sie uns
+        gern unverbindlich.
+      </p>
+    </div>
+
+    <div
+      class="rounded-3xl border border-dashed border-ink-300 bg-white p-10 text-center flex flex-col items-center gap-5 dark:border-white/15 dark:bg-ink-900"
+    >
+      <div
+        class="h-14 w-14 rounded-2xl bg-brand-50 text-brand-600 inline-flex items-center justify-center dark:bg-brand-500/15 dark:text-brand-300"
+        aria-hidden="true"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-7 w-7"
+        >
+          <polygon
+            points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+          />
+        </svg>
+      </div>
+      <div class="space-y-2 max-w-xl">
+        <h3 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+          Es gibt noch keine Rezensionen
+        </h3>
+        <p class="text-ink-600 dark:text-ink-300">
+          Seien Sie die erste Person, die eine Bewertung für Zeus-Service
+          hinterlässt – wir freuen uns über Ihr ehrliches Feedback.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <a href="#kontakt" class="btn-primary">Jetzt anfragen</a>
+        <ObfuscatedEmail showAddress={false} class="btn-secondary">
+          Bewertung einreichen
+        </ObfuscatedEmail>
+      </div>
+    </div>
+  </div>
+</section>

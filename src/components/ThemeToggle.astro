@@ -1,0 +1,128 @@
+---
+interface Props {
+  class?: string;
+  compact?: boolean;
+}
+
+const { class: className = "", compact = false } = Astro.props;
+---
+
+<div
+  class={`theme-toggle inline-flex items-center gap-1 rounded-full border border-ink-200 bg-white p-1 text-ink-700 shadow-sm transition dark:border-white/10 dark:bg-white/5 dark:text-ink-200 ${className}`}
+  role="group"
+  aria-label="Farbdesign wählen"
+>
+  <button
+    type="button"
+    data-theme-choice="light"
+    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} touch-manipulation`}
+    aria-label="Helles Design"
+    title="Helles Design"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="h-4 w-4"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M4.93 19.07l1.41-1.41 M17.66 6.34l1.41-1.41" />
+    </svg>
+  </button>
+  <button
+    type="button"
+    data-theme-choice="system"
+    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} touch-manipulation`}
+    aria-label="System-Design"
+    title="System-Design"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <line x1="8" y1="20" x2="16" y2="20" />
+      <line x1="12" y1="16" x2="12" y2="20" />
+    </svg>
+  </button>
+  <button
+    type="button"
+    data-theme-choice="dark"
+    class={`theme-toggle__btn inline-flex items-center justify-center rounded-full ${compact ? "h-7 w-7" : "h-8 w-8"} touch-manipulation`}
+    aria-label="Dunkles Design"
+    title="Dunkles Design"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      class="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  </button>
+</div>
+
+<style>
+  .theme-toggle__btn:active {
+    background-color: var(--color-ink-100);
+  }
+  @media (hover: hover) {
+    .theme-toggle__btn:hover {
+      background-color: var(--color-ink-100);
+    }
+    :where(.dark, [data-theme="dark"]) .theme-toggle__btn:hover {
+      background-color: rgb(255 255 255 / 0.1);
+    }
+  }
+  .theme-toggle__btn[aria-pressed="true"] {
+    background-color: var(--color-brand-50);
+    color: var(--color-brand-700);
+  }
+  :where(.dark, [data-theme="dark"]) .theme-toggle__btn[aria-pressed="true"] {
+    background-color: rgb(59 130 246 / 0.18);
+    color: var(--color-brand-200);
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    function updatePressed() {
+      const stored = localStorage.getItem("theme") ?? "system";
+      document.querySelectorAll(".theme-toggle__btn").forEach((btn) => {
+        const choice = btn.getAttribute("data-theme-choice");
+        btn.setAttribute("aria-pressed", String(choice === stored));
+      });
+    }
+
+    function wireUp(root) {
+      root.querySelectorAll(".theme-toggle__btn").forEach((btn) => {
+        if (btn.dataset.wired === "1") return;
+        btn.dataset.wired = "1";
+        btn.addEventListener("click", () => {
+          const choice = btn.getAttribute("data-theme-choice") ?? "system";
+          window.__setTheme?.(choice);
+          updatePressed();
+        });
+      });
+    }
+
+    wireUp(document);
+    updatePressed();
+    window.addEventListener("themechange", updatePressed);
+  })();
+</script>

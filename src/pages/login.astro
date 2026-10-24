@@ -1,0 +1,177 @@
+---
+import Layout from "../layouts/Layout.astro";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import Logo from "../components/Logo.astro";
+import { getSession } from "../lib/auth";
+
+export const prerender = false;
+
+const existing = await getSession(Astro);
+if (existing) {
+  return Astro.redirect("/admin");
+}
+
+const url = Astro.url;
+const next = url.searchParams.get("next") ?? "/admin";
+const errorCode = url.searchParams.get("error");
+const errorMessages: Record<string, string> = {
+  credentials: "Benutzername oder Passwort ist falsch.",
+  missing: "Bitte geben Sie Benutzername und Passwort ein.",
+  invalid: "Die Anfrage konnte nicht verarbeitet werden.",
+  passkey: "Face ID hat nicht geklappt. Bitte mit Passwort anmelden.",
+};
+const errorMessage = errorCode ? errorMessages[errorCode] : undefined;
+---
+
+<Layout
+  title="Anmelden"
+  description="Interner Login für das Zeus-Service-Admin-Panel."
+  noindex
+  showHeader={false}
+  showFooter={false}
+>
+  <section class="hero-gradient min-h-screen flex items-center justify-center py-16 px-5">
+    <div class="absolute top-5 right-5">
+      <ThemeToggle />
+    </div>
+    <div class="w-full max-w-md space-y-8">
+      <div class="flex flex-col items-center text-center space-y-4">
+        <Logo height={56} />
+        <a
+          href="/"
+          class="inline-flex items-center gap-2 text-sm text-brand-700 font-semibold dark:text-brand-200 hover:underline"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-4 w-4"
+            aria-hidden="true"
+          >
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Zurück zur Website
+        </a>
+        <div>
+          <h1 class="font-display text-3xl font-extrabold text-ink-900 dark:text-ink-50">
+            Admin-Login
+          </h1>
+          <p class="text-ink-600 text-sm mt-1 dark:text-ink-300">
+            Zugang für Zeus-Service-Administrator:innen.
+          </p>
+        </div>
+      </div>
+
+      <div
+        id="faceid-box"
+        data-next={next}
+        hidden
+        class="rounded-3xl border border-ink-200 bg-white p-8 shadow-[var(--shadow-soft)] space-y-4 dark:border-white/10 dark:bg-ink-900"
+      >
+        <button type="button" id="faceid-login" class="btn-primary w-full justify-center">
+          Mit Face ID anmelden
+        </button>
+        <p id="faceid-status" class="text-sm text-rose-800 dark:text-rose-200" hidden></p>
+        <p class="text-center text-xs text-ink-500 dark:text-ink-400">
+          Auf dem iPhone öffnet sich Face ID. Danach geht es auch mit Benutzername und Passwort.
+        </p>
+      </div>
+
+      <form
+        method="POST"
+        action="/api/auth/login"
+        class="rounded-3xl border border-ink-200 bg-white p-8 shadow-[var(--shadow-soft)] space-y-5 dark:border-white/10 dark:bg-ink-900"
+      >
+        {
+          errorMessage && (
+            <p class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-200">
+              {errorMessage}
+            </p>
+          )
+        }
+
+        <div>
+          <label for="username" class="label">Benutzername</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            required
+            autocomplete="username"
+            class="input"
+          />
+        </div>
+
+        <div>
+          <label for="password" class="label">Passwort</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            autocomplete="current-password"
+            class="input"
+          />
+        </div>
+
+        <input type="hidden" name="next" value={next} />
+
+        <button type="submit" class="btn-primary w-full justify-center">
+          Anmelden
+        </button>
+      </form>
+    </div>
+  </section>
+  <script>
+    import { browserSupportsWebAuthn, platformAuthenticatorIsAvailable, startAuthentication } from "@simplewebauthn/browser";
+
+    const box = document.getElementById("faceid-box");
+    const button = document.getElementById("faceid-login");
+    const status = document.getElementById("faceid-status");
+
+    function showStatus(text: string) {
+      if (!status) return;
+      status.hidden = false;
+      status.textContent = text;
+    }
+
+    if (box && button instanceof HTMLButtonElement && browserSupportsWebAuthn()) {
+      const next = box.dataset.next || "/admin";
+      platformAuthenticatorIsAvailable()
+        .then((available) => {
+          if (available) box.hidden = false;
+        })
+        .catch(() => {});
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        if (status) status.hidden = true;
+        try {
+          const optionsResponse = await fetch("/api/auth/passkey", { headers: { accept: "application/json" } });
+          if (!optionsResponse.ok) throw new Error("options");
+          const options = (await optionsResponse.json()) as Parameters<typeof startAuthentication>[0]["optionsJSON"];
+          const credential = await startAuthentication({ optionsJSON: options });
+          const result = (await fetch("/api/auth/passkey", {
+            method: "POST",
+            headers: { "content-type": "application/json", accept: "application/json" },
+            body: JSON.stringify({ response: credential, next }),
+          }).then((response) => response.json())) as { ok?: boolean; redirect?: string };
+          if (!result.ok || typeof result.redirect !== "string" || !result.redirect.startsWith("/") || result.redirect.startsWith("//")) {
+            showStatus("Face ID hat nicht geklappt. Bitte mit Passwort anmelden.");
+            return;
+          }
+          window.location.assign(result.redirect);
+        } catch (err) {
+          const name = err instanceof Error ? err.name : "";
+          showStatus(name === "NotAllowedError" ? "Face ID wurde abgebrochen." : "Face ID hat nicht geklappt. Bitte mit Passwort anmelden.");
+        } finally {
+          button.disabled = false;
+        }
+      });
+    }
+  </script>
+</Layout>

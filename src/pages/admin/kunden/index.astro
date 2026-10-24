@@ -1,0 +1,107 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { customerAddress, listCustomers } from "../../../lib/customers";
+import { getDb } from "../../../lib/db";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const db = getDb(Astro);
+const query = Astro.url.searchParams.get("q") ?? "";
+const notice = Astro.url.searchParams.get("kunde");
+const customers = db ? await listCustomers(db, query) : [];
+
+const notices: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
+  deleted: { kind: "ok", text: "Kunde gelöscht." },
+  missing: { kind: "bad", text: "Kunde nicht gefunden." },
+  db: { kind: "warn", text: "Datenbank nicht verbunden." },
+  bad: { kind: "bad", text: "Bitte Name und E-Mail prüfen." },
+};
+const noticeMessage = notice ? notices[notice] : undefined;
+---
+
+<AdminLayout title="Kunden" session={session}>
+  {
+    !db && (
+      <section class="rounded-3xl border border-dashed border-amber-300 bg-amber-50/50 p-8 dark:border-amber-400/30 dark:bg-amber-500/5">
+        <h2 class="font-display text-xl font-bold text-amber-900 dark:text-amber-200">D1-Datenbank nicht verbunden</h2>
+      </section>
+    )
+  }
+
+  {
+    db && (
+      <>
+        {noticeMessage && (
+          <p
+            class:list={[
+              "rounded-xl border px-4 py-3 text-sm",
+              noticeMessage.kind === "ok"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+                : noticeMessage.kind === "warn"
+                  ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+                  : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+            ]}
+          >
+            {noticeMessage.text}
+          </p>
+        )}
+
+        <section class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <form method="GET" action="/admin/kunden" class="flex w-full items-center gap-2 sm:max-w-xl">
+            <input class="input min-w-0 flex-1" type="search" name="q" value={query} placeholder="Name, E-Mail, Telefon oder Ort" />
+            <button type="submit" class="btn-primary shrink-0">Suchen</button>
+          </form>
+          <a href="/admin/kunden/neu" class="btn-primary w-fit">Neuer Kunde</a>
+        </section>
+
+        {customers.length === 0 ? (
+          <section class="rounded-3xl border border-dashed border-ink-300 bg-white p-10 text-center dark:border-white/15 dark:bg-ink-900">
+            <p class="text-sm text-ink-600 dark:text-ink-300">
+              {query.trim() ? "Kein Kunde passt zur Suche." : "Noch keine Kunden."}
+            </p>
+          </section>
+        ) : (
+          <section class="space-y-3">
+            {customers.map((customer) => {
+              const name = decodeHtmlEntities(customer.name);
+              const address = customerAddress(customer);
+              const offers =
+                customer.offer_count === 0
+                  ? "Noch kein Angebot"
+                  : customer.offer_count === 1
+                    ? "1 Angebot"
+                    : `${customer.offer_count} Angebote`;
+              return (
+                <a
+                  href={`/admin/kunden/${customer.id}`}
+                  class="block rounded-2xl border border-ink-200 bg-white p-5 dark:border-white/10 dark:bg-ink-900"
+                >
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">{name}</h3>
+                      <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+                        {customer.email}
+                        {customer.phone ? ` · ${customer.phone}` : ""}
+                      </p>
+                      {address && <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">{address}</p>}
+                    </div>
+                    <span class="rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-700 dark:bg-white/10 dark:text-ink-200">
+                      {offers}
+                      {customer.sent_count > 0 ? ` · ${customer.sent_count} gesendet` : ""}
+                    </span>
+                  </div>
+                </a>
+              );
+            })}
+          </section>
+        )}
+      </>
+    )
+  }
+</AdminLayout>

@@ -1,0 +1,91 @@
+---
+import { services } from "../config/services";
+
+const iconPaths: Record<string, string> = {
+  wrench:
+    "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z",
+  sparkles:
+    "M12 3v4 M12 17v4 M3 12h4 M17 12h4 M5.6 5.6l2.8 2.8 M15.6 15.6l2.8 2.8 M5.6 18.4l2.8-2.8 M15.6 8.4l2.8-2.8",
+  shield: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  leaf: "M11 20A7 7 0 0 1 4 13V5l8 3 8-3v8a7 7 0 0 1-7 7h-2z M12 20v-9",
+  snow:
+    "M12 2v20 M4.93 4.93l14.14 14.14 M2 12h20 M4.93 19.07L19.07 4.93",
+  building:
+    "M3 21h18 M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16 M9 9h1 M9 13h1 M9 17h1 M14 9h1 M14 13h1 M14 17h1",
+};
+---
+
+<section id="leistungen" class="section scroll-mt-24 bg-white dark:bg-ink-950">
+  <div class="container-page">
+    <div class="max-w-2xl mb-14">
+      <p class="section-eyebrow">Unsere Leistungen</p>
+      <h2 class="section-title mt-3">
+        Umfassender Service für Ihr Objekt
+      </h2>
+      <p class="mt-4 text-lg text-ink-600 dark:text-ink-300">
+        Von der kleinen Reparatur bis zur kompletten Objektbetreuung –
+        alles aus einer Hand, mit transparenten Preisen und ehrlicher Beratung.
+      </p>
+    </div>
+
+    <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4 items-stretch">
+      {
+        services.map((s) => (
+          <article class="card group h-full flex flex-col">
+            <div class="flex items-center justify-between mb-5">
+              <span
+                class="h-12 w-12 inline-flex items-center justify-center rounded-2xl bg-brand-50 text-brand-600 group-hover:bg-brand-600 group-hover:text-white transition-colors dark:bg-brand-500/15 dark:text-brand-300 dark:group-hover:bg-brand-500 dark:group-hover:text-ink-950"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="h-6 w-6"
+                  aria-hidden="true"
+                >
+                  <path d={iconPaths[s.icon]} />
+                </svg>
+              </span>
+              <span class="text-xs font-medium uppercase tracking-widest text-ink-400 dark:text-ink-500">
+                Service
+              </span>
+            </div>
+            <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">
+              {s.title}
+            </h3>
+            <p class="mt-2 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
+              {s.description}
+            </p>
+            <ul class="mt-5 flex flex-wrap gap-2">
+              {s.items.map((i) => (
+                <li class="rounded-full bg-ink-100 px-3 py-1 text-xs font-medium text-ink-700 dark:bg-white/10 dark:text-ink-200">
+                  {i}
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))
+      }
+    </div>
+
+    <div
+      class="mt-14 rounded-3xl border border-ink-200 bg-gradient-to-br from-brand-50 to-white p-8 sm:p-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 dark:border-white/10 dark:from-brand-500/10 dark:to-white/5"
+    >
+      <div class="max-w-2xl">
+        <h3 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">
+          Noch nicht die passende Leistung dabei?
+        </h3>
+        <p class="mt-2 text-ink-700 dark:text-ink-200">
+          Erzählen Sie uns, worum es geht – wir finden gemeinsam eine Lösung
+          und erstellen Ihnen ein unverbindliches Angebot.
+        </p>
+      </div>
+      <a href="#kontakt" class="btn-primary flex-none">
+        Jetzt anfragen
+      </a>
+    </div>
+  </div>
+</section>

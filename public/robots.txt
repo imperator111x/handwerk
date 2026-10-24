@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /login
+Disallow: /termin
+Disallow: /media
+
+Sitemap: https://zeus-service.de/sitemap-index.xml

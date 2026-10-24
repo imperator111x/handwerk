@@ -1,0 +1,216 @@
+---
+import Logo from "./Logo.astro";
+import ObfuscatedEmail from "./ObfuscatedEmail.astro";
+import { siteConfig } from "../config/site";
+import { version as astroVersion } from "astro/package.json";
+import { version as cloudflareVersion } from "@astrojs/cloudflare/package.json";
+import { version as tailwindVersion } from "tailwindcss/package.json";
+
+const year = new Date().getFullYear();
+const stack = [
+  { label: "Framework", name: "Astro", version: astroVersion },
+  { label: "Gestaltung", name: "Tailwind CSS", version: tailwindVersion },
+  { label: "Anbindung", name: "Cloudflare-Adapter", version: cloudflareVersion },
+  { label: "Hosting", name: "Cloudflare Workers", version: "" },
+];
+---
+
+<footer class="border-t border-ink-200 bg-ink-950 text-ink-200">
+  <div class="container-page py-16 grid gap-10 md:grid-cols-4">
+    <div class="md:col-span-2 space-y-4">
+      <Logo variant="light" />
+      <p class="text-sm text-ink-300 max-w-sm">
+        Professioneller Hausmeisterservice in Hamburg und Norderstedt.
+        Zuverlässig, kompetent und schnell – ob Reparatur, Reinigung oder Wartung.
+      </p>
+      <div class="flex flex-wrap gap-3 pt-2">
+        <a href={siteConfig.contact.phoneHref} class="btn-primary">
+          {siteConfig.contact.phone}
+        </a>
+        <ObfuscatedEmail
+          showAddress={false}
+          class="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10 transition"
+        >
+          E-Mail schreiben
+        </ObfuscatedEmail>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold uppercase tracking-widest text-white mb-4">
+        Navigation
+      </h3>
+      <ul class="space-y-2 text-sm">
+        {
+          siteConfig.nav.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="text-ink-300 hover:text-white transition"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+        <li>
+          <a href="/#fragen" class="text-ink-300 hover:text-white transition">
+            Fragen
+          </a>
+        </li>
+        <li>
+          <a href="/impressum" class="text-ink-300 hover:text-white transition">
+            Impressum
+          </a>
+        </li>
+        <li>
+          <a
+            href="/datenschutz"
+            class="text-ink-300 hover:text-white transition"
+          >
+            Datenschutz
+          </a>
+        </li>
+        <li>
+          <button
+            type="button"
+            data-open-cookie-notice
+            class="text-ink-300 hover:text-white transition"
+          >
+            Cookie-Hinweis
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold uppercase tracking-widest text-white mb-4">
+        Kontakt
+      </h3>
+      <ul class="space-y-2 text-sm text-ink-300">
+        <li>
+          <a href={siteConfig.contact.phoneHref} class="hover:text-white">
+            {siteConfig.contact.phone}
+          </a>
+        </li>
+        <li>
+          <ObfuscatedEmail class="hover:text-white" />
+        </li>
+        <li>
+          <address class="not-italic">
+            {siteConfig.contact.address.street}<br />
+            {siteConfig.contact.address.zip} {siteConfig.contact.address.city}
+          </address>
+        </li>
+      </ul>
+      <h3
+        class="text-sm font-semibold uppercase tracking-widest text-white mt-6 mb-3"
+      >
+        Öffnungszeiten
+      </h3>
+      <ul class="space-y-1 text-xs text-ink-400">
+        {
+          siteConfig.contact.hours.map((h) => (
+            <li>
+              <span class="text-ink-200">{h.day}:</span> {h.time}
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+
+  <div
+    class="border-t border-white/10 px-5 py-6 text-center text-xs text-ink-400 max-sm:pb-36"
+  >
+    <p>
+      © {year} {siteConfig.name}. Alle Rechte vorbehalten. · Gehostet auf
+      Cloudflare Workers.
+    </p>
+    <button
+      type="button"
+      class="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-ink-300 transition hover:border-white/40 hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+      aria-label="Technische Angaben anzeigen"
+      aria-haspopup="dialog"
+      aria-controls="stack-info"
+      data-open-stack
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="h-5 w-5" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 11.2V17" stroke-linecap="round"></path>
+        <circle cx="12" cy="8" r="0.9" fill="currentColor" stroke="none"></circle>
+      </svg>
+    </button>
+  </div>
+
+  <dialog
+    id="stack-info"
+    aria-labelledby="stack-info-title"
+    class="rounded-3xl border border-ink-200/80 bg-white p-0 text-ink-900 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-950 dark:text-ink-50"
+  >
+    <div class="p-6 sm:p-7">
+      <div class="flex items-start justify-between gap-4">
+        <h2 id="stack-info-title" class="font-display text-xl font-bold">Technik dieser Website</h2>
+        <button
+          type="button"
+          class="inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-500 transition hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/10 dark:hover:text-white"
+          aria-label="Schließen"
+          data-close-stack
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" class="h-4 w-4" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p class="mt-2 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
+        Diese Website ist mit folgender Technik gebaut.
+      </p>
+      <dl class="mt-5 divide-y divide-ink-200/80 dark:divide-white/10">
+        {
+          stack.map((item) => (
+            <div class="flex items-baseline justify-between gap-4 py-3">
+              <dt class="text-xs font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400">
+                {item.label}
+              </dt>
+              <dd class="text-right text-sm font-semibold text-ink-900 dark:text-ink-50">
+                {item.name}
+                {item.version && <span class="ml-2 font-medium text-brand-700 dark:text-brand-300">{item.version}</span>}
+              </dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </dialog>
+</footer>
+
+<style>
+  #stack-info {
+    position: fixed;
+    inset: 0;
+    width: min(100% - 2rem, 26rem);
+    height: fit-content;
+    max-height: calc(100% - 2rem);
+    margin: auto;
+    padding: 0;
+  }
+  #stack-info::backdrop {
+    background: rgb(6 10 22 / 0.72);
+  }
+</style>
+
+<script>
+  const dialog = document.getElementById("stack-info");
+  const openButton = document.querySelector("[data-open-stack]");
+  if (dialog instanceof HTMLDialogElement && openButton instanceof HTMLButtonElement) {
+    openButton.addEventListener("click", () => {
+      dialog.showModal();
+    });
+    dialog.querySelector("[data-close-stack]")?.addEventListener("click", () => {
+      dialog.close();
+    });
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+</script>

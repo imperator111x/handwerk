@@ -1,0 +1,236 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { getDb } from "../../../lib/db";
+import { decodeHtmlEntities } from "../../../lib/html-entities";
+import { berlinTodayIso, listAllQuotes, offerValidity, type QuoteListItem } from "../../../lib/offers";
+import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
+import { formatBerlin } from "../../../lib/time";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const db = getDb(Astro);
+const today = berlinTodayIso();
+const standParam = Astro.url.searchParams.get("stand");
+const stand = standParam === "abgelaufen" || standParam === "alle" ? standParam : "gueltig";
+const notice = Astro.url.searchParams.get("angebot");
+
+const all = db ? await listAllQuotes(db) : [];
+const withStand = all.map((quote) => ({ quote, stand: offerValidity(quote.valid_until, today) }));
+const counts = {
+  gueltig: withStand.filter((row) => row.stand === "gueltig").length,
+  abgelaufen: withStand.filter((row) => row.stand === "abgelaufen").length,
+  alle: withStand.length,
+};
+const rows = stand === "alle" ? withStand : withStand.filter((row) => row.stand === stand);
+
+const tabs: Array<{ id: "gueltig" | "abgelaufen" | "alle"; label: string }> = [
+  { id: "gueltig", label: "Gültig" },
+  { id: "abgelaufen", label: "Abgelaufen" },
+  { id: "alle", label: "Alle" },
+];
+
+const notices: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
+  saved: { kind: "ok", text: "Angebot gespeichert." },
+  sent: { kind: "ok", text: "Angebot gespeichert und erneut gesendet." },
+  failed: { kind: "bad", text: "Gespeichert, die E-Mail konnte nicht gesendet werden." },
+  deleted: { kind: "ok", text: "Angebot gelöscht." },
+  missing: { kind: "bad", text: "Angebot oder Anfrage nicht gefunden." },
+  db: { kind: "warn", text: "Datenbank nicht verbunden." },
+};
+const noticeMessage = notice ? notices[notice] : undefined;
+
+const deliveryOf = (quote: QuoteListItem) => {
+  const status = quote.email_status ?? "";
+  if (status.startsWith("sent:")) {
+    return {
+      label: quote.sent_at ? `Gesendet ${formatBerlin(quote.sent_at)}` : "Gesendet",
+      className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200",
+    };
+  }
+  if (status.startsWith("failed")) {
+    return {
+      label: "Versand fehlgeschlagen",
+      className: "bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-200",
+    };
+  }
+  if (status.startsWith("skipped")) {
+    return {
+      label: "Nicht versendet",
+      className: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-200",
+    };
+  }
+  return {
+    label: "Noch nicht gesendet",
+    className: "bg-ink-100 text-ink-600 dark:bg-white/10 dark:text-ink-300",
+  };
+};
+
+const emptyText =
+  stand === "gueltig"
+    ? "Keine gültigen Angebote."
+    : stand === "abgelaufen"
+      ? "Keine abgelaufenen Angebote."
+      : "Noch keine Angebote.";
+---
+
+<AdminLayout title="Angebote" session={session}>
+  {
+    !db && (
+      <section class="rounded-3xl border border-dashed border-amber-300 bg-amber-50/50 p-8 dark:border-amber-400/30 dark:bg-amber-500/5">
+        <h2 class="font-display text-xl font-bold text-amber-900 dark:text-amber-200">
+          D1-Datenbank nicht verbunden
+        </h2>
+      </section>
+    )
+  }
+
+  {
+    db && (
+      <>
+        {noticeMessage && (
+          <p
+            class:list={[
+              "rounded-xl border px-4 py-3 text-sm",
+              noticeMessage.kind === "ok"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+                : noticeMessage.kind === "warn"
+                  ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-100"
+                  : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+            ]}
+          >
+            {noticeMessage.text}
+          </p>
+        )}
+
+        <section class="flex flex-wrap items-center gap-2">
+          {tabs.map((tab) => {
+            const active = tab.id === stand;
+            const href = tab.id === "gueltig" ? "/admin/angebote" : `/admin/angebote?stand=${tab.id}`;
+            return (
+              <a
+                href={href}
+                class={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition ${
+                  active
+                    ? "border-brand-500 bg-brand-500 text-white"
+                    : "border-ink-200 bg-white text-ink-700 hover:bg-ink-100 dark:border-white/10 dark:bg-white/5 dark:text-ink-200 dark:hover:bg-white/10"
+                }`}
+              >
+                {tab.label}
+                <span
+                  class={`rounded-full px-2 py-0.5 text-xs ${
+                    active ? "bg-white/20" : "bg-ink-100 text-ink-600 dark:bg-white/10 dark:text-ink-300"
+                  }`}
+                >
+                  {counts[tab.id]}
+                </span>
+              </a>
+            );
+          })}
+        </section>
+
+        {rows.length === 0 ? (
+          <section class="rounded-3xl border border-dashed border-ink-300 bg-white p-10 text-center dark:border-white/15 dark:bg-ink-900">
+            <p class="text-sm text-ink-600 dark:text-ink-300">{emptyText}</p>
+          </section>
+        ) : (
+          <section class="space-y-4">
+            {rows.map(({ quote, stand: validity }) => {
+              const delivery = deliveryOf(quote);
+              const number = offerNumber(quote.id, quote.created_at);
+              const name = decodeHtmlEntities(quote.customer_name);
+              return (
+                <article class="rounded-2xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+                  <header class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <h3 class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">
+                          <a href={`/admin/angebote/${quote.id}`} class="hover:text-brand-600 dark:hover:text-brand-300">
+                            {number}
+                          </a>
+                        </h3>
+                        <span
+                          class={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                            validity === "gueltig"
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-200"
+                              : "bg-ink-100 text-ink-600 dark:bg-white/10 dark:text-ink-300"
+                          }`}
+                        >
+                          {validity === "gueltig" ? "Gültig" : "Abgelaufen"}
+                        </span>
+                        <span class={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${delivery.className}`}>
+                          {delivery.label}
+                        </span>
+                      </div>
+                      <p class="mt-1 text-sm text-ink-800 dark:text-ink-100">{quote.title}</p>
+                      <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
+                        {name}
+                        {quote.customer_email ? ` · ${quote.customer_email}` : ""}
+                        {quote.customer_phone ? ` · ${quote.customer_phone}` : ""}
+                      </p>
+                    </div>
+                    <div class="text-right">
+                      <p class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">
+                        {formatEuro(quote.price_cents)}
+                      </p>
+                      <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">
+                        Gültig bis {formatOfferDate(quote.valid_until)}
+                      </p>
+                    </div>
+                  </header>
+                  <div class="mt-4 flex flex-wrap items-center gap-2 text-sm">
+                    <a href={`/admin/angebote/${quote.id}`} class="btn-primary">
+                      Bearbeiten
+                    </a>
+                    <a
+                      href={`/api/admin/angebot-pdf?id=${quote.id}`}
+                      target="_blank"
+                      class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                    >
+                      PDF öffnen
+                    </a>
+                    {quote.customer_id ? (
+                      <a
+                        href={`/admin/kunden/${quote.customer_id}`}
+                        class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                      >
+                        Zum Kunden
+                      </a>
+                    ) : null}
+                    {quote.request_id ? (
+                      <a
+                        href={`/admin/anfragen/${quote.request_id}`}
+                        class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                      >
+                        Zur Anfrage
+                      </a>
+                    ) : null}
+                    <form
+                      method="POST"
+                      action="/api/admin/angebote"
+                      class="inline"
+                      onsubmit="return confirm('Dieses Angebot wirklich löschen?')"
+                    >
+                      <input type="hidden" name="id" value={quote.id} />
+                      <input type="hidden" name="action" value="delete" />
+                      <button
+                        type="submit"
+                        class="rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:bg-rose-500/5 dark:text-rose-200"
+                      >
+                        Löschen
+                      </button>
+                    </form>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
+      </>
+    )
+  }
+</AdminLayout>
