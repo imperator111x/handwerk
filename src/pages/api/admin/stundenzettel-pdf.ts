@@ -18,7 +18,8 @@ export async function GET(ctx: APIContext): Promise<Response> {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="${pdf.filename}"`,
       "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      Pragma: "no-cache",
     },
   });
 }

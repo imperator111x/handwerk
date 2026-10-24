@@ -1,3 +1,4 @@
+import { siteConfig } from "../config/site";
 import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_WIDTH } from "./offer-logo";
 import { formatOfferDate } from "./quote";
 import {
@@ -33,7 +34,16 @@ const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const LEFT = 48;
 const RIGHT = 547;
+const WIDTH = RIGHT - LEFT;
+const BLACK = "0 0 0";
+const INK = "0.15 0.15 0.15";
+const MUTED = "0.40 0.40 0.40";
+const WHITE = "1 1 1";
+const BAND = "0.94 0.94 0.94";
+const RULE = "0.75 0.75 0.75";
+const BOX = "0.88 0.88 0.88";
 const LOGO_W = 190;
+const FOOTER_TOP = 72;
 
 type PdfImage = {
   key: "logo" | "employee" | "customer";
@@ -85,86 +95,188 @@ export function buildTimesheetPdf(input: TimesheetPdfInput): Uint8Array {
 
 function layout(input: TimesheetPdfInput, images: PdfImage[]): string {
   const ops: string[] = [];
-  const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
-  const logoBottom = PAGE_H - 28 - logoH;
-  let y = logoBottom - 28;
   const paint = (command: string) => ops.push(command);
-  const textAt = (x: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = "0.15 0.15 0.15") => {
+  const fill = (color: string) => paint(`${color} rg`);
+  const stroke = (color: string) => paint(`${color} RG`);
+  const useFont = (font: "F1" | "F2", size: number) => paint(`/${font} ${size} Tf`);
+
+  const textAt = (x: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = INK) => {
     const shown = value.trim();
     if (!shown) return;
-    paint(`${color} rg /${font} ${size} Tf BT 1 0 0 1 ${round(x)} ${round(baseline)} Tm ${pdfText(shown)} Tj ET`);
+    fill(color);
+    useFont(font, size);
+    paint(`BT 1 0 0 1 ${round(x)} ${round(baseline)} Tm ${pdfText(shown)} Tj ET`);
   };
-  const textRight = (right: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = "0.15 0.15 0.15") => {
-    const width = textWidth(value, size, font === "F2");
-    textAt(right - width, baseline, size, font, value, color);
-  };
-  const line = (value: string, size = 11, font: "F1" | "F2" = "F1") => {
-    for (const part of wrap(value, 92)) {
-      textAt(LEFT, y, size, font, part);
-      y -= size + 4;
-    }
+  const textRight = (right: number, baseline: number, size: number, font: "F1" | "F2", value: string, color = INK) => {
+    textAt(right - textWidth(value, size, font === "F2"), baseline, size, font, value, color);
   };
 
+  // Footer
+  stroke(RULE);
+  paint(`0.6 w ${LEFT} 62 m ${RIGHT} 62 l S`);
+  textAt(LEFT, 46, 8, "F1", "ZEUS-SERVICE · Leon Lütcke · Berliner Allee 44a · 22850 Norderstedt", MUTED);
+  textAt(LEFT, 34, 8, "F1", `${siteConfig.contact.phone} · ${siteConfig.contact.email} · zeus-service.de`, MUTED);
+
+  const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
+  const logoBottom = PAGE_H - 28 - logoH;
   paint(`q ${round(LOGO_W)} 0 0 ${round(logoH)} ${LEFT} ${round(logoBottom)} cm /Im5 Do Q`);
-  textRight(RIGHT, PAGE_H - 44, 18, "F2", "Stundenzettel", "0 0 0");
-  textRight(RIGHT, PAGE_H - 62, 10, "F1", input.number, "0.4 0.4 0.4");
-  textRight(RIGHT, PAGE_H - 76, 9, "F1", input.dateLabel, "0.4 0.4 0.4");
-  paint("0 0 0 rg");
-  paint(`0 ${round(logoBottom - 12)} ${PAGE_W} 2 re f`);
+  textRight(RIGHT, PAGE_H - 42, 20, "F2", "Stundenzettel", BLACK);
+  textRight(RIGHT, PAGE_H - 62, 10, "F1", input.number, MUTED);
+  textRight(RIGHT, PAGE_H - 76, 10, "F1", input.dateLabel, MUTED);
 
-  line(input.customerName, 13, "F2");
+  const ruleY = logoBottom - 12;
+  fill(BLACK);
+  paint(`0 ${round(ruleY)} ${PAGE_W} 3 re f`);
+
+  let y = ruleY - 24;
+  textAt(LEFT, y, 11, "F2", "Leon Lütcke", BLACK);
+  textAt(LEFT, y - 14, 10, "F1", "Berliner Allee 44a");
+  textAt(LEFT, y - 28, 10, "F1", "22850 Norderstedt");
+  textAt(LEFT, y - 42, 10, "F1", siteConfig.contact.phone, MUTED);
+  textAt(LEFT, y - 56, 10, "F1", siteConfig.contact.email, MUTED);
+
+  textRight(RIGHT, y, 10, "F1", `Arbeitstag ${formatOfferDate(input.workDate)}`);
+  textRight(RIGHT, y - 14, 10, "F1", `Mitarbeiter ${input.employeeName}`);
+  textRight(RIGHT, y - 28, 10, "F1", "zeus-service.de", MUTED);
+  if (input.signedAtLabel) {
+    textRight(RIGHT, y - 42, 9, "F1", `Festgeschrieben ${input.signedAtLabel}`, MUTED);
+  }
+
+  y -= 82;
+  textAt(LEFT, y, 8, "F2", "AUFTRAGGEBER", MUTED);
+  y -= 16;
+  textAt(LEFT, y, 13, "F2", input.customerName, BLACK);
+  y -= 16;
   const place = [input.street, [input.postalCode, input.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
-  if (place) line(place, 11);
-  line(`Mitarbeiter: ${input.employeeName}`, 11);
-  line(`Arbeitstag: ${formatOfferDate(input.workDate)}`, 11);
-  y -= 8;
+  if (place) {
+    textAt(LEFT, y, 11, "F1", place);
+    y -= 16;
+  }
+  y -= 10;
 
-  paint(`0 0 0 rg ${LEFT} ${round(y - 4)} ${RIGHT - LEFT} 16 re f`);
-  textAt(LEFT + 4, y, 8, "F2", "Beginn", "1 1 1");
-  textAt(LEFT + 58, y, 8, "F2", "Ende", "1 1 1");
-  textAt(LEFT + 108, y, 8, "F2", "Pause", "1 1 1");
-  textAt(LEFT + 160, y, 8, "F2", "Stunden", "1 1 1");
-  textAt(LEFT + 220, y, 8, "F2", "Tätigkeit", "1 1 1");
-  y -= 20;
+  // Table
+  const col = {
+    start: LEFT + 8,
+    end: LEFT + 70,
+    pause: LEFT + 132,
+    hours: LEFT + 200,
+    task: LEFT + 268,
+  };
+  const drawHead = () => {
+    fill(BLACK);
+    paint(`${LEFT} ${round(y - 5)} ${WIDTH} 18 re f`);
+    textAt(col.start, y, 8, "F2", "Beginn", WHITE);
+    textAt(col.end, y, 8, "F2", "Ende", WHITE);
+    textAt(col.pause, y, 8, "F2", "Pause", WHITE);
+    textAt(col.hours, y, 8, "F2", "Stunden", WHITE);
+    textAt(col.task, y, 8, "F2", "Tätigkeit", WHITE);
+    y -= 20;
+  };
+  drawHead();
 
   input.lines.forEach((row, index) => {
     const minutes = netMinutes(row.start, row.end, row.breakMinutes) ?? 0;
+    const taskLines = wrap(row.task, 38);
+    const rowHeight = Math.max(20, taskLines.length * 12 + 8);
     if (index % 2 === 0) {
-      paint(`0.94 0.94 0.94 rg ${LEFT} ${round(y - 4)} ${RIGHT - LEFT} 16 re f`);
+      fill(BAND);
+      paint(`${LEFT} ${round(y - rowHeight + 12)} ${WIDTH} ${rowHeight} re f`);
     }
-    textAt(LEFT + 4, y, 9, "F1", row.start);
-    textAt(LEFT + 58, y, 9, "F1", row.end);
-    textAt(LEFT + 108, y, 9, "F1", row.breakMinutes ? `${row.breakMinutes} Min.` : "–");
-    textAt(LEFT + 160, y, 9, "F1", formatDecimalHours(minutes));
-    textAt(LEFT + 220, y, 9, "F1", row.task.slice(0, 42));
-    y -= 18;
+    textAt(col.start, y, 10, "F1", row.start);
+    textAt(col.end, y, 10, "F1", row.end);
+    textAt(col.pause, y, 10, "F1", row.breakMinutes ? `${row.breakMinutes} Min.` : "–");
+    textAt(col.hours, y, 10, "F2", formatDecimalHours(minutes));
+    taskLines.forEach((part, lineIndex) => {
+      textAt(col.task, y - lineIndex * 12, 10, "F1", part);
+    });
+    y -= rowHeight;
   });
-  y -= 8;
-  line(`Summe ${formatMinutes(input.totalMinutes)} (${formatDecimalHours(input.totalMinutes)} Std.)`, 12, "F2");
-  if (input.note) {
-    y -= 6;
-    line(input.note, 10);
-  }
-  y -= 8;
-  line(TIMESHEET_SIGN_NOTE, 9);
-  if (input.contentHash) line(`Prüfwert: ${input.contentHash}`, 8);
-  if (input.signedAtLabel) line(`Festgeschrieben am ${input.signedAtLabel}.`, 10, "F2");
-  y -= 12;
 
-  const drawSign = (title: string, person: string, image: PdfImage | null) => {
-    line(title, 11, "F2");
-    line(person || "keine Unterschrift", 10);
-    if (image) {
-      const boxW = 220;
-      const boxH = Math.min(70, (boxW * image.height) / image.width);
-      y -= boxH;
-      paint(`q ${round(boxW)} 0 0 ${round(boxH)} ${LEFT} ${round(y)} cm /Im${image.objectId} Do Q`);
-      y -= 12;
+  y -= 8;
+  fill(BLACK);
+  paint(`${LEFT} ${round(y - 6)} ${WIDTH} 26 re f`);
+  textAt(LEFT + 10, y, 11, "F2", "Summe Arbeitszeit", WHITE);
+  textRight(RIGHT - 10, y, 11, "F2", `${formatMinutes(input.totalMinutes)} · ${formatDecimalHours(input.totalMinutes)} Std.`, WHITE);
+  y -= 34;
+
+  if (input.note.trim()) {
+    textAt(LEFT, y, 8, "F2", "BEMERKUNG", MUTED);
+    y -= 14;
+    for (const part of wrap(input.note, 92)) {
+      textAt(LEFT, y, 10, "F1", part);
+      y -= 13;
     }
-    y -= 8;
-  };
-  drawSign("Unterschrift Mitarbeiter", input.signerName, images.find((image) => image.key === "employee") ?? null);
-  drawSign("Unterschrift Auftraggeber", input.customerSignerName, images.find((image) => image.key === "customer") ?? null);
+    y -= 6;
+  }
+
+  for (const part of wrap(TIMESHEET_SIGN_NOTE, 96)) {
+    textAt(LEFT, y, 8, "F1", part, MUTED);
+    y -= 11;
+  }
+  if (input.contentHash) {
+    y -= 4;
+    textAt(LEFT, y, 7, "F2", "Prüfwert", MUTED);
+    y -= 10;
+    for (const part of wrap(input.contentHash, 64)) {
+      textAt(LEFT, y, 7, "F1", part, MUTED);
+      y -= 9;
+    }
+  }
+  y -= 14;
+
+  // Signature boxes side by side
+  const gap = 14;
+  const boxW = (WIDTH - gap) / 2;
+  const boxH = 128;
+  const boxes = [
+    {
+      x: LEFT,
+      title: "Unterschrift Mitarbeiter",
+      person: input.signerName || "—",
+      image: images.find((image) => image.key === "employee") ?? null,
+    },
+    {
+      x: LEFT + boxW + gap,
+      title: "Unterschrift Auftraggeber",
+      person: input.customerSignerName || "—",
+      image: images.find((image) => image.key === "customer") ?? null,
+    },
+  ];
+
+  if (y - boxH < FOOTER_TOP + 8) {
+    y = FOOTER_TOP + boxH + 8;
+  }
+
+  for (const box of boxes) {
+    stroke(BOX);
+    paint(`1.2 w ${round(box.x)} ${round(y - boxH)} ${round(boxW)} ${round(boxH)} re S`);
+    textAt(box.x + 10, y - 16, 9, "F2", box.title, MUTED);
+    textAt(box.x + 10, y - 32, 10, "F1", box.person, INK);
+    stroke(RULE);
+    paint(`0.6 w ${round(box.x + 10)} ${round(y - 40)} m ${round(box.x + boxW - 10)} ${round(y - 40)} l S`);
+
+    const imageAreaTop = y - 48;
+    const imageAreaBottom = y - boxH + 10;
+    const imageAreaH = imageAreaTop - imageAreaBottom;
+    const imageAreaW = boxW - 20;
+    if (box.image) {
+      const ratio = box.image.width / Math.max(box.image.height, 1);
+      let drawW = imageAreaW;
+      let drawH = drawW / ratio;
+      if (drawH > imageAreaH) {
+        drawH = imageAreaH;
+        drawW = drawH * ratio;
+      }
+      const drawX = box.x + 10 + (imageAreaW - drawW) / 2;
+      const drawY = imageAreaBottom + (imageAreaH - drawH) / 2;
+      paint(
+        `q ${round(drawW)} 0 0 ${round(drawH)} ${round(drawX)} ${round(drawY)} cm /Im${box.image.objectId} Do Q`,
+      );
+    } else {
+      textAt(box.x + 10, imageAreaBottom + imageAreaH / 2, 9, "F1", "keine Unterschrift", MUTED);
+    }
+  }
+
   return ops.join("\n");
 }
 
