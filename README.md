@@ -1,211 +1,208 @@
-# Zeus-Service Website
+# ZEUS.JS
 
-Neu aufgebaute, verbesserte Version der Website [zeus-service.de](https://zeus-service.de/) –
-gehostet auf **Cloudflare Workers**, geschrieben mit **Astro + TypeScript + Tailwind CSS v4**.
+**ZEUS.JS** ist das Betriebs- und Admin-System hinter [zeus-service.de](https://zeus-service.de/) –
+Website, Anfragen, Angebote, Rechnungen, Postfach und Kundenportal in einer Astro-/Cloudflare-App.
 
-Enthalten:
+Kein klassisches CMS: **ZEUS.JS** ist auf Handwerk & Hausmeisterservice ausgelegt
+(Angebot → Auftrag → Rechnung), läuft auf **Cloudflare Workers** und ist mit
+**Astro + TypeScript + Tailwind CSS v4** gebaut.
 
-- Modernes Marketing-Frontend (Hero, Leistungen, Über uns, Ablauf, Referenzen, Kontakt)
-- Dark-Mode mit Light/System/Dark-Toggle (persistiert via `localStorage`)
-- Eigenes Logo (Zeus-Löwenkopf + Wortmarke), Favicons und Open-Graph-Bild
-- Kontaktformular mit serverseitiger Validierung, Honeypot-Schutz, Persistenz in **Cloudflare D1** und optionalem E-Mail-Versand via [Resend](https://resend.com/)
-- **Admin-Bereich unter `/admin`** mit Login (`/login`), Session-Handling über **Cloudflare KV** und Status-Workflow für Anfragen
-- SEO (strukturierte LocalBusiness-Daten, Open Graph, Sitemap), `robots.txt`, 404-Seite
-- Impressums- und Datenschutz-Stubs
+![ZEUS.JS Website](docs/screenshots/zeus-js-website.png)
 
 ---
 
-## Warum dieser Stack?
+## Was ZEUS.JS kann
 
-| Baustein | Wahl | Warum |
-|---|---|---|
-| Sprache | **TypeScript** | Standard im Cloudflare- und Astro-Ökosystem, strikte Typsicherheit, direkt in Workers kompatibel. |
-| Framework | **[Astro](https://astro.build/)** | Perfekt für Marketing-Sites: SSR + statische Teile, erstklassige SEO, First-Class Cloudflare Adapter, kann später React/Svelte Islands einbinden. |
-| Styling | **Tailwind CSS v4** | Konsistentes Design-System, extrem schneller Build, klassenbasierter Dark-Mode. |
-| Deployment | **Cloudflare Workers** (`@astrojs/cloudflare`) | Globales Edge-Deployment, kostenloser Einstiegstarif, saubere Integration mit D1/KV/R2. |
-| Auth | Eigener schlanker Layer (PBKDF2 + KV-Sessions) | Edge-kompatibel ohne Node-Abhängigkeiten, später nahtlos durch Lucia/Better-Auth/Auth.js austauschbar. |
-| Datenbank | **Cloudflare D1** (SQLite) | Users + Kontaktanfragen. Schema in `migrations/`. |
-| Session-Store | **Cloudflare KV** (Binding `SESSIONS`) | Weltweit verteilte Session-Persistenz. Fallback: In-Memory in der Entwicklung. |
-| E-Mail (optional) | **Resend** über HTTPS | Edge-fähig, keine SMTP-Dependency. |
+| Bereich | Funktionen |
+|---|---|
+| Website | Marketing-Seiten, Dark Mode, Kontaktformular, SEO, Spam-Filter |
+| Anfragen | Inbox, Antworten, Anhänge, Termine, Absender sperren |
+| Kunden | Kundenakte, Dubletten zusammenführen, Portal-Einladung |
+| Buchhaltung | Angebote, Aufträge, Rechnungen (PDF/ZUGFeRD), GiroCode-QR, Rabatt, Mahnung, Stripe, DATEV |
+| Team | Postfach, Stundenzettel mit Signatur, Leistungskatalog, Wiederkehrend |
 
-Bewusst **nicht** gewählt: Next.js. Für diese Art von Marketing-/Business-Website
-ist Next.js überdimensioniert, der Bundle-Overhead größer, und die
-Cloudflare-Integration komplexer (OpenNext). Astro liefert bei weniger Bytes
-bessere Lighthouse-Scores und ist für den geplanten Umfang (CMS-ähnlich +
-kleines Admin-Panel) die beste Wahl.
+### Eindrücke
+
+**Admin-Übersicht**
+
+![ZEUS.JS Admin-Übersicht](docs/screenshots/zeus-js-admin-uebersicht.png)
+
+**Postfach (Desktop & Mobil)**
+
+![ZEUS.JS Postfach](docs/screenshots/zeus-js-postfach.png)
+
+![ZEUS.JS Postfach mobil](docs/screenshots/zeus-js-postfach-mobil.png)
+
+**Antwort-Editor**
+
+![ZEUS.JS Antwort-Editor](docs/screenshots/zeus-js-antwort-editor.png)
+
+**Rechnung mit GiroCode & Rabatt**
+
+![ZEUS.JS Rechnung GiroCode](docs/screenshots/zeus-js-rechnung-girocode.png)
+
+![ZEUS.JS Rechnung mit Rabatt](docs/screenshots/zeus-js-rechnung-rabatt.png)
+
+**Stundenzettel & Arbeiten**
+
+![ZEUS.JS Stundenzettel](docs/screenshots/zeus-js-stundenzettel.png)
+
+![ZEUS.JS Arbeiten](docs/screenshots/zeus-js-arbeiten.png)
 
 ---
 
-## Lokale Entwicklung
+## Stack
 
-Voraussetzungen: Node.js **20** oder neuer, npm.
+| Baustein | Wahl |
+|---|---|
+| Runtime | Cloudflare Workers (`@astrojs/cloudflare`) |
+| App | Astro 7 + TypeScript |
+| UI | Tailwind CSS v4 |
+| Datenbank | Cloudflare D1 (SQLite), Schema in `migrations/` |
+| Sessions / Dateien | Cloudflare KV (`SESSIONS`, `FILES`) |
+| E-Mail | Cloudflare Email Sending (+ optional Resend) |
+| Auth | PBKDF2 + KV-Sessions, Passkeys optional |
+
+---
+
+## ZEUS.JS installieren
+
+Voraussetzungen: **Node.js 22+**, npm, [Cloudflare-Account](https://dash.cloudflare.com/),
+optional `CLOUDFLARE_API_TOKEN` mit Rechten für Workers, D1 und KV.
+
+### 1. Repo holen & Abhängigkeiten
 
 ```bash
+git clone https://github.com/imperator111x/handwerk.git
+cd handwerk
 npm install
-npm run dev            # Astro Dev-Server (Port 4321)
 ```
 
-Lokal ohne Cloudflare-Bindings laufen Login (nur mit `ADMIN_PASSWORD_HASH` in
-`.dev.vars`) und Kontaktformular bereits – Anfragen werden nur ins Konsolen-Log
-geschrieben, bis D1 verfügbar ist.
-
-Für den Edge-Build inklusive Cloudflare-Runtime (`locals.runtime.env`, D1, KV):
+### 2. Lokal starten (ohne Cloudflare-Bindings)
 
 ```bash
-npm run build
-npm run cf:dev         # Wrangler dev, nutzt dist/ und wrangler.jsonc
+npm run dev
+# → http://localhost:4321
 ```
 
-### Typecheck
+Für Login lokal in `.dev.vars` (nicht committen):
 
 ```bash
-npm run check
+ADMIN_PASSWORD_HASH=pbkdf2$210000$…
 ```
 
----
+Hash erzeugen: siehe `src/lib/auth.ts` / Setup-Skript unten.
 
-## Daten & Speicherung
-
-- **Users** werden in der D1-Tabelle `users` abgelegt (siehe
-  [`migrations/0001_init.sql`](migrations/0001_init.sql)). Passwörter werden
-  **nie** im Klartext gespeichert, sondern als `pbkdf2$<iterations>$<salt_hex>$<hash_hex>`
-  (PBKDF2-SHA-256, 100 000 Iterationen, 16-Byte-Zufallssalt, Web Crypto; das ist das von
-  Cloudflare Workers Web-Crypto maximal unterstützte Iterationslimit).
-- **Kontaktanfragen** landen in `contact_requests` mit Status
-  `new | in_progress | done | archived`.
-- **Sessions** werden als Zufalls-Token (32 Byte, hex) im HttpOnly-Cookie
-  `zs_session` gesetzt und in Cloudflare KV unter `session:<token>` abgelegt
-  (TTL 8 Stunden). Secure + SameSite=Lax.
-- **Fallback ohne D1:** Es gibt einen zusätzlichen Login über die Env-Variable
-  `ADMIN_USERNAME` + Secret `ADMIN_PASSWORD_HASH` – damit kommt man selbst dann
-  rein, wenn D1 ausfällt oder leer ist.
-
----
-
-## Deployment auf Cloudflare
-
-### Option A · Ein-Befehl-Setup (empfohlen)
-
-Das Skript [`scripts/setup-cloudflare.sh`](scripts/setup-cloudflare.sh)
-übernimmt alles:
-
-1. Legt D1-Datenbank `zeus-service-db` an (falls nicht vorhanden)
-2. Legt KV-Namespace `SESSIONS` an (falls nicht vorhanden)
-3. Trägt beide Bindings in `wrangler.jsonc` ein
-4. Führt alle `migrations/*.sql` gegen das Remote-D1 aus
-5. Erzeugt per PBKDF2 einen Admin-Passwort-Hash und legt den User
-   `admin` in D1 an (idempotent); setzt denselben Hash zusätzlich als
-   Secret `ADMIN_PASSWORD_HASH` (Fallback)
-6. Baut und deployt den Worker
-
-Voraussetzung:
+### 3. Cloudflare einrichten (empfohlen: Ein-Befehl)
 
 ```bash
-export CLOUDFLARE_API_TOKEN='…'   # Scopes: D1 Edit, Workers KV Storage Edit, Workers Scripts Edit
-# Optional, falls mehrere Accounts:
-export CLOUDFLARE_ACCOUNT_ID='…'
-```
+export CLOUDFLARE_API_TOKEN='…'
+# optional: export CLOUDFLARE_ACCOUNT_ID='…'
 
-Dann:
-
-```bash
 bash scripts/setup-cloudflare.sh
-# oder nur provisionieren ohne Deploy:
+```
+
+Das Skript:
+
+1. legt D1 `zeus-service-db` und KV `SESSIONS` an  
+2. schreibt Bindings in `wrangler.jsonc`  
+3. spielt `migrations/*.sql` remote ein  
+4. legt Admin-User an und setzt `ADMIN_PASSWORD_HASH`  
+5. baut und deployt **ZEUS.JS**
+
+Nur provisionieren, ohne Deploy:
+
+```bash
 bash scripts/setup-cloudflare.sh --skip-deploy
 ```
 
-> **Token erzeugen:** Cloudflare-Dashboard → *My Profile* → *API Tokens* →
-> *Create Token* → Vorlage „Edit Cloudflare Workers" (deckt D1, KV und
-> Workers ab) oder Custom-Token mit obigen Scopes.
->
-> **Als Cursor-Cloud-Agent:** Den Token in der [Cursor-Dashboard-Oberfläche](https://cursor.com)
-> unter *Cloud Agents → Secrets* als `CLOUDFLARE_API_TOKEN` hinterlegen –
-> dann steht er in der Agent-VM automatisch als Environment-Variable zur
-> Verfügung.
-
-### Option B · manuell
+### 4. Manuell (kurz)
 
 ```bash
 npx wrangler login
 npx wrangler d1 create zeus-service-db
 npx wrangler kv namespace create SESSIONS
-# IDs in wrangler.jsonc eintragen (die kommentierten Blöcke sind vorbereitet)
+# IDs in wrangler.jsonc eintragen
 
 for f in migrations/*.sql; do
   npx wrangler d1 execute zeus-service-db --remote --file="$f"
 done
 
-# Admin-User:
-HASH="$(node --input-type=module -e "
-function toHex(b){return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}
-const s=new ArrayBuffer(16); crypto.getRandomValues(new Uint8Array(s));
-const k=await crypto.subtle.importKey('raw',new TextEncoder().encode(process.env.P),{name:'PBKDF2'},false,['deriveBits']);
-const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:s,iterations:100000,hash:'SHA-256'},k,256);
-console.log('pbkdf2\$100000\$'+toHex(s)+'\$'+toHex(bits));
-" P="DEIN_STARKES_PASSWORT")"
-
-npx wrangler d1 execute zeus-service-db --remote --command \
-  "INSERT INTO users (username, password_hash, role) VALUES ('admin','$HASH','admin') \
-   ON CONFLICT(username) DO UPDATE SET password_hash = excluded.password_hash;"
-
-# Fallback-Secret:
-printf '%s' "$HASH" | npx wrangler secret put ADMIN_PASSWORD_HASH
-
-# Optional für E-Mail-Benachrichtigung über Resend:
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put CONTACT_TO_EMAIL
-
 npm run cf:deploy
 ```
 
-### Custom Domain
+Secrets (Beispiele):
+
+```bash
+npx wrangler secret put ADMIN_PASSWORD_HASH
+npx wrangler secret put SESSION_SECRET
+npx wrangler secret put STRIPE_SECRET_KEY          # optional
+npx wrangler secret put STRIPE_WEBHOOK_SECRET      # optional
+npx wrangler secret put GOOGLE_PLACES_API_KEY      # optional, Bewertungen
+npx wrangler secret put GOOGLE_PLACE_ID            # optional
+npx wrangler secret put VIRUSTOTAL_API_KEY         # optional, Anhang-Scan
+```
+
+### 5. Domain
 
 Cloudflare Dashboard → **Workers & Pages** → `zeus-service-web` →
-*Custom Domains* → `zeus-service.de` verbinden.
+*Custom Domains* → z. B. `zeus-service.de` verbinden.
+
+Live-URLs typischerweise:
+
+- Website: `https://zeus-service.de`
+- Admin (**ZEUS.JS**): `https://zeus-service.de/admin`
+- Kundenportal: `https://zeus-service.de/portal`
 
 ---
 
-## Projektstruktur
+## Täglich nutzen
+
+1. **Einloggen** unter `/login` (oder Passkey / Face ID auf dem iPhone-Homebildschirm).  
+2. **Anfragen** bearbeiten, per Postfach antworten, Termine schicken.  
+3. **Kunde** anlegen → **Angebot** → annehmen als **Auftrag** → **Rechnung** (PDF, Mail, Stripe-Link).  
+4. Optional: **Stundenzettel** unterschreiben lassen und an die Rechnung hängen.  
+5. **Offene Posten**: Erinnerung / Mahnung; **DATEV**-Export unter Buchhaltung.
+
+Mitteilungen (Push): Admin auf dem Home-Bildschirm öffnen → Mitteilungen einschalten.
+
+---
+
+## Entwicklung & Checks
+
+```bash
+npm run build
+npm run cf:dev          # Wrangler + dist/
+npm run check           # Astro/Typecheck
+node scripts/test-offer.mjs
+node scripts/test-invoice.mjs
+node scripts/test-contact-spam.mjs
+```
+
+---
+
+## Projektstruktur (Auszug)
 
 ```
-migrations/
-  0001_init.sql       D1-Schema (users, contact_requests)
-scripts/
-  setup-cloudflare.sh Ein-Befehl-Provisionierung (D1 + KV + Migrations + User + Deploy)
+migrations/           D1-Schema für ZEUS.JS
+scripts/              Setup, Tests, Cloudflare-Helfer
+docs/screenshots/     UI-Screenshots für diese Doku
 src/
-  components/         UI-Komponenten (Header, Footer, Hero, Services, Logo, ThemeToggle, …)
-  config/site.ts      Zentrale Site-Konfiguration (Navigation, Kontakt, Öffnungszeiten)
-  layouts/            Public-Layout + Admin-Layout
-  lib/
-    auth.ts           Login/Session (PBKDF2 + KV, D1-first mit Env-Fallback)
-    db.ts             D1-Helfer (Users, Contact-Requests, Status)
-    validation.ts     Formular-Validierung
+  components/         Website- & Admin-UI
+  layouts/            Public, Admin, Portal
+  lib/                Auth, Angebote, Rechnungen, Postfach, …
   pages/
-    index.astro       Startseite
-    impressum.astro   Impressum
-    datenschutz.astro Datenschutz
-    login.astro       Admin-Login
-    admin/            Geschütztes Admin-Panel (Dashboard, Anfragen, Leistungen, Einstellungen)
-    api/
-      contact.ts        POST /api/contact
-      auth/login.ts     POST /api/auth/login
-      auth/logout.ts    POST /api/auth/logout
-      admin/anfragen.ts POST /api/admin/anfragen (Status / Löschen)
-  styles/global.css   Tailwind v4 + Design-Tokens + Dark-Mode
-public/
-  robots.txt, logo-*.png, favicon*, og-image.png, site.webmanifest
-astro.config.mjs
+    admin/            ZEUS.JS Admin-Panel
+    portal/           Kundenportal
+    api/              Formulare, Webhooks, PDF
+  worker.ts           Worker-Entry (Fetch, E-Mail, Cron)
 wrangler.jsonc
 ```
 
 ---
 
-## Nächste Schritte
+## Lizenz / Einsatz
 
-Das Fundament ist gelegt. Als Nächstes bieten sich an:
-
-- Admin-Mehrbenutzer (Rollen `admin` / `editor`), eigener User-Verwaltungs-UI
-- Volltext-Suche + CSV-Export der Anfragen
-- Projekt-Galerie / Fallbeispiele / Blog für lokale SEO
-- Google-Business-Bewertungen einbinden (sobald vorhanden)
-- Cookie-Hinweis, falls Analyse-Tools ergänzt werden
+**ZEUS.JS** ist das interne System für Zeus-Service. Deployment und Secrets gehören
+zum jeweiligen Cloudflare-Account. Bei Fragen zur Installation: Repo-Issues oder
+den Betreiber von zeus-service.de kontaktieren.
