@@ -7,7 +7,7 @@ Kein klassisches CMS: **ZEUS.JS** ist auf Handwerk & Hausmeisterservice ausgeleg
 (Angebot → Auftrag → Rechnung), läuft auf **Cloudflare Workers** und ist mit
 **Astro + TypeScript + Tailwind CSS v4** gebaut.
 
-![ZEUS.JS Website](docs/screenshots/zeus-js-website.png)
+![ZEUS.JS Website](docs/screenshots/zeus-js-home.png)
 
 ---
 
@@ -21,33 +21,9 @@ Kein klassisches CMS: **ZEUS.JS** ist auf Handwerk & Hausmeisterservice ausgeleg
 | Buchhaltung | Angebote, Aufträge, Rechnungen (PDF/ZUGFeRD), GiroCode-QR, Rabatt, Mahnung, Stripe, DATEV |
 | Team | Postfach, Stundenzettel mit Signatur, Leistungskatalog, Wiederkehrend |
 
-### Eindrücke
+### Admin
 
-**Admin-Übersicht**
-
-![ZEUS.JS Admin-Übersicht](docs/screenshots/zeus-js-admin-uebersicht.png)
-
-**Postfach (Desktop & Mobil)**
-
-![ZEUS.JS Postfach](docs/screenshots/zeus-js-postfach.png)
-
-![ZEUS.JS Postfach mobil](docs/screenshots/zeus-js-postfach-mobil.png)
-
-**Antwort-Editor**
-
-![ZEUS.JS Antwort-Editor](docs/screenshots/zeus-js-antwort-editor.png)
-
-**Rechnung mit GiroCode & Rabatt**
-
-![ZEUS.JS Rechnung GiroCode](docs/screenshots/zeus-js-rechnung-girocode.png)
-
-![ZEUS.JS Rechnung mit Rabatt](docs/screenshots/zeus-js-rechnung-rabatt.png)
-
-**Stundenzettel & Arbeiten**
-
-![ZEUS.JS Stundenzettel](docs/screenshots/zeus-js-stundenzettel.png)
-
-![ZEUS.JS Arbeiten](docs/screenshots/zeus-js-arbeiten.png)
+![ZEUS.JS Admin](docs/screenshots/zeus-js-admin.png)
 
 ---
 
