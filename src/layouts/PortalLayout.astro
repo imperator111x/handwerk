@@ -1,0 +1,117 @@
+---
+import "../styles/global.css";
+import ThemeToggle from "../components/ThemeToggle.astro";
+import Logo from "../components/Logo.astro";
+import type { PortalSessionData } from "../lib/portal-auth";
+
+interface Props {
+  title: string;
+  session?: PortalSessionData | null;
+}
+
+const { title, session = null } = Astro.props;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{title} · Kundenportal · Zeus-Service</title>
+    <link rel="icon" href="/favicon.ico?v=2" sizes="32x32" />
+    <script is:inline>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var mql = window.matchMedia("(prefers-color-scheme: dark)");
+          var isDark =
+            stored === "dark" || ((!stored || stored === "system") && mql.matches);
+          var root = document.documentElement;
+          if (isDark) {
+            root.classList.add("dark");
+            root.setAttribute("data-theme", "dark");
+            root.style.colorScheme = "dark";
+          } else {
+            root.classList.remove("dark");
+            root.setAttribute("data-theme", "light");
+            root.style.colorScheme = "light";
+          }
+
+          window.__setTheme = function (choice) {
+            if (choice === "system") {
+              localStorage.removeItem("theme");
+            } else {
+              localStorage.setItem("theme", choice);
+            }
+            var dark =
+              choice === "dark" ||
+              (choice === "system" && mql.matches);
+            root.classList.toggle("dark", dark);
+            root.setAttribute("data-theme", dark ? "dark" : "light");
+            root.style.colorScheme = dark ? "dark" : "light";
+            document
+              .querySelector('meta[name="theme-color"]')
+              ?.setAttribute("content", dark ? "#060a16" : "#2563eb");
+            window.dispatchEvent(new CustomEvent("themechange"));
+          };
+
+          mql.addEventListener("change", function () {
+            if (!localStorage.getItem("theme")) {
+              window.__setTheme("system");
+            }
+          });
+        } catch (_err) {}
+      })();
+    </script>
+  </head>
+  <body class="min-h-dvh bg-ink-50 text-ink-900 antialiased dark:bg-ink-950 dark:text-ink-50">
+    <header class="border-b border-ink-200 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-ink-900/90">
+      <div class="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div class="flex min-w-0 items-center gap-2.5">
+          <Logo height={32} class="shrink-0" />
+          <span class="truncate text-sm font-semibold text-ink-700 dark:text-ink-200">Kundenportal</span>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
+          {session && (
+            <form method="POST" action="/api/portal/logout">
+              <button type="submit" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Abmelden</button>
+            </form>
+          )}
+        </div>
+        {session && (
+          <nav class="flex w-full gap-1 border-t border-ink-100 pt-3 dark:border-white/10" aria-label="Portal">
+            <a
+              href="/portal"
+              class:list={[
+                "rounded-full px-3 py-1.5 text-sm font-semibold",
+                Astro.url.pathname === "/portal" || Astro.url.pathname.startsWith("/portal/rechnungen")
+                  ? "bg-brand-600 text-white dark:bg-brand-500 dark:text-ink-950"
+                  : "text-ink-700 hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/10",
+              ]}
+            >
+              Rechnungen
+            </a>
+            <a
+              href="/portal/auftrag"
+              class:list={[
+                "rounded-full px-3 py-1.5 text-sm font-semibold",
+                Astro.url.pathname.startsWith("/portal/auftrag")
+                  ? "bg-brand-600 text-white dark:bg-brand-500 dark:text-ink-950"
+                  : "text-ink-700 hover:bg-ink-100 dark:text-ink-200 dark:hover:bg-white/10",
+              ]}
+            >
+              Auftrag erstellen
+            </a>
+          </nav>
+        )}
+      </div>
+    </header>
+    <main class="mx-auto w-full max-w-3xl px-4 py-6">
+      <slot />
+    </main>
+  </body>
+</html>

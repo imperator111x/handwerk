@@ -6,11 +6,18 @@ export const OFFER_BANK_LINES = [
 ] as const;
 export const OFFER_SCOPE_NOTE =
   "Der Festpreis gilt für die aufgeführten Positionen. Weitere Arbeiten nur nach Absprache.";
+export const OFFER_HOURLY_SCOPE_NOTE =
+  "Material, Anfahrt und die übrigen Positionen gelten wie aufgeführt. Der Arbeitslohn wird nach Stunden berechnet. Weitere Arbeiten nur nach Absprache.";
 export const OFFER_TAX_NOTE =
   "Hinweis zur Kleinunternehmerregelung: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet.";
 export const OFFER_DEFAULT_INTRO =
   "für die besprochene Leistung bieten wir Ihnen folgende Positionen zum Festpreis an.";
+export const OFFER_HOURLY_INTRO =
+  "für die besprochene Leistung bieten wir Ihnen folgende Positionen an. Der Arbeitslohn wird nach Stunden berechnet.";
 export const MAX_OFFER_LINES = 12;
+
+export const OFFER_BILLINGS = ["fest", "stunden"] as const;
+export type OfferBilling = (typeof OFFER_BILLINGS)[number];
 
 export const OFFER_UNITS = ["stunde", "km", "pauschal", "stueck", "m2", "m"] as const;
 export type OfferUnit = (typeof OFFER_UNITS)[number];
@@ -31,18 +38,27 @@ export interface OfferLine {
   unitCents: number;
 }
 
+/** Kopf-Rabatt: Prozent (z. B. 10) oder Euro-Betrag in Cent. */
+export type OfferDiscount =
+  | { kind: "percent"; percent: number }
+  | { kind: "euro"; cents: number };
+
 export interface ParsedOffer {
   title: string;
   intro: string;
   lines: OfferLine[];
   validUntil: string;
   priceCents: number;
+  billing: OfferBilling;
+  discount?: OfferDiscount | null;
 }
 
 export interface StoredOffer {
   greeting: string | null;
   intro: string;
   lines: OfferLine[];
+  billing: OfferBilling;
+  discount?: OfferDiscount | null;
 }
 
 const UNIT_SET = new Set<string>(OFFER_UNITS);
@@ -115,12 +131,116 @@ export function isOfferUnit(value: string): value is OfferUnit {
   return UNIT_SET.has(value);
 }
 
+export function offerBilling(value: string | null | undefined): OfferBilling {
+  return value === "stunden" ? "stunden" : "fest";
+}
+
+export function offerTotalLabel(billing: OfferBilling): string {
+  return billing === "stunden" ? "Summe" : "Festpreis";
+}
+
+export function offerIntroDefault(billing: OfferBilling): string {
+  return billing === "stunden" ? OFFER_HOURLY_INTRO : OFFER_DEFAULT_INTRO;
+}
+
+export function offerScopeNote(billing: OfferBilling): string {
+  return billing === "stunden" ? OFFER_HOURLY_SCOPE_NOTE : OFFER_SCOPE_NOTE;
+}
+
+/** Nach Stunden braucht mindestens eine gefüllte Arbeitslohn-Zeile. */
+export function hourlyOfferMissingWage(form: FormData): boolean {
+  if (offerBilling(String(form.get("billing") ?? "")) !== "stunden") return false;
+  const units = form.getAll("line_unit").map((value) => String(value));
+  const quantities = form.getAll("line_qty").map((value) => String(value));
+  const prices = form.getAll("line_price").map((value) => String(value));
+  return !units.some(
+    (unit, index) =>
+      unit === "stunde" &&
+      parseQuantity(quantities[index] ?? "") != null &&
+      parseEuroToCents(prices[index] ?? "") != null,
+  );
+}
+
 export function lineTotalCents(line: OfferLine): number {
   return Math.round(line.quantity * line.unitCents);
 }
 
 export function offerTotalCents(lines: OfferLine[]): number {
   return lines.reduce((sum, line) => sum + lineTotalCents(line), 0);
+}
+
+/** `false` = ungültige Eingabe; `null` = kein Rabatt. */
+export function parseDiscountForm(form: FormData): OfferDiscount | null | false {
+  const kind = String(form.get("discount_kind") ?? "")
+    .trim()
+    .toLowerCase();
+  const raw = String(form.get("discount_value") ?? "").trim();
+  if (!kind || kind === "none") {
+    return null;
+  }
+  if (!raw) return false;
+  if (kind === "percent") {
+    const cleaned = raw.replace(/\s/g, "").replace("%", "").replace(",", ".");
+    if (!/^\d{1,2}(\.\d{1,2})?$/.test(cleaned)) return false;
+    const percent = Number(cleaned);
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return false;
+    return { kind: "percent", percent };
+  }
+  if (kind === "euro") {
+    const cents = parseEuroToCents(raw);
+    if (cents == null) return false;
+    return { kind: "euro", cents };
+  }
+  return false;
+}
+
+export function discountCents(subtotalCents: number, discount: OfferDiscount | null | undefined): number {
+  if (!discount || !Number.isInteger(subtotalCents) || subtotalCents <= 0) return 0;
+  if (discount.kind === "percent") {
+    if (!(discount.percent > 0) || discount.percent >= 100) return 0;
+    return Math.min(subtotalCents - 1, Math.round((subtotalCents * discount.percent) / 100));
+  }
+  if (discount.kind === "euro") {
+    if (!Number.isInteger(discount.cents) || discount.cents <= 0) return 0;
+    return Math.min(subtotalCents - 1, discount.cents);
+  }
+  return 0;
+}
+
+export function documentTotalCents(
+  lines: OfferLine[],
+  discount: OfferDiscount | null | undefined = null,
+): number {
+  const subtotal = offerTotalCents(lines);
+  return Math.max(0, subtotal - discountCents(subtotal, discount));
+}
+
+export function formatDiscountLabel(
+  discount: OfferDiscount | null | undefined,
+  amountCents: number,
+): string {
+  if (!discount || amountCents <= 0) return "";
+  if (discount.kind === "percent") {
+    const pct = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(discount.percent);
+    return `Rabatt ${pct} %`;
+  }
+  return "Rabatt";
+}
+
+export function readOfferDiscount(raw: unknown): OfferDiscount | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as { kind?: unknown; percent?: unknown; cents?: unknown };
+  if (row.kind === "percent") {
+    const percent = typeof row.percent === "number" ? row.percent : Number.NaN;
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
+    return { kind: "percent", percent };
+  }
+  if (row.kind === "euro") {
+    const cents = typeof row.cents === "number" ? row.cents : Number.NaN;
+    if (!Number.isInteger(cents) || cents <= 0) return null;
+    return { kind: "euro", cents };
+  }
+  return null;
 }
 
 export function parseOfferForm(
@@ -138,6 +258,7 @@ export function parseOfferForm(
   const span = Date.parse(`${validUntil}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`);
   if (!Number.isFinite(span) || span > 366 * 86_400_000 || span < -366 * 86_400_000) return null;
 
+  const billing = offerBilling(String(form.get("billing") ?? ""));
   const labels = form.getAll("line_label").map((value) => String(value));
   const quantities = form.getAll("line_qty").map((value) => String(value));
   const units = form.getAll("line_unit").map((value) => String(value));
@@ -159,28 +280,49 @@ export function parseOfferForm(
     lines.push({ label, quantity, unit: unitRaw, unitCents });
   }
   if (lines.length < 1) return null;
-  const priceCents = offerTotalCents(lines);
+  if (billing === "stunden" && !lines.some((line) => line.unit === "stunde")) return null;
+  const discount = parseDiscountForm(form);
+  if (discount === false) return null;
+  const subtotalCents = offerTotalCents(lines);
+  const offCents = discountCents(subtotalCents, discount);
+  if (discount && offCents <= 0) return null;
+  const priceCents = documentTotalCents(lines, discount);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
-  return { title, intro, lines, validUntil, priceCents };
+  return { title, intro, lines, validUntil, priceCents, billing, discount };
 }
 
 export function serializeOffer(offer: StoredOffer): string {
-  return JSON.stringify({
+  const payload: Record<string, unknown> = {
     greeting: offer.greeting,
     intro: offer.intro,
     lines: offer.lines,
-  });
+    billing: offer.billing === "stunden" ? "stunden" : "fest",
+  };
+  if (offer.discount) payload.discount = offer.discount;
+  return JSON.stringify(payload);
 }
 
 export function readStoredOffer(raw: string | null | undefined, fallbackIntro: string): StoredOffer {
-  const empty = { greeting: null, intro: fallbackIntro, lines: [] as OfferLine[] };
+  const empty: StoredOffer = {
+    greeting: null,
+    intro: fallbackIntro,
+    lines: [],
+    billing: "fest",
+    discount: null,
+  };
   if (!raw) return empty;
   try {
     const parsed = JSON.parse(raw) as unknown;
     const source = Array.isArray(parsed)
-      ? { greeting: null, intro: fallbackIntro, lines: parsed }
+      ? { greeting: null, intro: fallbackIntro, lines: parsed, discount: null }
       : parsed && typeof parsed === "object"
-        ? (parsed as { greeting?: unknown; intro?: unknown; lines?: unknown })
+        ? (parsed as {
+            greeting?: unknown;
+            intro?: unknown;
+            lines?: unknown;
+            billing?: unknown;
+            discount?: unknown;
+          })
         : null;
     if (!source || !Array.isArray(source.lines)) return empty;
     const lines: OfferLine[] = [];
@@ -197,7 +339,9 @@ export function readStoredOffer(raw: string | null | undefined, fallbackIntro: s
     }
     const greeting = typeof source.greeting === "string" && source.greeting.trim() ? source.greeting.trim() : null;
     const intro = typeof source.intro === "string" ? source.intro.trim() : fallbackIntro;
-    return { greeting, intro, lines };
+    const billing = offerBilling(typeof source.billing === "string" ? source.billing : "");
+    const discount = readOfferDiscount(source.discount);
+    return { greeting, intro, lines, billing, discount };
   } catch {
     return empty;
   }
@@ -209,26 +353,40 @@ export function offerPlainText(input: {
   intro: string;
   lines: OfferLine[];
   validUntil: string;
+  billing?: OfferBilling;
+  discount?: OfferDiscount | null;
 }): string {
+  const billing = input.billing ?? "fest";
   const rows = input.lines.map((line, index) => {
     const total = lineTotalCents(line);
     return `${index + 1}. ${line.label} — ${formatQuantity(line.quantity)} ${OFFER_UNIT_LABELS[line.unit]} × ${formatEuro(line.unitCents)} = ${formatEuro(total)}`;
   });
+  const subtotal = offerTotalCents(input.lines);
+  const off = discountCents(subtotal, input.discount);
+  const payable = documentTotalCents(input.lines, input.discount);
+  const totalLines =
+    off > 0
+      ? [
+          `Zwischensumme: ${formatEuro(subtotal)}`,
+          `${formatDiscountLabel(input.discount, off) || "Rabatt"}: -${formatEuro(off)}`,
+          `${offerTotalLabel(billing)}: ${formatEuro(payable)}`,
+        ]
+      : [`${offerTotalLabel(billing)}: ${formatEuro(payable)}`];
   return [
     `Angebot ${input.number}`,
     input.title,
     "",
-    input.intro.trim() || OFFER_DEFAULT_INTRO,
+    input.intro.trim() || offerIntroDefault(billing),
     "",
     ...rows,
     "",
-    `Festpreis: ${formatEuro(offerTotalCents(input.lines))}`,
+    ...totalLines,
     "",
     OFFER_TAX_NOTE,
     "",
     OFFER_PAYMENT_TERMS,
     "",
-    OFFER_SCOPE_NOTE,
+    offerScopeNote(billing),
     "",
     `Dieses Angebot ist gültig bis ${formatOfferDate(input.validUntil)}.`,
     "",

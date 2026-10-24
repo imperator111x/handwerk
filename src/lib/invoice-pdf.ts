@@ -1,5 +1,6 @@
 import { OFFER_LOGO_BYTES, OFFER_LOGO_HEIGHT, OFFER_LOGO_WIDTH } from "./offer-logo";
 import { siteConfig } from "../config/site";
+import { buildInvoicePaymentQr, type QrPdfImage } from "./epc-qr";
 import {
   FONT_BOLD_META,
   FONT_BOLD_WIDTHS,
@@ -20,10 +21,14 @@ import {
   OFFER_BANK_LINES,
   OFFER_TAX_NOTE,
   OFFER_UNIT_LABELS,
+  discountCents,
+  documentTotalCents,
+  formatDiscountLabel,
   formatEuroAmount,
   formatQuantity,
   lineTotalCents,
   offerTotalCents,
+  type OfferDiscount,
   type OfferLine,
 } from "./quote";
 
@@ -47,9 +52,18 @@ export interface InvoicePdfInput {
   serviceDate: string;
   dueDate: string;
   authorName: string;
-  documentKind?: "rechnung" | "storno";
+  documentKind?: "rechnung" | "storno" | "gutschrift";
+  billingKind?: "voll" | "teil" | "schluss";
+  /** Optisch als Zahlungserinnerung / Mahnung / letzte Mahnung kennzeichnen (PDF-Anhang). */
+  noticeKind?: "erinnerung" | "mahnung" | "inkasso";
   referenceNumber?: string;
   referenceDate?: string;
+  paymentTerms?: string;
+  siteName?: string | null;
+  siteStreet?: string | null;
+  sitePostalCode?: string | null;
+  siteCity?: string | null;
+  discount?: OfferDiscount | null;
 }
 
 const PAGE_W = 595.28;
@@ -81,6 +95,18 @@ const WIN_EXTRA: Record<string, number> = {
 
 export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
   const storno = input.documentKind === "storno";
+  const credit = input.documentKind === "gutschrift";
+  const amountCents = documentTotalCents(input.lines, input.discount);
+  const paymentQr =
+    !storno && !credit && amountCents > 0
+      ? buildInvoicePaymentQr({
+          name: SELLER.accountName,
+          iban: SELLER.iban,
+          bic: SELLER.bic,
+          amountCents,
+          remittance: input.number,
+        })
+      : null;
   const xml = buildInvoiceXml({
     number: input.number,
     title: input.title,
@@ -94,21 +120,59 @@ export function buildInvoicePdf(input: InvoicePdfInput): Uint8Array {
     buyerStreet: input.buyerStreet,
     buyerPostalCode: input.buyerPostalCode,
     buyerCity: input.buyerCity,
-    typeCode: storno ? "381" : "380",
+    typeCode: storno || credit ? "381" : "380",
     referenceNumber: input.referenceNumber,
     referenceDate: input.referenceDate,
-    paymentTerms: storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS,
+    discount: input.discount,
+    paymentTerms:
+      storno || credit
+        ? "Es ist kein Betrag zu zahlen."
+        : input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS,
   });
-  return serializeZugferd(layoutPages(input), xml, input);
+  return serializeZugferd(layoutPages(input, paymentQr), xml, input, paymentQr);
 }
 
 function documentHeading(input: InvoicePdfInput): string {
-  return input.documentKind === "storno" ? "Stornorechnung" : "Rechnung";
+  if (input.noticeKind === "inkasso") return "3. Mahnung";
+  if (input.noticeKind === "mahnung") return "2. Mahnung";
+  if (input.noticeKind === "erinnerung") return "Zahlungserinnerung";
+  if (input.documentKind === "storno") return "Stornorechnung";
+  if (input.documentKind === "gutschrift") return "Gutschrift";
+  if (input.billingKind === "teil") return "Teilrechnung";
+  if (input.billingKind === "schluss") return "Schlussrechnung";
+  return "Rechnung";
 }
 
-function layoutPages(input: InvoicePdfInput): string[] {
+function noticeBannerLines(input: InvoicePdfInput): string[] {
+  if (input.noticeKind === "inkasso") {
+    return [
+      `Letzte Mahnung zur Rechnung ${input.number}`,
+      `Der Rechnungsbetrag ist seit dem ${input.dueDateLabel} fällig.`,
+      "Bitte zahlen Sie den offenen Betrag sofort.",
+      "Andernfalls behalte ich mir vor, ein Inkassounternehmen zu beauftragen.",
+    ];
+  }
+  if (input.noticeKind === "mahnung") {
+    return [
+      `2. Mahnung zur Rechnung ${input.number}`,
+      `Der Rechnungsbetrag ist seit dem ${input.dueDateLabel} fällig.`,
+      "Bitte überweisen Sie den offenen Betrag umgehend.",
+    ];
+  }
+  if (input.noticeKind === "erinnerung") {
+    return [
+      `Zahlungserinnerung zur Rechnung ${input.number}`,
+      `Der Rechnungsbetrag war zum ${input.dueDateLabel} fällig.`,
+      "Bitte begleichen Sie den offenen Betrag zeitnah.",
+    ];
+  }
+  return [];
+}
+
+function layoutPages(input: InvoicePdfInput, paymentQr: QrPdfImage | null): string[] {
   const heading = documentHeading(input);
   const storno = input.documentKind === "storno";
+  const credit = input.documentKind === "gutschrift";
   const pages: string[][] = [];
   let ops: string[] = [];
   let y = 760;
@@ -164,8 +228,16 @@ function layoutPages(input: InvoicePdfInput): string[] {
   const logoH = (LOGO_W * OFFER_LOGO_HEIGHT) / OFFER_LOGO_WIDTH;
   const logoBottom = PAGE_H - 28 - logoH;
   paint(`q ${round(LOGO_W)} 0 0 ${round(logoH)} ${LEFT} ${round(logoBottom)} cm /Im1 Do Q`);
-  textRight(RIGHT, PAGE_H - 44, 20, "F2", heading, BLACK);
-  textRight(RIGHT, PAGE_H - 64, 10, "F1", input.number, MUTED);
+  const headingSize = heading.length > 14 ? 14 : 20;
+  textRight(RIGHT, PAGE_H - 44, headingSize, "F2", heading, BLACK);
+  textRight(
+    RIGHT,
+    PAGE_H - 64,
+    10,
+    "F1",
+    input.noticeKind ? `zur Rechnung ${input.number}` : input.number,
+    MUTED,
+  );
   const ruleY = logoBottom - 12;
   paint(`${BLACK} rg`);
   paint(`0 ${round(ruleY)} ${PAGE_W} 3 re f`);
@@ -190,9 +262,19 @@ function layoutPages(input: InvoicePdfInput): string[] {
   y = addressTop - 108;
   const place = [input.buyerPostalCode.trim(), input.buyerCity.trim()].filter(Boolean).join(" ");
   const customerLines = [input.buyerName, input.buyerStreet.trim(), place, input.buyerEmail, input.buyerPhone?.trim() || ""].filter(Boolean);
+  const sitePlace = [input.sitePostalCode?.trim() || "", input.siteCity?.trim() || ""].filter(Boolean).join(" ");
+  const siteLines = [input.siteName?.trim() || "", input.siteStreet?.trim() || "", sitePlace].filter(Boolean);
   const paymentHint = storno
     ? [`Stornorechnung: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Es ist nichts zu zahlen"]
-    : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
+    : credit
+      ? [`Gutschrift: ${input.number}`, input.referenceNumber ? `Zur Rechnung ${input.referenceNumber}` : "Gutschrift"]
+      : input.noticeKind === "inkasso"
+        ? [`3. Mahnung`, `Rechnung ${input.number}`, "Sofort zahlen / Inkasso"]
+        : input.noticeKind === "mahnung"
+          ? [`2. Mahnung`, `Rechnung ${input.number}`, "Bitte umgehend zahlen"]
+          : input.noticeKind === "erinnerung"
+            ? [`Zahlungserinnerung`, `Rechnung ${input.number}`, "Bei Zahlung bitte angeben"]
+            : [`Rechnungsnummer: ${input.number}`, "Bei Zahlung bitte angeben"];
   const hintWidth = Math.max(...paymentHint.map((line) => textWidth(line, 10, false)));
   const hintX = RIGHT - hintWidth;
   paymentHint.forEach((line, index) => {
@@ -202,7 +284,31 @@ function layoutPages(input: InvoicePdfInput): string[] {
   customerLines.forEach((line, index) => {
     textAt(LEFT, y - 14 - index * 14, 11, index === 0 ? "F2" : "F1", line);
   });
-  y -= 14 + customerLines.length * 14 + 22;
+  y -= 14 + customerLines.length * 14 + 16;
+  if (siteLines.length) {
+    need(14 + siteLines.length * 14 + 10);
+    textAt(LEFT, y, 8, "F2", "Leistungsort / Baustelle", MUTED);
+    siteLines.forEach((line, index) => {
+      textAt(LEFT, y - 14 - index * 14, 11, "F1", line);
+    });
+    y -= 14 + siteLines.length * 14 + 22;
+  } else {
+    y -= 6;
+  }
+
+  const banner = noticeBannerLines(input);
+  if (banner.length) {
+    const bannerHeight = 14 + banner.length * 14 + 10;
+    need(bannerHeight);
+    paint(`${BAND} rg`);
+    paint(`${LEFT} ${round(y - bannerHeight + 16)} ${WIDTH} ${bannerHeight} re f`);
+    paint(`${BLACK} RG`);
+    paint(`1.2 w ${LEFT} ${round(y - bannerHeight + 16)} ${WIDTH} ${bannerHeight} re S`);
+    banner.forEach((line, index) => {
+      textAt(LEFT + 10, y - index * 14, index === 0 ? 11 : 10, index === 0 ? "F2" : "F1", line, BLACK);
+    });
+    y -= bannerHeight + 12;
+  }
 
   need(36);
   textAt(LEFT, y, 13, "F2", input.title, BLACK);
@@ -254,12 +360,24 @@ function layoutPages(input: InvoicePdfInput): string[] {
     y -= rowHeight;
   });
 
-  const total = formatEuroAmount(offerTotalCents(input.lines));
+  const subtotalCents = offerTotalCents(input.lines);
+  const offCents = discountCents(subtotalCents, input.discount);
+  const payableCents = documentTotalCents(input.lines, input.discount);
+  const total = formatEuroAmount(payableCents);
+  if (offCents > 0) {
+    need(48);
+    y -= 6;
+    textRight(RIGHT, y, 10, "F1", `Zwischensumme ${formatEuroAmount(subtotalCents)}`);
+    y -= 14;
+    const rabattLabel = formatDiscountLabel(input.discount, offCents) || "Rabatt";
+    textRight(RIGHT, y, 10, "F1", `${rabattLabel} -${formatEuroAmount(offCents)}`);
+    y -= 16;
+  }
   need(36);
   y -= 6;
   paint(`${BLACK} rg`);
   paint(`${LEFT} ${round(y - 6)} ${WIDTH} 24 re f`);
-  textAt(LEFT + 8, y, 11, "F2", "Rechnungsbetrag", WHITE);
+  textAt(LEFT + 8, y, 11, "F2", credit ? "Gutschriftbetrag" : "Rechnungsbetrag", WHITE);
   textRight(RIGHT - 6, y, 11, "F2", total, WHITE);
   y -= 28;
   need(28);
@@ -268,7 +386,23 @@ function layoutPages(input: InvoicePdfInput): string[] {
   textRight(RIGHT, y, 10, "F1", "Umsatzsteuer 0 %  0,00 EUR");
   y -= 22;
 
-  const notes = [OFFER_TAX_NOTE, storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS, INVOICE_RETENTION_NOTE];
+  if (paymentQr) {
+    const qrPt = 96;
+    need(qrPt + 36);
+    textAt(LEFT, y, 11, "F2", "Zahlen mit Code", BLACK);
+    y -= 6;
+    paint(`q ${round(qrPt)} 0 0 ${round(qrPt)} ${LEFT} ${round(y - qrPt)} cm /Im2 Do Q`);
+    textAt(LEFT + qrPt + 12, y - 14, 10, "F1", "Mit der Banking-App scannen.");
+    textAt(LEFT + qrPt + 12, y - 28, 10, "F1", `Verwendungszweck: ${input.number}`);
+    textAt(LEFT + qrPt + 12, y - 42, 10, "F1", OFFER_BANK_LINES[1] ?? "");
+    y -= qrPt + 18;
+  }
+
+  const notes = [
+    OFFER_TAX_NOTE,
+    storno || credit ? "Es ist kein Betrag zu zahlen." : input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS,
+    INVOICE_RETENTION_NOTE,
+  ];
   for (const note of notes) {
     const lines = wrapToWidth(note, WIDTH, 10);
     for (const line of lines) {
@@ -368,7 +502,12 @@ function pdfText(value: string): string {
   return `(${out})`;
 }
 
-function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput): Uint8Array {
+function serializeZugferd(
+  streams: string[],
+  xml: string,
+  input: InvoicePdfInput,
+  paymentQr: QrPdfImage | null,
+): Uint8Array {
   const xmlBytes = utf8(xml);
   const created = `D:${input.invoiceDate.replace(/-/g, "")}120000Z`;
   const xmp = xmpPacket(input, created);
@@ -425,6 +564,24 @@ function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput
 
   const pageIds: number[] = [];
   let nextId = 14;
+  let qrId: number | null = null;
+  if (paymentQr) {
+    qrId = nextId;
+    nextId += 1;
+    objects.set(
+      qrId,
+      concat([
+        latin1(
+          `<< /Type /XObject /Subtype /Image /Width ${paymentQr.width} /Height ${paymentQr.height} /ColorSpace /DeviceGray /BitsPerComponent 1 /Interpolate false /Length ${paymentQr.bytes.length} >>\nstream\n`,
+        ),
+        paymentQr.bytes,
+        latin1("\nendstream"),
+      ]),
+    );
+  }
+  const xobjects = qrId
+    ? `/XObject << /Im1 ${imageId} 0 R /Im2 ${qrId} 0 R >>`
+    : `/XObject << /Im1 ${imageId} 0 R >>`;
   for (const stream of streams) {
     const contentId = nextId;
     nextId += 1;
@@ -436,7 +593,7 @@ function serializeZugferd(streams: string[], xml: string, input: InvoicePdfInput
     objects.set(
       pageId,
       latin1(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> /XObject << /Im1 ${imageId} 0 R >> >> >>`,
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontRegular} 0 R /F2 ${fontBold} 0 R >> ${xobjects} >> >>`,
       ),
     );
   }

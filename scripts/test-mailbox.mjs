@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  canDeleteMailbox,
   canOpenMailbox,
   cleanLocalPart,
   cleanRecipient,
@@ -8,6 +9,7 @@ import {
   localPartFromName,
   mailboxOwnerLabel,
   matchMailboxLocalPart,
+  senderDisplayName,
 } from "../src/lib/mailbox.ts";
 
 assert.equal(cleanLocalPart("Info"), null);
@@ -32,10 +34,26 @@ assert.equal(canOpenMailbox({ role: "admin" }, { memberIds: [] }), true);
 assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [2, 4] }), true);
 assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [2] }), false);
 assert.equal(canOpenMailbox({ role: "editor", userId: 4 }, { memberIds: [] }), false);
+assert.equal(canDeleteMailbox({ role: "admin" }, { local_part: "info", memberIds: [] }), false);
+assert.equal(canDeleteMailbox({ role: "admin" }, { local_part: "leon.luetcke", memberIds: [] }), true);
+assert.equal(
+  canDeleteMailbox({ role: "editor", userId: 4 }, { local_part: "leon.luetcke", memberIds: [4] }),
+  true,
+);
+assert.equal(
+  canDeleteMailbox({ role: "editor", userId: 4 }, { local_part: "leon.luetcke", memberIds: [2] }),
+  false,
+);
 assert.equal(
   mailboxOwnerLabel({ memberNames: "Leon Lütcke, Anna Beispiel" }),
   "Leon Lütcke, Anna Beispiel",
 );
 assert.equal(mailboxOwnerLabel({ memberNames: "  " }), "Nicht zugeordnet");
+assert.equal(senderDisplayName("  Leon Lütcke  ", "Postfach"), "Leon Lütcke");
+assert.equal(senderDisplayName("Leon\r\nLütcke <x>", "Postfach"), "Leon Lütcke x");
+assert.equal(senderDisplayName('Name "Firma"', "Postfach"), "Name Firma");
+assert.equal(senderDisplayName("   ", "Leon Lütcke"), "Leon Lütcke");
+assert.equal(senderDisplayName("", ""), "Zeus-Service");
+assert.equal(senderDisplayName("A".repeat(90), "kurz"), "A".repeat(80));
 
 console.log("mailbox checks ok");

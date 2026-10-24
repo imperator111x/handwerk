@@ -1,25 +1,32 @@
 import { siteConfig } from "../config/site";
 import {
+  OFFER_BANK_LINES,
   OFFER_TAX_NOTE,
-  OFFER_UNIT_LABELS,
+  discountCents,
+  documentTotalCents,
+  formatDiscountLabel,
   formatEuro,
   formatEuroAmount,
   formatOfferDate,
-  formatQuantity,
   isOfferUnit,
   lineTotalCents,
   offerTotalCents,
+  parseDiscountForm,
   parseEuroToCents,
   parseQuantity,
+  type OfferDiscount,
   type OfferLine,
   type OfferUnit,
 } from "./quote";
+
+import { dueDateFromInvoiceDate, parseBillingKind, parseDueDays, paymentTermsForDays, type BillingKind } from "./billing";
 
 export const INVOICE_PAYMENT_TERMS = "Zahlbar innerhalb von 14 Tagen ohne Abzug.";
 export const INVOICE_RETENTION_NOTE =
   "Der Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren.";
 export const INVOICE_DEFAULT_INTRO =
   "für die ausgeführte Leistung berechnen wir Ihnen folgende Positionen.";
+export const CREDIT_MAIL_LEAD = "Hiermit übersende ich Ihnen die Gutschrift in Höhe von:";
 
 export const SELLER = {
   tradeName: "Zeus-Service",
@@ -52,6 +59,10 @@ export interface ParsedInvoice {
   serviceDate: string;
   dueDate: string;
   priceCents: number;
+  dueDays: number;
+  paymentTerms: string;
+  billingKind: BillingKind;
+  discount?: OfferDiscount | null;
 }
 
 export function invoiceNumber(id: number, invoiceDate: string): string {
@@ -109,64 +120,154 @@ export function parseInvoiceForm(form: FormData, today: string): ParsedInvoice |
     lines.push({ label, quantity, unit: unitRaw, unitCents });
   }
   if (lines.length < 1) return null;
-  const priceCents = offerTotalCents(lines);
+  const discount = parseDiscountForm(form);
+  if (discount === false) return null;
+  const subtotalCents = offerTotalCents(lines);
+  const offCents = discountCents(subtotalCents, discount);
+  if (discount && offCents <= 0) return null;
+  const priceCents = documentTotalCents(lines, discount);
   if (priceCents <= 0 || priceCents > 10_000_000) return null;
+  const dueDays = parseDueDays(String(form.get("due_days") ?? ""), 14);
+  const paymentTerms = paymentTermsForDays(dueDays);
+  const billingKind = parseBillingKind(String(form.get("billing_kind") ?? ""));
   return {
     title,
     intro,
     lines,
     invoiceDate,
     serviceDate,
-    dueDate: addIsoDays(invoiceDate, 14),
+    dueDate: dueDateFromInvoiceDate(invoiceDate, dueDays),
     priceCents,
+    dueDays,
+    paymentTerms,
+    billingKind,
+    discount,
   };
 }
 
-export function invoicePlainText(input: {
-  number: string;
+/** Rechnung aus Angebotsdaten ohne Formular (Ein-Klick). */
+export function invoiceFromQuoteLines(input: {
   title: string;
   intro: string;
   lines: OfferLine[];
-  invoiceDate: string;
-  serviceDate: string;
+  today: string;
+  dueDays?: number;
+  billingKind?: BillingKind;
+  discount?: OfferDiscount | null;
+}): ParsedInvoice | null {
+  if (input.title.trim().length < 3) return null;
+  if (!input.lines.length) return null;
+  const discount = input.discount ?? null;
+  const priceCents = documentTotalCents(input.lines, discount);
+  if (priceCents <= 0 || priceCents > 10_000_000) return null;
+  const dueDays = parseDueDays(String(input.dueDays ?? 14), 14);
+  return {
+    title: input.title.trim().slice(0, 120),
+    intro: input.intro.trim().slice(0, 2000),
+    lines: input.lines,
+    invoiceDate: input.today,
+    serviceDate: input.today,
+    dueDate: dueDateFromInvoiceDate(input.today, dueDays),
+    priceCents,
+    dueDays,
+    paymentTerms: paymentTermsForDays(dueDays),
+    billingKind: input.billingKind ?? "voll",
+    discount,
+  };
+}
+
+export const INVOICE_MAIL_LEAD = "Hiermit übersende ich Ihnen die Rechnung in Höhe von:";
+export const STORNO_MAIL_LEAD = "Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:";
+export const REMINDER_MAIL_LEAD = "Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:";
+export const MAHNUNG_MAIL_LEAD =
+  "Hiermit mahne ich die offene Rechnung an. Bitte überweisen Sie den Betrag umgehend in Höhe von:";
+export const INKASSO_MAIL_LEAD =
+  "Letzte Mahnung: Bitte zahlen Sie den offenen Betrag sofort. Andernfalls behalte ich mir vor, ein Inkassounternehmen zu beauftragen. Offener Betrag:";
+
+/** Kurzer Mailtext. Positionen und Steuerhinweis bleiben im PDF. */
+export function invoicePlainText(input: {
+  priceCents: number;
   dueDate: string;
-  taxNumber: string;
+  number: string;
   storno?: boolean;
+  settled?: boolean;
+  reminder?: boolean;
+  /** Überschreibt den Standard-Einstieg (z. B. Mahnung / Inkasso). */
+  mailLead?: string;
 }): string {
-  const rows = input.lines.map((line, index) => {
-    const total = lineTotalCents(line);
-    return `${index + 1}. ${line.label} — ${formatQuantity(line.quantity)} ${OFFER_UNIT_LABELS[line.unit]} × ${formatEuro(line.unitCents)} = ${formatEuro(total)}`;
-  });
-  const paymentTerms = input.storno ? "Es ist kein Betrag zu zahlen." : INVOICE_PAYMENT_TERMS;
-  return [
-    `${input.storno ? "Stornorechnung" : "Rechnung"} ${input.number}`,
-    input.title,
-    "",
-    input.intro.trim() || INVOICE_DEFAULT_INTRO,
-    "",
-    ...rows,
-    "",
-    `Rechnungsbetrag: ${formatEuro(offerTotalCents(input.lines))}`,
-    `Nettobetrag: ${formatEuro(offerTotalCents(input.lines))}`,
-    "Umsatzsteuer: 0,00 €",
-    "",
-    OFFER_TAX_NOTE,
-    "",
-    paymentTerms,
-    "",
-    INVOICE_RETENTION_NOTE,
-    "",
-    `Rechnungsdatum: ${formatOfferDate(input.invoiceDate)}`,
-    `Leistungsdatum: ${formatOfferDate(input.serviceDate)}`,
-    `Fällig am: ${formatOfferDate(input.dueDate)}`,
-    `Steuernummer: ${input.taxNumber}`,
-    "",
-    `IBAN: ${SELLER.iban}`,
-    `BIC: ${SELLER.bic}`,
-    `Kontoinhaber: ${SELLER.accountName}`,
-    "",
-    input.storno ? "Die Stornorechnung hängt als ZUGFeRD-PDF an." : "Die Rechnung hängt als ZUGFeRD-PDF an.",
-  ].join("\n");
+  const amount = formatEuro(input.priceCents);
+  const lead =
+    input.mailLead?.trim() ||
+    (input.storno ? STORNO_MAIL_LEAD : input.reminder ? REMINDER_MAIL_LEAD : INVOICE_MAIL_LEAD);
+  const tail = input.storno
+    ? ["Es ist kein Betrag zu zahlen.", "", "Die Positionen stehen in der angehängten Stornorechnung."]
+    : input.settled
+      ? ["Die Positionen stehen in der angehängten Rechnung."]
+      : [
+          input.reminder
+            ? `Die Zahlung war fällig am ${formatOfferDate(input.dueDate)}.`
+            : `Fällig am ${formatOfferDate(input.dueDate)}.`,
+          "",
+          "Bei einer Überweisung bitte angeben:",
+          `Verwendungszweck: ${input.number}`,
+          ...OFFER_BANK_LINES,
+          "",
+          "Die Positionen stehen in der angehängten Rechnung.",
+        ];
+  return [lead, amount, "", ...tail].join("\n");
+}
+
+/** Offene, bereits versandte Rechnung nach Fälligkeit – bereit für Zahlungserinnerung. */
+export function canSendPaymentReminder(
+  row: {
+    document_kind: string;
+    payment_status: string;
+    sent_at: number | null;
+    due_date: string;
+    reminder_level?: number | null;
+  },
+  today: string,
+): boolean {
+  if (row.document_kind === "storno") return false;
+  if (row.payment_status !== "offen" && row.payment_status !== "test" && row.payment_status !== "teilbezahlt") {
+    return false;
+  }
+  if (!row.sent_at) return false;
+  if (!isIsoDate(row.due_date) || !isIsoDate(today)) return false;
+  if (row.due_date > today) return false;
+  const level = Number(row.reminder_level ?? 0);
+  return level < 3;
+}
+
+export type ReminderLevel = 1 | 2 | 3;
+
+export function nextReminderLevel(row: {
+  reminder_level?: number | null;
+  reminded_at?: number | null;
+}): ReminderLevel {
+  const level = Number(row.reminder_level ?? 0);
+  if (level >= 2) return 3;
+  if (level >= 1 || row.reminded_at) return 2;
+  return 1;
+}
+
+export function reminderPurpose(level: ReminderLevel): "erinnerung" | "mahnung" | "inkasso" {
+  if (level >= 3) return "inkasso";
+  if (level >= 2) return "mahnung";
+  return "erinnerung";
+}
+
+export function reminderStageLabel(level: number | null | undefined): string {
+  if ((level ?? 0) >= 3) return "3. Mahnung (Inkasso)";
+  if ((level ?? 0) >= 2) return "2. Mahnung";
+  if ((level ?? 0) >= 1) return "Zahlungserinnerung";
+  return "Keine";
+}
+
+export function reminderActionLabel(level: ReminderLevel): string {
+  if (level >= 3) return "3. Mahnung (Inkasso) senden";
+  if (level >= 2) return "2. Mahnung senden";
+  return "Zahlungserinnerung senden";
 }
 
 export function buildInvoiceXml(input: {
@@ -186,6 +287,7 @@ export function buildInvoiceXml(input: {
   referenceNumber?: string;
   referenceDate?: string;
   paymentTerms?: string;
+  discount?: OfferDiscount | null;
 }): string {
   const typeCode = input.typeCode === "381" ? "381" : "380";
   const paymentTerms = input.paymentTerms?.trim() || INVOICE_PAYMENT_TERMS;
@@ -199,7 +301,25 @@ export function buildInvoiceXml(input: {
         </ram:FormattedIssueDateTime>
       </ram:InvoiceReferencedDocument>`
       : "";
-  const net = offerTotalCents(input.lines);
+  const lineTotal = offerTotalCents(input.lines);
+  const allowance = discountCents(lineTotal, input.discount);
+  const net = Math.max(0, lineTotal - allowance);
+  const allowanceXml =
+    allowance > 0
+      ? `
+      <ram:SpecifiedTradeAllowanceCharge>
+        <ram:ChargeIndicator>
+          <udt:Indicator>false</udt:Indicator>
+        </ram:ChargeIndicator>
+        <ram:ActualAmount>${money(allowance)}</ram:ActualAmount>
+        <ram:Reason>${xml(formatDiscountLabel(input.discount, allowance) || "Rabatt")}</ram:Reason>
+        <ram:CategoryTradeTax>
+          <ram:TypeCode>VAT</ram:TypeCode>
+          <ram:CategoryCode>E</ram:CategoryCode>
+          <ram:RateApplicablePercent>0</ram:RateApplicablePercent>
+        </ram:CategoryTradeTax>
+      </ram:SpecifiedTradeAllowanceCharge>`
+      : "";
   const lines = input.lines
     .map((line, index) => {
       const total = lineTotalCents(line);
@@ -237,7 +357,7 @@ export function buildInvoiceXml(input: {
 <rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100" xmlns:ram="urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100" xmlns:udt="urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100" xmlns:qdt="urn:un:unece:uncefact:data:standard:QualifiedDataType:100">
   <rsm:ExchangedDocumentContext>
     <ram:GuidelineSpecifiedDocumentContextParameter>
-      <ram:ID>urn:cen.eu:en16931:2017#compliant#urn:factur-x.eu:1p0:en16931</ram:ID>
+      <ram:ID>urn:cen.eu:en16931:2017</ram:ID>
     </ram:GuidelineSpecifiedDocumentContextParameter>
   </rsm:ExchangedDocumentContext>
   <rsm:ExchangedDocument>
@@ -324,7 +444,7 @@ export function buildInvoiceXml(input: {
         <ram:BasisAmount>${money(net)}</ram:BasisAmount>
         <ram:CategoryCode>E</ram:CategoryCode>
         <ram:RateApplicablePercent>0</ram:RateApplicablePercent>
-      </ram:ApplicableTradeTax>
+      </ram:ApplicableTradeTax>${allowanceXml}
       <ram:SpecifiedTradePaymentTerms>
         <ram:Description>${xml(paymentTerms)}</ram:Description>
         <ram:DueDateDateTime>
@@ -332,7 +452,10 @@ export function buildInvoiceXml(input: {
         </ram:DueDateDateTime>
       </ram:SpecifiedTradePaymentTerms>
       <ram:SpecifiedTradeSettlementHeaderMonetarySummation>
-        <ram:LineTotalAmount>${money(net)}</ram:LineTotalAmount>
+        <ram:LineTotalAmount>${money(lineTotal)}</ram:LineTotalAmount>${
+          allowance > 0 ? `
+        <ram:AllowanceTotalAmount>${money(allowance)}</ram:AllowanceTotalAmount>` : ""
+        }
         <ram:TaxBasisTotalAmount>${money(net)}</ram:TaxBasisTotalAmount>
         <ram:TaxTotalAmount currencyID="EUR">0.00</ram:TaxTotalAmount>
         <ram:GrandTotalAmount>${money(net)}</ram:GrandTotalAmount>

@@ -68,6 +68,66 @@ const stored = quote.readStoredOffer(
 assert.equal(stored.lines[0].label, "Anfahrt");
 assert.equal(quote.readStoredOffer("[]", "alt").lines.length, 0);
 assert.equal(quote.offerNumber(7, Date.parse("2026-10-20T10:00:00Z") / 1000), "A-2026-0007");
+assert.equal(parsed.billing, "fest");
+
+const hourly = new FormData();
+hourly.set("title", "Gartenpflege");
+hourly.set("billing", "stunden");
+hourly.set("intro", "");
+hourly.set("valid_until", "2026-11-03");
+hourly.append("line_label", "Arbeitslohn");
+hourly.append("line_qty", "3");
+hourly.append("line_unit", "stunde");
+hourly.append("line_price", "45,00");
+hourly.append("line_label", "Material");
+hourly.append("line_qty", "1");
+hourly.append("line_unit", "pauschal");
+hourly.append("line_price", "20,00");
+hourly.append("line_label", "Anfahrt");
+hourly.append("line_qty", "1");
+hourly.append("line_unit", "pauschal");
+hourly.append("line_price", "30,00");
+const hourlyParsed = quote.parseOfferForm(hourly, "2026-10-20");
+assert.ok(hourlyParsed);
+assert.equal(hourlyParsed.billing, "stunden");
+assert.equal(hourlyParsed.priceCents, 18500);
+assert.equal(quote.hourlyOfferMissingWage(hourly), false);
+const missingWage = new FormData();
+missingWage.set("billing", "stunden");
+missingWage.append("line_unit", "pauschal");
+missingWage.append("line_qty", "1");
+missingWage.append("line_price", "20,00");
+assert.equal(quote.hourlyOfferMissingWage(missingWage), true);
+const hourlyText = quote.offerPlainText({
+  number: "A-2026-0008",
+  title: "Gartenpflege",
+  intro: "",
+  lines: hourlyParsed.lines,
+  validUntil: "2026-11-03",
+  billing: "stunden",
+});
+assert.match(hourlyText, /Summe: 185,00/);
+assert.match(hourlyText, /Arbeitslohn wird nach Stunden berechnet/);
+assert.doesNotMatch(hourlyText, /Der Festpreis gilt/);
+const hourlyPdf = buildOfferPdf({
+  number: "A-2026-0008",
+  dateLabel: "20. Oktober 2026",
+  customerName: "Erika Muster",
+  customerEmail: "erika@example.com",
+  title: "Gartenpflege",
+  greeting: null,
+  intro: "",
+  lines: hourlyParsed.lines,
+  validUntilLabel: "3. November 2026",
+  authorName: "Leon Lütcke",
+  billing: "stunden",
+});
+const hourlyRaw = new TextDecoder("latin1").decode(hourlyPdf).replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+assert.match(hourlyRaw, /Summe/);
+assert.match(hourlyRaw, /Arbeitslohn/);
+assert.match(hourlyRaw, /Material/);
+assert.match(hourlyRaw, /Anfahrt/);
+assert.match(hourlyRaw, /nach Stunden berechnet/);
 
 const plain = quote.offerPlainText({
   number: "A-2026-0007",
@@ -146,5 +206,101 @@ const offsets = [...raw.matchAll(/(\d{10}) 00000 n/g)].map((match) => Number(mat
 for (const offset of offsets) {
   assert.match(raw.slice(offset, offset + 20), /^\d+ 0 obj/);
 }
+
+const withPercent = new FormData();
+withPercent.set("title", "Rollladen einstellen");
+withPercent.set("intro", "");
+withPercent.set("valid_until", "2026-11-03");
+withPercent.set("discount_kind", "percent");
+withPercent.set("discount_value", "10");
+withPercent.append("line_label", "Stundenlohn");
+withPercent.append("line_qty", "2,5");
+withPercent.append("line_unit", "stunde");
+withPercent.append("line_price", "45,00");
+const percentOffer = quote.parseOfferForm(withPercent, "2026-10-20");
+assert.ok(percentOffer);
+assert.deepEqual(percentOffer.discount, { kind: "percent", percent: 10 });
+assert.equal(percentOffer.priceCents, 10125);
+assert.equal(quote.discountCents(11250, percentOffer.discount), 1125);
+assert.equal(quote.documentTotalCents(percentOffer.lines, percentOffer.discount), 10125);
+
+const withEuro = new FormData();
+withEuro.set("title", "Rollladen einstellen");
+withEuro.set("intro", "");
+withEuro.set("valid_until", "2026-11-03");
+withEuro.set("discount_kind", "euro");
+withEuro.set("discount_value", "12,50");
+withEuro.append("line_label", "Stundenlohn");
+withEuro.append("line_qty", "2,5");
+withEuro.append("line_unit", "stunde");
+withEuro.append("line_price", "45,00");
+const euroOffer = quote.parseOfferForm(withEuro, "2026-10-20");
+assert.ok(euroOffer);
+assert.deepEqual(euroOffer.discount, { kind: "euro", cents: 1250 });
+assert.equal(euroOffer.priceCents, 10000);
+
+assert.equal(
+  quote.parseOfferForm(
+    (() => {
+      const bad = new FormData();
+      bad.set("title", "Rollladen einstellen");
+      bad.set("intro", "");
+      bad.set("valid_until", "2026-11-03");
+      bad.set("discount_kind", "percent");
+      bad.set("discount_value", "100");
+      bad.append("line_label", "Stundenlohn");
+      bad.append("line_qty", "1");
+      bad.append("line_unit", "stunde");
+      bad.append("line_price", "45,00");
+      return bad;
+    })(),
+    "2026-10-20",
+  ),
+  null,
+);
+
+const storedDiscount = quote.readStoredOffer(
+  JSON.stringify({
+    greeting: null,
+    intro: "mit Rabatt",
+    lines: [{ label: "Anfahrt", quantity: 1, unit: "pauschal", unitCents: 5000 }],
+    discount: { kind: "percent", percent: 20 },
+  }),
+  "",
+);
+assert.deepEqual(storedDiscount.discount, { kind: "percent", percent: 20 });
+assert.equal(quote.documentTotalCents(storedDiscount.lines, storedDiscount.discount), 4000);
+
+const discountPlain = quote.offerPlainText({
+  number: "A-2026-0009",
+  title: "Rollladen",
+  intro: "",
+  lines: percentOffer.lines,
+  validUntil: "2026-11-03",
+  discount: percentOffer.discount,
+});
+assert.match(discountPlain, /Zwischensumme: 112,50/);
+assert.match(discountPlain, /Rabatt 10 %: -11,25/);
+assert.match(discountPlain, /Festpreis: 101,25/);
+
+const discountPdf = buildOfferPdf({
+  number: "A-2026-0009",
+  dateLabel: "20. Oktober 2026",
+  customerName: "Erika Muster",
+  customerEmail: "erika@example.com",
+  title: "Rollladen einstellen",
+  greeting: null,
+  intro: "",
+  lines: percentOffer.lines,
+  validUntilLabel: "3. November 2026",
+  authorName: "Leon Lütcke",
+  discount: percentOffer.discount,
+});
+const discountText = new TextDecoder("latin1")
+  .decode(discountPdf)
+  .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+assert.match(discountText, /Zwischensumme 112,50 EUR/);
+assert.match(discountText, /Rabatt 10 % -11,25 EUR/);
+assert.match(discountText, /101,25 EUR/);
 
 console.log("offer checks ok");

@@ -16,13 +16,18 @@ const pathname = Astro.url.pathname;
 
 const booksNav = [
   { href: "/admin/angebote", label: "Angebote", icon: "file" },
+  { href: "/admin/auftraege", label: "Aufträge", icon: "briefcase" },
   { href: "/admin/rechnungen", label: "Rechnungen", icon: "receipt" },
+  { href: "/admin/offene-posten", label: "Offene Posten", icon: "alert" },
+  { href: "/admin/buchhaltung", label: "DATEV-Export", icon: "ledger" },
+  { href: "/admin/stundenzettel", label: "Stundenzettel", icon: "clock" },
+  { href: "/admin/wiederkehrend", label: "Wiederkehrend", icon: "repeat" },
 ];
 
 const settingsNav = [
   { href: "/admin/besuche", label: "Besuche", icon: "chart" },
   { href: "/admin/termine", label: "Termine", icon: "calendar" },
-  { href: "/admin/leistungen", label: "Leistungen", icon: "list" },
+  { href: "/admin/leistungen", label: "Leistungskatalog", icon: "list" },
   { href: "/admin/arbeiten", label: "Arbeiten", icon: "image" },
 ];
 
@@ -52,6 +57,10 @@ const icons: Record<string, string> = {
   file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h5",
   receipt: "M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22z M9 7h6 M9 11h6 M9 15h4",
   ledger: "M4 4h16v16H4z M4 9h16 M10 9v11",
+  clock: "M12 7v5l3 2 M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18",
+  briefcase: "M8 7V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1 M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z M3 12h18",
+  alert: "M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z M12 9v4 M12 17h.01",
+  repeat: "M17 1l4 4-4 4 M3 11V9a4 4 0 0 1 4-4h14 M7 23l-4-4 4-4 M21 13v2a4 4 0 0 1-4 4H3",
   calendar:
     "M8 7V3 M16 7V3 M4 11h16 M5 5h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z",
   list: "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
@@ -121,10 +130,10 @@ const icons: Record<string, string> = {
       })();
     </script>
   </head>
-  <body class="bg-ink-100 text-ink-900 min-h-screen dark:bg-ink-950 dark:text-ink-100">
-    <div class="flex min-h-screen">
+  <body class="bg-ink-100 text-ink-900 min-h-dvh dark:bg-ink-950 dark:text-ink-100">
+    <div class="admin-shell flex min-h-dvh max-lg:h-dvh max-lg:max-h-dvh max-lg:overflow-hidden lg:min-h-dvh">
       <aside
-        class="hidden lg:flex w-64 flex-col border-r border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900"
+        class="hidden lg:flex w-64 shrink-0 flex-col border-r border-ink-200 bg-white dark:border-white/10 dark:bg-ink-900"
       >
         <div class="px-5 py-5 border-b border-ink-200 dark:border-white/10">
           <Logo height={56} />
@@ -229,9 +238,9 @@ const icons: Record<string, string> = {
         </div>
       </aside>
 
-      <div class="flex-1 flex flex-col min-w-0">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <header
-          class="sticky top-0 z-10 border-b border-ink-200 bg-white pt-[env(safe-area-inset-top)] dark:border-white/10 dark:bg-ink-950"
+          class="sticky top-0 z-10 shrink-0 border-b border-ink-200 bg-white pt-[env(safe-area-inset-top)] dark:border-white/10 dark:bg-ink-950"
         >
           <div class="flex items-center justify-between gap-2 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4">
             <div class="min-w-0">
@@ -259,7 +268,7 @@ const icons: Record<string, string> = {
             </div>
           </div>
         </header>
-        <main class="admin-main flex-1 p-4 sm:p-6 lg:p-10 lg:pb-10 space-y-8">
+        <main class="admin-main min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto p-4 sm:p-6 lg:p-10 lg:pb-10 space-y-8">
           <div
             id="ios-install"
             hidden
@@ -380,12 +389,10 @@ const icons: Record<string, string> = {
             });
           })();
         </script>
-      </div>
-    </div>
-    <nav
-      aria-label="Admin-Navigation"
-      class="admin-mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-30 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.28)] touch-manipulation dark:border-white/10 dark:bg-ink-950"
-    >
+        <nav
+          aria-label="Admin-Navigation"
+          class="admin-mobile-nav relative z-30 w-full shrink-0 border-t border-ink-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_-12px_rgb(15_23_42/0.28)] touch-manipulation lg:hidden dark:border-white/10 dark:bg-ink-950"
+        >
       <button
         type="button"
         data-nav-collapse
@@ -558,7 +565,9 @@ const icons: Record<string, string> = {
         }
       </ul>
       </div>
-    </nav>
+        </nav>
+      </div>
+    </div>
     <style>
       ::view-transition-old(root),
       ::view-transition-new(root) {
@@ -578,13 +587,11 @@ const icons: Record<string, string> = {
       .nav-chevron-closed {
         display: none;
       }
+      .admin-main > * {
+        max-width: 100%;
+        min-width: 0;
+      }
       @media (max-width: 1023px) {
-        .admin-main {
-          padding-bottom: calc(11rem + env(safe-area-inset-bottom));
-        }
-        html[data-admin-nav="closed"] .admin-main {
-          padding-bottom: calc(3.25rem + env(safe-area-inset-bottom));
-        }
         html[data-admin-nav="closed"] .admin-mobile-nav [data-nav-links] {
           display: none;
         }

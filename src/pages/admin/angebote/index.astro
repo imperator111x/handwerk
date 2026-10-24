@@ -3,7 +3,15 @@ import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
-import { berlinTodayIso, listAllQuotes, offerValidity, type QuoteListItem } from "../../../lib/offers";
+import {
+  berlinTodayIso,
+  listAllQuotes,
+  offerValidity,
+  QUOTE_STATUS_LABELS,
+  quoteStatus,
+  type QuoteListItem,
+  type QuoteStatus,
+} from "../../../lib/offers";
 import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
 import { formatBerlin } from "../../../lib/time";
 
@@ -16,22 +24,31 @@ const session = sessionOrRedirect;
 const db = getDb(Astro);
 const today = berlinTodayIso();
 const standParam = Astro.url.searchParams.get("stand");
-const stand = standParam === "abgelaufen" || standParam === "alle" ? standParam : "gueltig";
+const stand: QuoteStatus | "alle" =
+  standParam === "angenommen" || standParam === "abgerechnet" || standParam === "alle" || standParam === "offen"
+    ? standParam
+    : "alle";
 const notice = Astro.url.searchParams.get("angebot");
 
 const all = db ? await listAllQuotes(db) : [];
-const withStand = all.map((quote) => ({ quote, stand: offerValidity(quote.valid_until, today) }));
+const withStand = all.map((quote) => ({
+  quote,
+  status: quoteStatus(quote.status),
+  validity: offerValidity(quote.valid_until, today),
+}));
 const counts = {
-  gueltig: withStand.filter((row) => row.stand === "gueltig").length,
-  abgelaufen: withStand.filter((row) => row.stand === "abgelaufen").length,
+  offen: withStand.filter((row) => row.status === "offen").length,
+  angenommen: withStand.filter((row) => row.status === "angenommen").length,
+  abgerechnet: withStand.filter((row) => row.status === "abgerechnet").length,
   alle: withStand.length,
 };
-const rows = stand === "alle" ? withStand : withStand.filter((row) => row.stand === stand);
+const rows = stand === "alle" ? withStand : withStand.filter((row) => row.status === stand);
 
-const tabs: Array<{ id: "gueltig" | "abgelaufen" | "alle"; label: string }> = [
-  { id: "gueltig", label: "Gültig" },
-  { id: "abgelaufen", label: "Abgelaufen" },
+const tabs: Array<{ id: QuoteStatus | "alle"; label: string }> = [
   { id: "alle", label: "Alle" },
+  { id: "offen", label: "Angebot" },
+  { id: "angenommen", label: "Auftrag" },
+  { id: "abgerechnet", label: "Abgerechnet" },
 ];
 
 const notices: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
@@ -43,6 +60,13 @@ const notices: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
   db: { kind: "warn", text: "Datenbank nicht verbunden." },
 };
 const noticeMessage = notice ? notices[notice] : undefined;
+
+const statusClass = (status: QuoteStatus) =>
+  status === "angenommen"
+    ? "bg-sky-50 text-sky-800 dark:bg-sky-500/15 dark:text-sky-100"
+    : status === "abgerechnet"
+      ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100"
+      : "bg-ink-100 text-ink-700 dark:bg-white/10 dark:text-ink-200";
 
 const deliveryOf = (quote: QuoteListItem) => {
   const status = quote.email_status ?? "";
@@ -71,11 +95,13 @@ const deliveryOf = (quote: QuoteListItem) => {
 };
 
 const emptyText =
-  stand === "gueltig"
-    ? "Keine gültigen Angebote."
-    : stand === "abgelaufen"
-      ? "Keine abgelaufenen Angebote."
-      : "Noch keine Angebote.";
+  stand === "offen"
+    ? "Keine offenen Angebote."
+    : stand === "angenommen"
+      ? "Keine Aufträge."
+      : stand === "abgerechnet"
+        ? "Keine abgerechneten Angebote."
+        : "Noch keine Angebote.";
 ---
 
 <AdminLayout title="Angebote" session={session}>
@@ -110,7 +136,7 @@ const emptyText =
         <section class="flex flex-wrap items-center gap-2">
           {tabs.map((tab) => {
             const active = tab.id === stand;
-            const href = tab.id === "gueltig" ? "/admin/angebote" : `/admin/angebote?stand=${tab.id}`;
+            const href = tab.id === "alle" ? "/admin/angebote" : `/admin/angebote?stand=${tab.id}`;
             return (
               <a
                 href={href}
@@ -139,7 +165,7 @@ const emptyText =
           </section>
         ) : (
           <section class="space-y-4">
-            {rows.map(({ quote, stand: validity }) => {
+            {rows.map(({ quote, status, validity }) => {
               const delivery = deliveryOf(quote);
               const number = offerNumber(quote.id, quote.created_at);
               const name = decodeHtmlEntities(quote.customer_name);
@@ -153,6 +179,9 @@ const emptyText =
                             {number}
                           </a>
                         </h3>
+                        <span class={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusClass(status)}`}>
+                          {QUOTE_STATUS_LABELS[status]}
+                        </span>
                         <span
                           class={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                             validity === "gueltig"
@@ -193,20 +222,20 @@ const emptyText =
                     >
                       PDF öffnen
                     </a>
+                    {status !== "abgerechnet" && (
+                      <a
+                        href={`/admin/rechnungen/neu?angebot=${quote.id}`}
+                        class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                      >
+                        Als Rechnung
+                      </a>
+                    )}
                     {quote.customer_id ? (
                       <a
                         href={`/admin/kunden/${quote.customer_id}`}
                         class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
                       >
                         Zum Kunden
-                      </a>
-                    ) : null}
-                    {quote.request_id ? (
-                      <a
-                        href={`/admin/anfragen/${quote.request_id}`}
-                        class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
-                      >
-                        Zur Anfrage
                       </a>
                     ) : null}
                     <form

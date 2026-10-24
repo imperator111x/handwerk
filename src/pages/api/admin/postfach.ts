@@ -2,6 +2,7 @@ import { cfEnv } from "../../../lib/cf";
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { mailAttachments, prepareRichMail } from "../../../lib/compose-mail";
+import { ensureCustomer } from "../../../lib/customers";
 import { removeStoredFiles } from "../../../lib/mail-files";
 import { greetingFromForm } from "../../../lib/salutation";
 import {
@@ -12,7 +13,10 @@ import {
   findUserById,
   getDb,
   deleteMailThread,
+  deleteMailbox,
   getMailThread,
+  linkMailThreadCustomer,
+  updateMailboxDisplayName,
   insertMailMessage,
   latestInboundMailMessageId,
   setMailboxMembers,
@@ -27,9 +31,11 @@ import {
 import {
   canOpenMailbox,
   cleanLocalPart,
+  isExternalLocalPart,
   cleanRecipient,
   mailboxAddress,
   MAX_MAILBOXES,
+  senderDisplayName,
 } from "../../../lib/mailbox";
 import { DEFAULT_REPLY_DOMAIN, formatMessageIdHeader, normalizeMessageId } from "../../../lib/reply-address";
 
@@ -61,7 +67,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   if (action === "create") {
     const localPart = cleanLocalPart(String(form.get("local_part") ?? ""));
-    const displayName = String(form.get("display_name") ?? "").trim().slice(0, 80);
+    const displayName = senderDisplayName(String(form.get("display_name") ?? ""), localPart);
     if (!localPart) return ctx.redirect(`${redirectBase}?mail=bad_address`, 303);
     if ((await countMailboxes(db)) >= MAX_MAILBOXES) {
       return ctx.redirect(`${redirectBase}?mail=full`, 303);
@@ -71,7 +77,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
     }
     const memberIds = await membersFromForm(db, session.role, session.userId, form);
     if (memberIds === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
-    const id = await createMailbox(db, localPart, displayName || localPart, memberIds);
+    const id = await createMailbox(db, localPart, displayName, memberIds);
     return ctx.redirect(`/admin/postfach/${id}?mail=created`, 303);
   }
 
@@ -84,6 +90,18 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (memberIds === "invalid") return ctx.redirect(`${redirectBase}?mail=bad_user`, 303);
     await setMailboxMembers(db, mailbox.id, memberIds);
     return ctx.redirect(`${redirectBase}?mail=assigned`, 303);
+  }
+
+  if (action === "delete-address") {
+    const mailboxId = Number.parseInt(String(form.get("mailbox_id") ?? ""), 10);
+    const mailbox = Number.isFinite(mailboxId) ? await findMailboxById(db, mailboxId) : null;
+    if (!mailbox) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    if (isExternalLocalPart(mailbox.local_part)) return ctx.redirect("/admin/postfach?mail=protected", 303);
+    if (!canOpenMailbox(session, mailbox)) return ctx.redirect("/admin/postfach?mail=forbidden", 303);
+    const keys = await deleteMailbox(db, mailbox.id);
+    if (!keys) return ctx.redirect("/admin/postfach?mail=not_found", 303);
+    await removeStoredFiles(env, keys);
+    return ctx.redirect("/admin/postfach?mail=address_deleted", 303);
   }
 
   if (action === "delete") {
@@ -125,12 +143,29 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   const authorName = await signatureNameForUser(db, session.userId, session.username);
   const fromEmail = mailboxAddress(mailbox.local_part, domain);
-  const fromName = mailbox.display_name || env?.SITE_NAME || "Zeus-Service";
+  const fromName = senderDisplayName(
+    String(form.get("sender_name") ?? ""),
+    mailbox.display_name || env?.SITE_NAME || "Zeus-Service",
+  );
+  if (fromName !== mailbox.display_name) {
+    await updateMailboxDisplayName(db, mailbox.id, fromName);
+  }
   const siteName = env?.SITE_NAME ?? "Zeus-Service";
   const siteUrl = env?.SITE_URL ?? "https://zeus-service.de";
   const typedName = String(form.get("recipient_name") ?? "").trim().slice(0, 120);
   const peerName = thread?.peer_name || typedName;
 
+  let customerId: number | null = thread?.customer_id ?? null;
+  if (!customerId) {
+    try {
+      customerId = await ensureCustomer(db, {
+        name: peerName || recipient.split("@")[0] || "Kunde",
+        email: recipient,
+      });
+    } catch (err) {
+      console.error("customer_ensure_failed", err);
+    }
+  }
   const threadId = thread
     ? thread.id
     : await upsertMailThread(db, {
@@ -138,8 +173,12 @@ export async function POST(ctx: APIContext): Promise<Response> {
         peerEmail: recipient,
         peerName,
         subject,
+        customerId,
       });
   if (!threadId) return ctx.redirect(`${redirectBase}?mail=db_error`, 303);
+  if (customerId && !thread?.customer_id) {
+    await linkMailThreadCustomer(db, threadId, customerId).catch(() => {});
+  }
 
   const priorMessageId = formatMessageIdHeader(await latestInboundMailMessageId(db, threadId));
   const headers = priorMessageId

@@ -37,6 +37,8 @@ export interface ContactRequestRow {
   ip: string | null;
   country: string | null;
   user_agent: string | null;
+  source: string;
+  customer_id: number | null;
 }
 
 export interface ContactInsert {
@@ -48,6 +50,8 @@ export interface ContactInsert {
   ip?: string | null;
   country?: string | null;
   user_agent?: string | null;
+  source?: "web" | "portal" | "mail";
+  customerId?: number | null;
 }
 
 export function getDb(_ctx: APIContext | { locals: App.Locals }): D1Database | null {
@@ -81,11 +85,13 @@ export async function insertContactRequest(
   db: D1Database,
   data: ContactInsert,
 ): Promise<number> {
+  const customerId =
+    Number.isInteger(data.customerId) && (data.customerId as number) > 0 ? data.customerId : null;
   const result = await db
     .prepare(
       `INSERT INTO contact_requests
-         (name, email, phone, topic, message, ip, country, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (name, email, phone, topic, message, ip, country, user_agent, source, customer_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       data.name,
@@ -96,9 +102,43 @@ export async function insertContactRequest(
       data.ip ?? null,
       data.country ?? null,
       data.user_agent ?? null,
+      data.source ?? "web",
+      customerId,
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
+}
+
+export async function linkContactRequestCustomer(
+  db: D1Database,
+  requestId: number,
+  customerId: number,
+): Promise<void> {
+  if (!Number.isInteger(requestId) || requestId <= 0) return;
+  if (!Number.isInteger(customerId) || customerId <= 0) return;
+  await db
+    .prepare(
+      `UPDATE contact_requests
+          SET customer_id = ?, updated_at = unixepoch()
+        WHERE id = ? AND (customer_id IS NULL OR customer_id != ?)`,
+    )
+    .bind(customerId, requestId, customerId)
+    .run();
+}
+
+/** Offene Kundenaufträge aus dem Portal (noch nicht erledigt). */
+export async function listOpenPortalJobs(db: D1Database): Promise<ContactRequestRow[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, created_at, updated_at, name, email, phone, topic, message, status, notes,
+              ip, country, user_agent, COALESCE(source, 'web') AS source, customer_id
+         FROM contact_requests
+        WHERE source = 'portal' AND status IN ('new', 'in_progress')
+        ORDER BY created_at DESC, id DESC
+        LIMIT 50`,
+    )
+    .all<ContactRequestRow>();
+  return results ?? [];
 }
 
 export interface ContactRequestListItem extends ContactRequestRow {
@@ -595,6 +635,7 @@ export interface MailThreadRow {
   peer_name: string;
   subject: string;
   updated_at: number;
+  customer_id: number | null;
   local_part: string;
   display_name: string;
   preview: string;
@@ -682,6 +723,17 @@ export async function createMailbox(
   return id;
 }
 
+export async function updateMailboxDisplayName(
+  db: D1Database,
+  mailboxId: number,
+  displayName: string,
+): Promise<void> {
+  await db
+    .prepare(`UPDATE mailboxes SET display_name = ? WHERE id = ?`)
+    .bind(displayName, mailboxId)
+    .run();
+}
+
 export async function setMailboxMembers(
   db: D1Database,
   mailboxId: number,
@@ -714,7 +766,7 @@ export async function listMailThreads(
 ): Promise<MailThreadRow[]> {
   const { results } = await db
     .prepare(
-      `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at,
+      `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at, t.customer_id,
               m.local_part, m.display_name,
               COALESCE((
                 SELECT body FROM mail_messages
@@ -752,7 +804,7 @@ export async function getMailThread(
 ): Promise<MailThreadRow | null> {
   const row = await db
     .prepare(
-      `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at,
+      `SELECT t.id, t.mailbox_id, t.peer_email, t.peer_name, t.subject, t.updated_at, t.customer_id,
               m.local_part, m.display_name,
               '' AS preview,
               NULL AS last_direction
@@ -768,12 +820,20 @@ export async function getMailThread(
 
 export async function upsertMailThread(
   db: D1Database,
-  data: { mailboxId: number; peerEmail: string; peerName: string; subject: string },
+  data: {
+    mailboxId: number;
+    peerEmail: string;
+    peerName: string;
+    subject: string;
+    customerId?: number | null;
+  },
 ): Promise<number> {
+  const customerId =
+    Number.isInteger(data.customerId) && (data.customerId as number) > 0 ? data.customerId : null;
   const row = await db
     .prepare(
-      `INSERT INTO mail_threads (mailbox_id, peer_email, peer_name, subject, updated_at)
-       VALUES (?, ?, ?, ?, unixepoch())
+      `INSERT INTO mail_threads (mailbox_id, peer_email, peer_name, subject, updated_at, customer_id)
+       VALUES (?, ?, ?, ?, unixepoch(), ?)
        ON CONFLICT(mailbox_id, peer_email) DO UPDATE SET
          updated_at = unixepoch(),
          peer_name = CASE
@@ -783,12 +843,30 @@ export async function upsertMailThread(
          subject = CASE
            WHEN excluded.subject != '' THEN excluded.subject
            ELSE mail_threads.subject
-         END
+         END,
+         customer_id = COALESCE(excluded.customer_id, mail_threads.customer_id)
        RETURNING id`,
     )
-    .bind(data.mailboxId, data.peerEmail, data.peerName, data.subject)
+    .bind(data.mailboxId, data.peerEmail, data.peerName, data.subject, customerId)
     .first<{ id: number }>();
   return Number(row?.id ?? 0);
+}
+
+export async function linkMailThreadCustomer(
+  db: D1Database,
+  threadId: number,
+  customerId: number,
+): Promise<void> {
+  if (!Number.isInteger(threadId) || threadId <= 0) return;
+  if (!Number.isInteger(customerId) || customerId <= 0) return;
+  await db
+    .prepare(
+      `UPDATE mail_threads
+          SET customer_id = ?
+        WHERE id = ? AND (customer_id IS NULL OR customer_id != ?)`,
+    )
+    .bind(customerId, threadId, customerId)
+    .run();
 }
 
 export async function listMailMessages(
@@ -862,6 +940,46 @@ export async function countUnreadMailThreads(db: D1Database): Promise<number> {
 }
 
 /** Löscht einen Postfach-Verlauf samt Nachrichten. Anhänge-Schlüssel zum Entfernen aus dem Speicher. */
+export async function deleteMailbox(db: D1Database, mailboxId: number): Promise<string[] | null> {
+  const owned = await db
+    .prepare(`SELECT id FROM mailboxes WHERE id = ? LIMIT 1`)
+    .bind(mailboxId)
+    .first<{ id: number }>();
+  if (!owned) return null;
+  const { results } = await db
+    .prepare(
+      `SELECT f.storage_key
+         FROM mail_files f
+         JOIN mail_messages m ON m.id = f.mail_message_id
+         JOIN mail_threads t ON t.id = m.thread_id
+        WHERE t.mailbox_id = ?`,
+    )
+    .bind(mailboxId)
+    .all<{ storage_key: string }>();
+  await db.batch([
+    db
+      .prepare(
+        `DELETE FROM mail_files
+          WHERE mail_message_id IN (
+            SELECT m.id FROM mail_messages m
+              JOIN mail_threads t ON t.id = m.thread_id
+             WHERE t.mailbox_id = ?
+          )`,
+      )
+      .bind(mailboxId),
+    db
+      .prepare(
+        `DELETE FROM mail_messages
+          WHERE thread_id IN (SELECT id FROM mail_threads WHERE mailbox_id = ?)`,
+      )
+      .bind(mailboxId),
+    db.prepare(`DELETE FROM mail_threads WHERE mailbox_id = ?`).bind(mailboxId),
+    db.prepare(`DELETE FROM mailbox_members WHERE mailbox_id = ?`).bind(mailboxId),
+    db.prepare(`DELETE FROM mailboxes WHERE id = ?`).bind(mailboxId),
+  ]);
+  return (results ?? []).map((row) => row.storage_key);
+}
+
 export async function deleteMailThread(
   db: D1Database,
   threadId: number,

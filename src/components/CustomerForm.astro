@@ -1,4 +1,6 @@
 ---
+import { DUE_DAY_OPTIONS } from "../lib/billing";
+
 interface CustomerFields {
   id?: number;
   name?: string;
@@ -8,6 +10,11 @@ interface CustomerFields {
   postal_code?: string | null;
   city?: string | null;
   notes?: string | null;
+  default_due_days?: number | null;
+  site_name?: string | null;
+  site_street?: string | null;
+  site_postal_code?: string | null;
+  site_city?: string | null;
 }
 
 interface Props {
@@ -16,6 +23,7 @@ interface Props {
 }
 
 const { customer, submitLabel } = Astro.props;
+const dueDays = Number(customer?.default_due_days ?? 14);
 ---
 
 <form method="POST" action="/api/admin/kunden" class="grid gap-4">
@@ -35,6 +43,16 @@ const { customer, submitLabel } = Astro.props;
       <input class="input" id="customer-phone" name="phone" maxlength="60" value={customer?.phone ?? ""} />
     </div>
     <div>
+      <label class="label" for="customer-due">Standard-Zahlungsziel</label>
+      <select class="input" id="customer-due" name="default_due_days">
+        {DUE_DAY_OPTIONS.map((days) => (
+          <option value={days} selected={dueDays === days}>
+            {days === 0 ? "Sofort" : `${days} Tage`}
+          </option>
+        ))}
+      </select>
+    </div>
+    <div>
       <label class="label" for="customer-street">Straße und Hausnummer</label>
       <input class="input" id="customer-street" name="street" maxlength="120" value={customer?.street ?? ""} />
     </div>
@@ -45,6 +63,28 @@ const { customer, submitLabel } = Astro.props;
     <div>
       <label class="label" for="customer-city">Ort</label>
       <input class="input" id="customer-city" name="city" maxlength="80" value={customer?.city ?? ""} />
+    </div>
+  </div>
+  <div class="rounded-2xl border border-ink-200 p-4 dark:border-white/10">
+    <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">Baustelle / Leistungsort (optional)</p>
+    <p class="mt-1 text-xs text-ink-500 dark:text-ink-400">Wird bei neuen Rechnungen vorausgefüllt, wenn gesetzt.</p>
+    <div class="mt-3 grid gap-4 sm:grid-cols-2">
+      <div class="sm:col-span-2">
+        <label class="label" for="site-name">Bezeichnung</label>
+        <input class="input" id="site-name" name="site_name" maxlength="120" value={customer?.site_name ?? ""} placeholder="z. B. Objekt Müller" />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="label" for="site-street">Straße</label>
+        <input class="input" id="site-street" name="site_street" maxlength="120" value={customer?.site_street ?? ""} />
+      </div>
+      <div>
+        <label class="label" for="site-postal">PLZ</label>
+        <input class="input" id="site-postal" name="site_postal_code" maxlength="12" value={customer?.site_postal_code ?? ""} />
+      </div>
+      <div>
+        <label class="label" for="site-city">Ort</label>
+        <input class="input" id="site-city" name="site_city" maxlength="80" value={customer?.site_city ?? ""} />
+      </div>
     </div>
   </div>
   <div>

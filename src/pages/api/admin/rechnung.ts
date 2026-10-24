@@ -4,9 +4,20 @@ import { cfEnv } from "../../../lib/cf";
 import { getCustomer } from "../../../lib/customers";
 import { getDb, signatureNameForUser } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
-import { invoiceNumber, parseInvoiceForm } from "../../../lib/invoice";
+import { parseSiteForm } from "../../../lib/billing";
+import {
+  INVOICE_DEFAULT_INTRO,
+  canSendPaymentReminder,
+  invoiceFromQuoteLines,
+  invoiceNumber,
+  nextReminderLevel,
+  parseInvoiceForm,
+  reminderPurpose,
+} from "../../../lib/invoice";
+import { ensureInvoicePaymentUrl } from "../../../lib/invoice-payment-link";
 import { buildInvoicePdf } from "../../../lib/invoice-pdf";
 import {
+  beginCreditNote,
   beginStorno,
   clearTransferPayment,
   getInvoice,
@@ -16,15 +27,16 @@ import {
   relatedInvoice,
   renderInvoicePdf,
   saveInvoice,
-  saveInvoicePaymentLink,
   sendInvoiceEmail,
   updateInvoiceDelivery,
+  updateInvoiceReminder,
   type InvoiceRow,
 } from "../../../lib/invoices";
-import { createStripePaymentLink, paymentLinkForMail, setStripePaymentLinkActive, stripeKeyMode, stripePaymentsReady } from "../../../lib/stripe-pay";
-import { berlinTodayIso, getQuote } from "../../../lib/offers";
-import { formatOfferDate, readStoredOffer } from "../../../lib/quote";
+import { setStripePaymentLinkActive, stripeKeyMode } from "../../../lib/stripe-pay";
+import { berlinTodayIso, getQuote, markQuoteInvoiced } from "../../../lib/offers";
+import { formatOfferDate, parseEuroToCents, readStoredOffer } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
+import { getTimesheet, timesheetPdf } from "../../../lib/timesheets";
 
 export const prerender = false;
 
@@ -49,25 +61,113 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const action = String(form.get("action") ?? "");
   if (!db || !env) return ctx.redirect("/admin/rechnungen?rechnung=db", 303);
 
-  if (action === "resend" || action === "transfer" || action === "transfer-clear" || action === "storno" || action === "adjust") {
+  if (action === "from-quote") {
+    const quoteId = Number.parseInt(String(form.get("quote_id") ?? ""), 10);
+    const quote = Number.isFinite(quoteId) ? await getQuote(db, quoteId) : null;
+    if (!quote?.customer_id) return ctx.redirect("/admin/auftraege?auftrag=missing", 303);
+    const customer = await getCustomer(db, quote.customer_id);
+    if (!customer) return ctx.redirect("/admin/auftraege?auftrag=missing", 303);
+    const taxNumber = await getTaxNumber(db);
+    if (!taxNumber) return ctx.redirect(`/admin/rechnungen/neu?angebot=${quote.id}&rechnung=tax`, 303);
+    const street = customer.street?.trim() ?? "";
+    const postalCode = customer.postal_code?.trim() ?? "";
+    const city = customer.city?.trim() ?? "";
+    if (!street || !postalCode || !city) {
+      return ctx.redirect(`/admin/rechnungen/neu?angebot=${quote.id}&rechnung=address`, 303);
+    }
+    const stored = readStoredOffer(quote.lines_json, "");
+    const today = berlinTodayIso();
+    const invoice = invoiceFromQuoteLines({
+      title: quote.title,
+      intro: stored.intro || INVOICE_DEFAULT_INTRO,
+      lines: stored.lines,
+      today,
+      dueDays: Number(customer.default_due_days ?? 14),
+      billingKind: "voll",
+      discount: stored.discount ?? null,
+    });
+    if (!invoice) return ctx.redirect(`/admin/rechnungen/neu?angebot=${quote.id}&rechnung=bad`, 303);
+    const authorName = await signatureNameForUser(db, session.userId, session.username);
+    const buyerName = decodeHtmlEntities(customer.name);
+    const id = await saveInvoice(db, {
+      customerId: customer.id,
+      quoteId: quote.id,
+      invoice,
+      greeting: stored.greeting,
+      taxNumber,
+      buyer: {
+        name: buyerName,
+        email: customer.email,
+        phone: customer.phone,
+        street,
+        postalCode,
+        city,
+      },
+      site: {
+        name: customer.site_name,
+        street: customer.site_street,
+        postalCode: customer.site_postal_code,
+        city: customer.site_city,
+      },
+      createdAt: Math.floor(Date.now() / 1000),
+      billingKind: "voll",
+    });
+    if (!id) return ctx.redirect("/admin/auftraege?auftrag=missing", 303);
+    await markQuoteInvoiced(db, quote.id);
+    const row = await getInvoice(db, id);
+    if (!row) return ctx.redirect("/admin/auftraege?auftrag=missing", 303);
+    const sent = await deliverInvoice(env, db, row, authorName, "rechnung");
+    return ctx.redirect(
+      `/admin/rechnungen/${id}?rechnung=${sent.sent ? (sent.paymentUrl ? "sent" : "sent-ohne-link") : "saved"}`,
+      303,
+    );
+  }
+
+  if (
+    action === "resend" ||
+    action === "erinnerung" ||
+    action === "transfer" ||
+    action === "transfer-clear" ||
+    action === "storno" ||
+    action === "adjust" ||
+    action === "gutschrift"
+  ) {
     const id = Number.parseInt(String(form.get("id") ?? ""), 10);
     const row = Number.isFinite(id) ? await getInvoice(db, id) : null;
     if (!row) return ctx.redirect("/admin/rechnungen?rechnung=missing", 303);
     if (action === "storno" || action === "adjust") {
       return handleCorrection(ctx, env, db, session.userId, session.username, row, form, action);
     }
+    if (action === "gutschrift") {
+      const credit = parseInvoiceForm(form, berlinTodayIso());
+      if (!credit) return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=gutschrift-bad`, 303);
+      const creditId = await beginCreditNote(db, row, credit.lines, berlinTodayIso(), Math.floor(Date.now() / 1000));
+      if (!creditId) return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=gutschrift-kept`, 303);
+      const creditRow = await getInvoice(db, creditId);
+      if (creditRow) {
+        const authorName = await signatureNameForUser(db, session.userId, session.username);
+        await deliverInvoice(env, db, creditRow, authorName, "gutschrift");
+      }
+      return ctx.redirect(`/admin/rechnungen/${creditId}?rechnung=gutschrift`, 303);
+    }
     if (action === "transfer") {
       const paidAt = Math.floor(Date.now() / 1000);
-      const result = await recordTransferPayment(db, row.id, paidAt);
-      if (result === "paid" && row.payment_link_id && env.STRIPE_SECRET_KEY) {
+      const amountRaw = String(form.get("amount") ?? "").trim();
+      const amountCents = amountRaw ? parseEuroToCents(amountRaw) : null;
+      const result = await recordTransferPayment(db, row.id, paidAt, amountCents);
+      if ((result === "paid" || result === "partial") && row.payment_link_id && env.STRIPE_SECRET_KEY) {
         try {
-          await setStripePaymentLinkActive(env.STRIPE_SECRET_KEY, row.payment_link_id, false);
+          if (result === "paid") {
+            await setStripePaymentLinkActive(env.STRIPE_SECRET_KEY, row.payment_link_id, false);
+          }
         } catch (err) {
           console.error("invoice_payment_link_close_failed", err instanceof Error ? err.message : "error");
           await noteInvoicePayment(db, row.id, "Der Zahlungslink ließ sich nicht schließen.");
         }
       }
-      return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${result === "paid" ? "transfer" : "transfer-kept"}`, 303);
+      const flag =
+        result === "paid" ? "transfer" : result === "partial" ? "transfer-partial" : "transfer-kept";
+      return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${flag}`, 303);
     }
     if (action === "transfer-clear") {
       const cleared = await clearTransferPayment(db, row.id);
@@ -80,6 +180,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
       }
       return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${cleared ? "transfer-clear" : "transfer-kept"}`, 303);
     }
+    if (action === "erinnerung") {
+      if (!canSendPaymentReminder(row, berlinTodayIso())) {
+        return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=erinnerung-frueh`, 303);
+      }
+      const level = nextReminderLevel(row);
+      const purpose = reminderPurpose(level);
+      const authorName = await signatureNameForUser(db, session.userId, session.username);
+      const sent = await deliverInvoice(env, db, row, authorName, purpose, level);
+      const base =
+        purpose === "inkasso" ? "inkasso" : purpose === "mahnung" ? "mahnung" : "erinnerung";
+      const flag = sent.sent
+        ? sent.paymentUrl
+          ? base
+          : `${base}-ohne-link`
+        : `${base}-fail`;
+      return ctx.redirect(`/admin/rechnungen/${row.id}?rechnung=${flag}`, 303);
+    }
     const authorName = await signatureNameForUser(db, session.userId, session.username);
     const sent = await deliverInvoice(env, db, row, authorName, "rechnung");
     const flag = sent.sent ? (sent.paymentUrl ? "sent" : "sent-ohne-link") : "failed";
@@ -88,6 +205,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
 
   const customerId = Number.parseInt(String(form.get("customer_id") ?? ""), 10);
   const quoteId = Number.parseInt(String(form.get("quote_id") ?? ""), 10);
+  const timesheetId = Number.parseInt(String(form.get("timesheet_id") ?? ""), 10);
   const back = Number.isFinite(customerId) && customerId > 0 ? `/admin/rechnungen/neu?kunde=${customerId}` : "/admin/rechnungen/neu";
   const customer = Number.isFinite(customerId) ? await getCustomer(db, customerId) : null;
   if (!customer) return ctx.redirect("/admin/rechnungen/neu?rechnung=missing", 303);
@@ -104,7 +222,10 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const buyerName = decodeHtmlEntities(customer.name);
   const greeting = greetingFromForm(form, buyerName);
   const linkedQuote = Number.isFinite(quoteId) && quoteId > 0 ? await getQuote(db, quoteId) : null;
+  const linkedTimesheet =
+    Number.isFinite(timesheetId) && timesheetId > 0 ? await getTimesheet(db, timesheetId) : null;
 
+  const site = parseSiteForm(form);
   if (String(form.get("preview") ?? "") === "1") {
     const bytes = buildInvoicePdf({
       number: "Entwurf",
@@ -118,6 +239,12 @@ export async function POST(ctx: APIContext): Promise<Response> {
       buyerStreet: street,
       buyerPostalCode: postalCode,
       buyerCity: city,
+      siteName: site.name,
+      siteStreet: site.street,
+      sitePostalCode: site.postalCode,
+      siteCity: site.city,
+      paymentTerms: invoice.paymentTerms,
+      billingKind: invoice.billingKind,
       title: invoice.title,
       greeting,
       intro: invoice.intro,
@@ -126,6 +253,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
       serviceDate: invoice.serviceDate,
       dueDate: invoice.dueDate,
       authorName,
+      discount: invoice.discount ?? null,
     });
     return pdfResponse(bytes, "Rechnung-Entwurf.pdf");
   }
@@ -134,6 +262,7 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const id = await saveInvoice(db, {
     customerId: customer.id,
     quoteId: linkedQuote?.id ?? null,
+    timesheetId: linkedTimesheet?.id ?? null,
     invoice,
     greeting,
     taxNumber,
@@ -145,40 +274,16 @@ export async function POST(ctx: APIContext): Promise<Response> {
       postalCode,
       city,
     },
+    site,
     createdAt,
+    billingKind: invoice.billingKind,
   });
   if (!id) return ctx.redirect(`${back}&rechnung=db`, 303);
+  if (linkedQuote && invoice.billingKind !== "teil") await markQuoteInvoiced(db, linkedQuote.id);
   const row = await getInvoice(db, id);
   if (!row) return ctx.redirect(`${back}&rechnung=db`, 303);
   const sent = await deliverInvoice(env, db, row, authorName, "rechnung");
   return ctx.redirect(`/admin/rechnungen/${id}?rechnung=${sent.sent ? (sent.paymentUrl ? "sent" : "sent-ohne-link") : "saved"}`, 303);
-}
-
-async function ensurePaymentUrl(env: Env, db: D1Database, row: InvoiceRow, number: string): Promise<string | null> {
-  if (row.document_kind === "storno" || row.payment_status === "bezahlt" || row.payment_status === "erstattet" || row.payment_status === "storniert") {
-    return null;
-  }
-  const mode = stripeKeyMode(env.STRIPE_SECRET_KEY);
-  const replaceTestLink = Boolean(row.payment_url?.includes("/test_")) && mode === "live";
-  if (row.payment_url && !replaceTestLink) return paymentLinkForMail(row.payment_url, row.buyer_email) || null;
-  if (!stripePaymentsReady(env) || !env.STRIPE_SECRET_KEY || row.price_cents < 50) return null;
-  try {
-    const link = await createStripePaymentLink(env.STRIPE_SECRET_KEY, {
-      invoiceId: row.id,
-      number,
-      title: row.title,
-      amountCents: row.price_cents,
-      email: row.buyer_email,
-    });
-    await saveInvoicePaymentLink(db, row.id, link.url, link.id, replaceTestLink);
-    return paymentLinkForMail(link.url, row.buyer_email) || null;
-  } catch (err) {
-    console.error("invoice_payment_link_failed", err instanceof Error ? err.message : "error");
-    if (!row.payment_note) {
-      await noteInvoicePayment(db, row.id, "Der Zahlungslink konnte nicht angelegt werden. Bitte erneut senden.");
-    }
-    return null;
-  }
 }
 
 async function deliverInvoice(
@@ -186,12 +291,32 @@ async function deliverInvoice(
   db: D1Database,
   row: InvoiceRow,
   authorName: string,
-  purpose: "rechnung" | "storno",
+  purpose: "rechnung" | "storno" | "gutschrift" | "erinnerung" | "mahnung" | "inkasso",
+  reminderLevel = 1,
 ): Promise<{ sent: boolean; paymentUrl: boolean }> {
   const stored = readStoredOffer(row.lines_json, "");
-  const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row));
+  const noticeKind =
+    purpose === "erinnerung" || purpose === "mahnung" || purpose === "inkasso" ? purpose : null;
+  const pdf = renderInvoicePdf(row, stored, authorName, await relatedInvoice(db, row), noticeKind);
   const number = invoiceNumber(row.id, row.invoice_date);
-  const paymentUrl = await ensurePaymentUrl(env, db, row, number);
+  const paymentUrl = purpose === "gutschrift" ? null : await ensureInvoicePaymentUrl(env, db, row);
+  const extraAttachments: Array<{ filename: string; pdf: Uint8Array }> = [];
+  const attachTimesheet =
+    purpose === "rechnung" ||
+    purpose === "erinnerung" ||
+    purpose === "mahnung" ||
+    purpose === "inkasso";
+  if (row.timesheet_id && attachTimesheet) {
+    try {
+      const sheet = await getTimesheet(db, row.timesheet_id);
+      if (sheet) {
+        const attached = await timesheetPdf(sheet);
+        extraAttachments.push({ filename: attached.filename, pdf: attached.bytes });
+      }
+    } catch (err) {
+      console.error("invoice_timesheet_attach_failed", err instanceof Error ? err.message : "error");
+    }
+  }
   const delivery = await sendInvoiceEmail(env, {
     to: row.buyer_email,
     recipientName: row.buyer_name,
@@ -205,6 +330,10 @@ async function deliverInvoice(
       serviceDate: row.service_date,
       dueDate: row.due_date,
       priceCents: row.price_cents,
+      dueDays: Number(row.due_days ?? 14),
+      paymentTerms: row.payment_terms || `Zahlbar innerhalb von ${Number(row.due_days ?? 14)} Tagen ohne Abzug.`,
+      billingKind:
+        row.billing_kind === "teil" || row.billing_kind === "schluss" ? row.billing_kind : "voll",
     },
     taxNumber: row.tax_number,
     filename: pdf.filename,
@@ -214,9 +343,25 @@ async function deliverInvoice(
     paymentStatus: row.payment_status,
     paymentMode: stripeKeyMode(env.STRIPE_SECRET_KEY),
     purpose,
+    extraAttachments,
   });
-  await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
-  const linkExpected = purpose === "rechnung" && row.payment_status !== "bezahlt" && row.payment_status !== "erstattet" && row.payment_status !== "storniert";
+  if (
+    (purpose === "erinnerung" || purpose === "mahnung" || purpose === "inkasso") &&
+    delivery.sentAt != null
+  ) {
+    await updateInvoiceReminder(db, row.id, delivery.sentAt, delivery.emailStatus, reminderLevel);
+  } else {
+    await updateInvoiceDelivery(db, row.id, delivery.sentAt, delivery.emailStatus);
+  }
+  const linkExpected =
+    (purpose === "rechnung" ||
+      purpose === "erinnerung" ||
+      purpose === "mahnung" ||
+      purpose === "inkasso") &&
+    row.payment_status !== "bezahlt" &&
+    row.payment_status !== "teilbezahlt" &&
+    row.payment_status !== "erstattet" &&
+    row.payment_status !== "storniert";
   return { sent: delivery.sentAt != null, paymentUrl: !linkExpected || Boolean(paymentUrl) };
 }
 
@@ -269,6 +414,7 @@ async function handleCorrection(
       serviceDate: invoice.serviceDate,
       dueDate: invoice.dueDate,
       authorName,
+      discount: invoice.discount ?? null,
     });
     return pdfResponse(bytes, "Rechnung-Entwurf.pdf");
   }
@@ -284,6 +430,7 @@ async function handleCorrection(
   const newId = await saveInvoice(db, {
     customerId: row.customer_id,
     quoteId: row.quote_id,
+    timesheetId: row.timesheet_id,
     invoice: replacement,
     greeting: greetingFromForm(form, row.buyer_name),
     taxNumber: (await getTaxNumber(db)) || row.tax_number,
@@ -295,8 +442,17 @@ async function handleCorrection(
       postalCode: row.buyer_postal_code,
       city: row.buyer_city,
     },
+    site: parseSiteForm(form).street
+      ? parseSiteForm(form)
+      : {
+          name: row.site_name,
+          street: row.site_street,
+          postalCode: row.site_postal_code,
+          city: row.site_city,
+        },
     createdAt,
     relatedInvoiceId: row.id,
+    billingKind: replacement.billingKind,
   });
   if (!newId) return ctx.redirect(`${back}?rechnung=storniert`, 303);
   const created = await getInvoice(db, newId);

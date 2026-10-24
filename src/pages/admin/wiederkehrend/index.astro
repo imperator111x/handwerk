@@ -1,0 +1,190 @@
+---
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { requireSession } from "../../../lib/auth";
+import { listCatalogItems } from "../../../lib/catalog";
+import { listCustomers } from "../../../lib/customers";
+import { getDb } from "../../../lib/db";
+import { berlinTodayIso } from "../../../lib/offers";
+import { formatEuro, formatOfferDate, OFFER_UNITS } from "../../../lib/quote";
+import {
+  isRecurringDue,
+  listRecurringServices,
+  recurringLineTotal,
+} from "../../../lib/recurring";
+import { catalogEuroField } from "../../../lib/catalog";
+
+export const prerender = false;
+
+const sessionOrRedirect = await requireSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const db = getDb(Astro);
+const today = berlinTodayIso();
+const editId = Number.parseInt(Astro.url.searchParams.get("edit") ?? "", 10);
+const ok = Astro.url.searchParams.get("ok");
+const rows = db ? await listRecurringServices(db) : [];
+const editing = Number.isFinite(editId) ? rows.find((row) => row.id === editId) : null;
+const customers = db ? await listCustomers(db) : [];
+const catalog = db ? await listCatalogItems(db, true) : [];
+const dueCount = rows.filter((row) => isRecurringDue(row, today)).length;
+
+const notices: Record<string, string> = {
+  saved: "Wiederkehrende Leistung gespeichert.",
+  deleted: "Eintrag gelöscht.",
+  bad: "Bitte Kunde, Leistung, Menge und nächstes Datum prüfen.",
+  missing: "Eintrag nicht gefunden.",
+  db: "Datenbank nicht verbunden.",
+  tax: "Bitte zuerst die Steuernummer unter Einstellungen hinterlegen.",
+  price: "Für eine Entwurfsrechnung braucht die Leistung einen Preis.",
+};
+const noticeText = ok ? notices[ok] : "";
+
+const intervalLabel = (months: number) =>
+  months === 1 ? "monatlich" : months === 3 ? "vierteljährlich" : months === 6 ? "halbjährlich" : "jährlich";
+---
+
+<AdminLayout title="Wiederkehrend" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h2 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Wiederkehrende Leistungen</h2>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      z. B. monatliche Pflege aus dem Katalog – mit Erinnerung und Entwurfsrechnung.
+      {dueCount > 0 ? ` ${dueCount} fällig.` : ""}
+    </p>
+
+    {noticeText && (
+      <p class="mt-4 rounded-xl border border-ink-200 bg-ink-50 px-4 py-3 text-sm text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">
+        {noticeText}
+      </p>
+    )}
+
+    <form method="POST" action="/api/admin/wiederkehrend" class="mt-6 grid gap-3 rounded-2xl border border-ink-200 p-4 dark:border-white/10">
+      {editing && <input type="hidden" name="id" value={editing.id} />}
+      <input type="hidden" name="action" value="save" />
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="min-w-0">
+          <label class="label" for="rec-customer">Kunde</label>
+          <select class="input" id="rec-customer" name="customer_id" required>
+            <option value="">Bitte wählen</option>
+            {customers.map((customer) => (
+              <option value={customer.id} selected={editing?.customer_id === customer.id}>
+                {customer.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div class="min-w-0">
+          <label class="label" for="rec-catalog">Aus Katalog</label>
+          <select class="input" id="rec-catalog" name="catalog_item_id">
+            <option value="">Freie Leistung</option>
+            {catalog.map((item) => (
+              <option value={item.id} selected={editing?.catalog_item_id === item.id}>
+                {item.label} · {catalogEuroField(item.unit_cents) || "0,00"} €
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="min-w-0">
+          <label class="label" for="rec-label">Bezeichnung</label>
+          <input class="input" id="rec-label" name="label" maxlength="120" value={editing?.label ?? ""} placeholder="optional bei Katalog" />
+        </div>
+        <div class="min-w-0">
+          <label class="label" for="rec-qty">Menge</label>
+          <input class="input" id="rec-qty" name="quantity" inputmode="decimal" value={editing ? String(editing.quantity) : "1"} />
+        </div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="min-w-0">
+          <label class="label" for="rec-unit">Einheit</label>
+          <select class="input" id="rec-unit" name="unit">
+            {OFFER_UNITS.map((unit) => (
+              <option value={unit} selected={(editing?.unit ?? "pauschal") === unit}>{unit}</option>
+            ))}
+          </select>
+        </div>
+        <div class="min-w-0">
+          <label class="label" for="rec-price">Preis</label>
+          <input class="input" id="rec-price" name="price" inputmode="decimal" placeholder="45,00" value={editing ? catalogEuroField(editing.unit_cents) : ""} />
+        </div>
+        <div class="min-w-0">
+          <label class="label" for="rec-interval">Intervall</label>
+          <select class="input" id="rec-interval" name="interval_months">
+            <option value="1" selected={(editing?.interval_months ?? 1) === 1}>monatlich</option>
+            <option value="3" selected={editing?.interval_months === 3}>vierteljährlich</option>
+            <option value="6" selected={editing?.interval_months === 6}>halbjährlich</option>
+            <option value="12" selected={editing?.interval_months === 12}>jährlich</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div class="min-w-0">
+          <label class="label" for="rec-due">Nächste Fälligkeit</label>
+          <input class="input" id="rec-due" name="next_due" type="date" required value={editing?.next_due ?? today} />
+        </div>
+        <div class="min-w-0">
+          <label class="label" for="rec-note">Notiz</label>
+          <input class="input" id="rec-note" name="note" maxlength="200" value={editing?.note ?? ""} />
+        </div>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-ink-700 dark:text-ink-200">
+        <input type="checkbox" name="active" value="1" checked={editing ? editing.active === 1 : true} />
+        Aktiv
+      </label>
+      <div class="flex flex-wrap gap-2">
+        <button type="submit" class="btn-primary">{editing ? "Änderungen speichern" : "Anlegen"}</button>
+        {editing && (
+          <a href="/admin/wiederkehrend" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Abbrechen</a>
+        )}
+      </div>
+    </form>
+
+    {rows.length === 0 ? (
+      <p class="mt-6 text-sm text-ink-600 dark:text-ink-300">Noch keine wiederkehrenden Leistungen.</p>
+    ) : (
+      <ul class="mt-6 divide-y divide-ink-100 dark:divide-white/10">
+        {rows.map((row) => {
+          const due = isRecurringDue(row, today);
+          return (
+            <li class="py-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="font-semibold text-ink-900 dark:text-ink-50">
+                    {row.label} · {formatEuro(recurringLineTotal(row))}
+                  </p>
+                  <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+                    <a class="underline" href={`/admin/kunden/${row.customer_id}`}>{row.customer_name}</a>
+                    {" · "}
+                    {intervalLabel(row.interval_months)} · nächste Fälligkeit {formatOfferDate(row.next_due)}
+                    {row.active ? "" : " · pausiert"}
+                  </p>
+                </div>
+                {due && (
+                  <span class="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-100">
+                    Fällig
+                  </span>
+                )}
+              </div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                {due && row.active === 1 && (
+                  <form method="POST" action="/api/admin/wiederkehrend">
+                    <input type="hidden" name="id" value={row.id} />
+                    <input type="hidden" name="action" value="draft" />
+                    <button type="submit" class="btn-primary text-xs px-3 py-1.5">Entwurfsrechnung</button>
+                  </form>
+                )}
+                <a href={`/admin/wiederkehrend?edit=${row.id}`} class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Bearbeiten</a>
+                <form method="POST" action="/api/admin/wiederkehrend" onsubmit="return confirm('Eintrag löschen?')">
+                  <input type="hidden" name="id" value={row.id} />
+                  <input type="hidden" name="action" value="delete" />
+                  <button type="submit" class="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 dark:border-rose-400/30 dark:bg-rose-500/5 dark:text-rose-200">Löschen</button>
+                </form>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    )}
+  </section>
+</AdminLayout>

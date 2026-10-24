@@ -134,6 +134,28 @@ const price = pay.stripePriceParams("R-2026-0001", 10000);
 assert.equal(price.get("product_data[name]"), "Rechnung R-2026-0001");
 assert.equal(price.get("product_data[description]"), null);
 assert.equal(price.get("unit_amount"), "10000");
+assert.equal(pay.stripeStatementSuffix("R-2026-0001"), "R20260001");
+assert.equal(pay.stripeStatementSuffix("r-2026-0009!!!"), "R20260009");
+assert.ok(pay.stripeStatementSuffix("R-2026-0001").length <= 10);
+assert.equal(pay.stripeStatementSuffix("R-2026-123456"), "R202612345");
+const linkParams = pay.paymentLinkParams(
+  { invoiceId: 1, number: "R-2026-0001", email: "kunde@example.com" },
+  "price_test",
+  ["card"],
+  false,
+);
+assert.equal(linkParams.get("payment_intent_data[statement_descriptor_suffix]"), "R20260001");
+assert.equal(linkParams.get("payment_intent_data[description]"), "Rechnung R-2026-0001");
+assert.equal(linkParams.get("payment_intent_data[metadata][invoice_number]"), "R-2026-0001");
+const linkNoStmt = pay.paymentLinkParams(
+  { invoiceId: 1, number: "R-2026-0001", email: "kunde@example.com" },
+  "price_test",
+  ["card"],
+  false,
+  true,
+  false,
+);
+assert.equal(linkNoStmt.get("payment_intent_data[statement_descriptor_suffix]"), null);
 
 const link = pay.paymentLinkForMail("https://buy.stripe.com/test_abc", "kunde@example.com");
 assert.match(link, /^https:\/\/buy\.stripe\.com\/test_abc\?/);
@@ -169,6 +191,78 @@ const payFirst = email.renderReplyEmailText({
   ctaFirst: true,
 });
 assert.ok(payFirst.indexOf("Jetzt bezahlen:") < payFirst.indexOf("Rechnungstext"));
+const invoiceHtml = email.renderReplyEmailHtml({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001: Rollladen einstellen",
+  heading: "Rollladen einstellen",
+  bodyText: "Fällig am 3. November 2026.\n\nDie Positionen stehen in der angehängten Rechnung.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Gesamtbetrag",
+  summaryAmount: "127,50 €",
+  ctaUrl: link,
+  ctaLabel: "Jetzt bezahlen",
+  ctaFirst: true,
+  ctaTone: "green",
+  hideCtaUrl: true,
+});
+assert.match(invoiceHtml, /font-size:32px/);
+assert.match(invoiceHtml, /#16a34a/);
+assert.match(invoiceHtml, /border-radius:999px;color:#ffffff;background-color:#16a34a/);
+assert.match(invoiceHtml, /td\.email-cta-green/);
+assert.doesNotMatch(invoiceHtml, /bgcolor="#2563eb"/);
+assert.match(invoiceHtml, /127,50 €/);
+assert.match(invoiceHtml, /Rollladen einstellen/);
+assert.doesNotMatch(invoiceHtml, /Stundenlohn/);
+assert.doesNotMatch(invoiceHtml, /word-break:break-all/);
+assert.match(invoiceHtml, /href="https:\/\/buy\.stripe\.com\//);
+assert.match(invoiceHtml, /Jetzt bezahlen/);
+const invoiceText = email.renderReplyEmailText({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001: Rollladen einstellen",
+  bodyText: "Fällig am 3. November 2026.\n\nDie Positionen stehen in der angehängten Rechnung.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Gesamtbetrag",
+  summaryAmount: "127,50 €",
+  ctaUrl: link,
+  ctaLabel: "Jetzt bezahlen",
+  ctaFirst: true,
+});
+assert.ok(invoiceText.indexOf("Gesamtbetrag:") < invoiceText.indexOf("Jetzt bezahlen:"));
+assert.ok(invoiceText.indexOf("Jetzt bezahlen:") < invoiceText.indexOf("Fällig am"));
+assert.match(invoiceText, /buy\.stripe\.com/);
+assert.equal(invoiceText.split("Gesamtbetrag:").length, 2);
+const leadHtml = email.renderReplyEmailHtml({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001",
+  bodyText: "Fällig am 3. November 2026.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Hiermit übersende ich Ihnen die Rechnung in Höhe von:",
+  summaryAmount: "127,50 €",
+});
+assert.match(leadHtml, /Hiermit übersende ich Ihnen die Rechnung in Höhe von:/);
+assert.doesNotMatch(leadHtml, /text-transform:uppercase[^>]*>Hiermit/);
+const leadText = email.renderReplyEmailText({
+  siteName: "Zeus-Service",
+  siteUrl: "https://zeus-service.de",
+  recipientName: "Erika",
+  subject: "Rechnung R-2026-0001",
+  bodyText: "Fällig am 3. November 2026.",
+  authorName: "Leon Lütcke",
+  fromEmail: "info@zeus-service.de",
+  summaryLabel: "Hiermit übersende ich Ihnen die Rechnung in Höhe von:",
+  summaryAmount: "127,50 €",
+});
+assert.match(leadText, /Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50 €/);
+assert.doesNotMatch(leadText, /von::/);
 
 console.log("stripe payment checks ok");
 

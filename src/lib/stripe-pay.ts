@@ -61,15 +61,20 @@ export function stripeKeyMode(secret?: string): "test" | "live" | "off" {
 
 export function paymentStatusLabel(status: string): string {
   if (status === "bezahlt") return "Bezahlt";
+  if (status === "teilbezahlt") return "Teilbezahlt";
   if (status === "erstattet") return "Erstattet";
   if (status === "storniert") return "Storniert";
   if (status === "test") return "Testzahlung";
   return "Offen";
 }
 
-export function invoiceStatusLabel(status: string, kind?: string | null): string {
+export function invoiceStatusLabel(status: string, kind?: string | null, billingKind?: string | null): string {
   if (kind === "storno") return "Stornorechnung";
-  return paymentStatusLabel(status);
+  if (kind === "gutschrift") return "Gutschrift";
+  const pay = paymentStatusLabel(status);
+  if (billingKind === "teil") return `Teilrechnung · ${pay}`;
+  if (billingKind === "schluss") return `Schlussrechnung · ${pay}`;
+  return pay;
 }
 
 export function paymentLinkForMail(url: string, email: string): string {
@@ -126,7 +131,9 @@ export function applyRefund(row: PaymentRow, incoming: { reference: string; full
 }
 
 export function applyTransferPayment(row: PaymentRow, paidAt: number): PaymentUpdate {
-  if (row.status !== "offen" && row.status !== "test") return { kind: "unchanged" };
+  if (row.status !== "offen" && row.status !== "test" && row.status !== "teilbezahlt") {
+    return { kind: "unchanged" };
+  }
   return {
     kind: "paid",
     paidAt,
@@ -137,7 +144,11 @@ export function applyTransferPayment(row: PaymentRow, paidAt: number): PaymentUp
 }
 
 export function transferPayment(row: PaymentRow): boolean {
-  return row.status === "bezahlt" && (row.reference ?? "").startsWith("ueberweisung-");
+  const ref = row.reference ?? "";
+  return (
+    (row.status === "bezahlt" || row.status === "teilbezahlt") &&
+    (ref.startsWith("ueberweisung-") || ref.startsWith("teil-"))
+  );
 }
 
 export function decideStripeEvent(event: unknown): StripeDecision {
@@ -209,13 +220,15 @@ export async function verifyStripeSignature(
 
 export async function createStripePaymentLink(
   secret: string,
-  input: { invoiceId: number; number: string; title: string; amountCents: number; email: string },
+  input: { invoiceId: number; number: string; title: string; amountCents: number; email: string; confirmation?: string },
 ): Promise<{ id: string; url: string }> {
   if (!stripeSecretUsable(secret)) throw new Error("Stripe-Schlüssel fehlt");
   if (!Number.isInteger(input.amountCents) || input.amountCents < MIN_AMOUNT_CENTS) {
     throw new Error("Betrag liegt unter dem Stripe-Minimum");
   }
-  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), `invoice-${input.invoiceId}-price-v2`);
+  // Betrag in den Key, damit geänderte Summen keinen Stripe-Idempotenz-Konflikt auslösen.
+  const priceKey = `invoice-${input.invoiceId}-c${input.amountCents}-price-v5`;
+  const price = await stripeForm(secret, "prices", stripePriceParams(input.number, input.amountCents), priceKey);
   const priceId = typeof price.id === "string" ? price.id : "";
   if (!priceId.startsWith("price_")) throw new Error("Stripe hat keinen Preis angelegt");
 
@@ -227,14 +240,23 @@ export async function createStripePaymentLink(
   ];
   let lastMessage = "Zahlungslink fehlgeschlagen";
   for (const methods of methodSets) {
+    const linkKey = `invoice-${input.invoiceId}-c${input.amountCents}-link-v5-${methods.join("-")}`;
     const params = paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test");
-    let result = await stripePost(secret, "payment_links", params, `invoice-${input.invoiceId}-link-v3-${methods.join("-")}`);
+    let result = await stripePost(secret, "payment_links", params, linkKey);
+    if (!result.ok && canDropDescriptor(result.body)) {
+      result = await stripePost(
+        secret,
+        "payment_links",
+        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", true, false),
+        `${linkKey}-nodesc`,
+      );
+    }
     if (!result.ok && canDropIntent(result.body)) {
       result = await stripePost(
         secret,
         "payment_links",
-        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false),
-        `invoice-${input.invoiceId}-link-v4-${methods.join("-")}`,
+        paymentLinkParams(input, priceId, methods, stripeKeyMode(secret) === "test", false, false),
+        `${linkKey}-nointent`,
       );
     }
     if (result.ok) {
@@ -267,6 +289,7 @@ export async function readCheckoutPaymentMethod(secret: string, sessionId: strin
 }
 
 export function stripePriceParams(number: string, amountCents: number): URLSearchParams {
+  // Prices akzeptieren bei product_data nur name (keine description).
   return new URLSearchParams({
     currency: "eur",
     unit_amount: String(amountCents),
@@ -274,12 +297,25 @@ export function stripePriceParams(number: string, amountCents: number): URLSearc
   });
 }
 
-function paymentLinkParams(
-  input: { invoiceId: number; number: string; email: string },
+/**
+ * Text für die Kontoabbuchung (statement_descriptor_suffix).
+ * Kartenauszüge haben nur ~22 Zeichen gesamt inkl. Firmenkürzel (z. B. ZEUS-SERVI*).
+ * Deshalb kompakt ohne Bindestriche: R-2026-0009 → R20260009.
+ */
+export function stripeStatementSuffix(number: string): string {
+  const digits = number.replace(/\D/g, "");
+  const compact = `R${digits}`;
+  // Max. 10 Zeichen: lässt Platz für ein ~11 Zeichen langes Firmenkürzel + „*“.
+  return compact.slice(0, 10);
+}
+
+export function paymentLinkParams(
+  input: { invoiceId: number; number: string; email: string; confirmation?: string },
   priceId: string,
   methods: string[],
   testMode: boolean,
   withIntent = true,
+  withStatement = true,
 ): URLSearchParams {
   const params = new URLSearchParams({
     "line_items[0][price]": priceId,
@@ -287,16 +323,23 @@ function paymentLinkParams(
     "metadata[invoice_id]": String(input.invoiceId),
     "metadata[invoice_number]": input.number,
     "after_completion[type]": "hosted_confirmation",
-    "after_completion[hosted_confirmation][custom_message]": testMode
-      ? "Testmodus: Es wird kein Geld abgebucht."
-      : "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt.",
+    "after_completion[hosted_confirmation][custom_message]": input.confirmation?.trim()
+      || (testMode
+        ? "Testmodus: Es wird kein Geld abgebucht."
+        : "Vielen Dank. Die Zahlung ist eingegangen und die Rechnung gilt als bezahlt."),
     inactive_message: "Diese Rechnung ist bereits bezahlt.",
     "automatic_tax[enabled]": "false",
     submit_type: "pay",
   });
   if (withIntent) {
-    params.set("payment_intent_data[description]", `Rechnung ${input.number}`.slice(0, 500));
+    const label = `Rechnung ${input.number}`.slice(0, 500);
+    params.set("payment_intent_data[description]", label);
     params.set("payment_intent_data[metadata][invoice_id]", String(input.invoiceId));
+    params.set("payment_intent_data[metadata][invoice_number]", input.number);
+    if (withStatement) {
+      const suffix = stripeStatementSuffix(input.number);
+      if (suffix) params.set("payment_intent_data[statement_descriptor_suffix]", suffix);
+    }
   }
   if (!testMode) params.set("restrictions[completed_sessions][limit]", "1");
   methods.forEach((method, index) => params.append(`payment_method_types[${index}]`, method));
@@ -310,6 +353,14 @@ function canDropIntent(body: unknown): boolean {
   if (code === "parameter_unknown" && param.includes("payment_intent")) return true;
   const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
   return message.includes("payment_intent");
+}
+
+function canDropDescriptor(body: unknown): boolean {
+  const error = asRecord(asRecord(body)?.error);
+  const param = typeof error?.param === "string" ? error.param : "";
+  if (param.includes("statement_descriptor")) return true;
+  const message = typeof error?.message === "string" ? error.message.toLowerCase() : "";
+  return message.includes("statement_descriptor");
 }
 
 async function stripeForm(

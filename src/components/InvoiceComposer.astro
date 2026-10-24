@@ -1,7 +1,24 @@
 ---
 import InvoiceNotes from "./InvoiceNotes.astro";
 import SalutationSelect from "./SalutationSelect.astro";
-import { OFFER_BANK_LINES, OFFER_UNIT_LABELS, OFFER_UNITS, formatEuro, formatQuantity, type OfferLine } from "../lib/quote";
+import { DUE_DAY_OPTIONS, paymentTermsForDays } from "../lib/billing";
+import {
+  OFFER_BANK_LINES,
+  OFFER_UNIT_LABELS,
+  OFFER_UNITS,
+  formatEuro,
+  formatQuantity,
+  type OfferDiscount,
+  type OfferLine,
+  type OfferUnit,
+} from "../lib/quote";
+
+interface CatalogPick {
+  label: string;
+  unit: OfferUnit;
+  price: string;
+  qty: string;
+}
 
 interface Props {
   customerName: string;
@@ -10,11 +27,19 @@ interface Props {
   invoiceDate: string;
   serviceDate: string;
   lines?: OfferLine[];
+  discount?: OfferDiscount | null;
   salutation?: string;
   hidden?: Array<{ name: string; value: string }>;
   submitLabel?: string;
   hint?: string;
   confirmMessage?: string;
+  catalog?: CatalogPick[];
+  dueDays?: number;
+  billingKind?: "voll" | "teil" | "schluss";
+  siteName?: string | null;
+  siteStreet?: string | null;
+  sitePostalCode?: string | null;
+  siteCity?: string | null;
 }
 
 const {
@@ -24,12 +49,21 @@ const {
   invoiceDate,
   serviceDate,
   lines = [],
+  discount = null,
   salutation,
   hidden = [],
   submitLabel = "Rechnung festschreiben und senden",
   hint = "Nach dem Festschreiben bleibt diese Rechnung stehen. Eine Korrektur läuft über Stornieren oder Anpassen und legt eine neue Rechnung an.",
   confirmMessage = "",
+  catalog = [],
+  dueDays = 14,
+  billingKind = "voll",
+  siteName = "",
+  siteStreet = "",
+  sitePostalCode = "",
+  siteCity = "",
 } = Astro.props;
+const terms = paymentTermsForDays(dueDays);
 const initial = lines.length
   ? lines
   : [{ label: "Stundenlohn", quantity: 0, unit: "stunde" as const, unitCents: 0 }];
@@ -37,9 +71,16 @@ const euroField = (cents: number) =>
   cents > 0
     ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100)
     : "";
+const discountKind = discount?.kind ?? "none";
+const discountValue =
+  discount?.kind === "percent"
+    ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(discount.percent)
+    : discount?.kind === "euro"
+      ? euroField(discount.cents)
+      : "";
 ---
 
-<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid gap-4" onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
+<form id="invoice-form" method="POST" action="/api/admin/rechnung" class="grid min-w-0 gap-4" data-catalog={JSON.stringify(catalog)} onsubmit={confirmMessage ? `return confirm(${JSON.stringify(confirmMessage)})` : undefined}>
   {hidden.map((field) => <input type="hidden" name={field.name} value={field.value} />)}
   <div>
     <label class="label" for="invoice-title">Betreff</label>
@@ -52,6 +93,20 @@ const euroField = (cents: number) =>
     <button type="button" data-preset="material" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Material</button>
     <button type="button" id="invoice-add" class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Weitere Position</button>
   </div>
+  {catalog.length > 0 && (
+    <div class="flex flex-wrap items-end gap-2">
+      <div class="min-w-[14rem] flex-1">
+        <label class="label" for="invoice-catalog">Aus Katalog</label>
+        <select class="input" id="invoice-catalog">
+          <option value="">Leistung wählen …</option>
+          {catalog.map((item, index) => (
+            <option value={String(index)}>{item.label}{item.price ? ` · ${item.price} €` : ""}</option>
+          ))}
+        </select>
+      </div>
+      <button type="button" id="invoice-catalog-add" class="rounded-full border border-ink-200 bg-white px-4 py-2 text-sm font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100">Übernehmen</button>
+    </div>
+  )}
   <div id="invoice-lines" class="grid gap-3">
     {initial.map((line) => (
       <div data-line class="grid gap-2 rounded-2xl border border-ink-200 p-3 sm:grid-cols-12 dark:border-white/10">
@@ -80,17 +135,83 @@ const euroField = (cents: number) =>
       </div>
     ))}
   </div>
-  <p class="text-sm text-ink-800 dark:text-ink-100">Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
-  <InvoiceNotes />
-  <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
-  <div class="grid gap-3 sm:grid-cols-2">
+  <div class="grid gap-3 rounded-2xl border border-ink-200 p-4 dark:border-white/10 sm:grid-cols-3">
     <div>
+      <label class="label" for="discount-kind">Rabatt</label>
+      <select class="input" id="discount-kind" name="discount_kind" data-discount-kind>
+        <option value="none" selected={discountKind === "none"}>Kein Rabatt</option>
+        <option value="percent" selected={discountKind === "percent"}>Prozent</option>
+        <option value="euro" selected={discountKind === "euro"}>Euro</option>
+      </select>
+    </div>
+    <div>
+      <label class="label" for="discount-value">Wert</label>
+      <input
+        class="input"
+        id="discount-value"
+        name="discount_value"
+        data-discount-value
+        inputmode="decimal"
+        maxlength="12"
+        placeholder="z. B. 10 oder 25,00"
+        value={discountValue}
+      />
+    </div>
+    <div class="flex flex-col justify-end gap-1 text-sm text-ink-800 dark:text-ink-100">
+      <p>Zwischensumme <strong id="invoice-subtotal">0,00 €</strong></p>
+      <p id="invoice-discount-row" class="hidden">Rabatt <strong id="invoice-discount">−0,00 €</strong></p>
+      <p>Rechnungsbetrag <strong id="invoice-total">0,00 €</strong></p>
+    </div>
+  </div>
+  <InvoiceNotes paymentTerms={terms} />
+  <p class="text-sm text-ink-800 dark:text-ink-100">{OFFER_BANK_LINES.join(" · ")}</p>
+  <div class="grid min-w-0 gap-3 sm:grid-cols-2">
+    <div class="min-w-0">
       <label class="label" for="invoice-date">Rechnungsdatum</label>
       <input class="input" id="invoice-date" name="invoice_date" type="date" required value={invoiceDate} />
     </div>
-    <div>
+    <div class="min-w-0">
       <label class="label" for="service-date">Leistungsdatum</label>
       <input class="input" id="service-date" name="service_date" type="date" required value={serviceDate} />
+    </div>
+    <div class="min-w-0">
+      <label class="label" for="due-days">Zahlungsziel</label>
+      <select class="input" id="due-days" name="due_days">
+        {DUE_DAY_OPTIONS.map((days) => (
+          <option value={days} selected={dueDays === days}>
+            {days === 0 ? "Sofort" : `${days} Tage`}
+          </option>
+        ))}
+      </select>
+    </div>
+    <div class="min-w-0">
+      <label class="label" for="billing-kind">Rechnungsart</label>
+      <select class="input" id="billing-kind" name="billing_kind">
+        <option value="voll" selected={billingKind === "voll"}>Volle Rechnung</option>
+        <option value="teil" selected={billingKind === "teil"}>Teilrechnung</option>
+        <option value="schluss" selected={billingKind === "schluss"}>Schlussrechnung</option>
+      </select>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-ink-200 p-4 dark:border-white/10">
+    <p class="text-sm font-semibold text-ink-900 dark:text-ink-50">Baustelle / Leistungsort</p>
+    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+      <div class="sm:col-span-2">
+        <label class="label" for="site-name">Bezeichnung</label>
+        <input class="input" id="site-name" name="site_name" maxlength="120" value={siteName ?? ""} />
+      </div>
+      <div class="sm:col-span-2">
+        <label class="label" for="site-street">Straße</label>
+        <input class="input" id="site-street" name="site_street" maxlength="120" value={siteStreet ?? ""} />
+      </div>
+      <div>
+        <label class="label" for="site-postal">PLZ</label>
+        <input class="input" id="site-postal" name="site_postal_code" maxlength="12" value={sitePostalCode ?? ""} />
+      </div>
+      <div>
+        <label class="label" for="site-city">Ort</label>
+        <input class="input" id="site-city" name="site_city" maxlength="80" value={siteCity ?? ""} />
+      </div>
     </div>
   </div>
   <SalutationSelect name={customerName} id="salutation-invoice" selected={salutation} />
@@ -136,6 +257,11 @@ const euroField = (cents: number) =>
   const root = document.getElementById("invoice-lines");
   const template = document.getElementById("invoice-line-template");
   const total = document.getElementById("invoice-total");
+  const subtotalEl = document.getElementById("invoice-subtotal");
+  const discountEl = document.getElementById("invoice-discount");
+  const discountRow = document.getElementById("invoice-discount-row");
+  const discountKindEl = form?.querySelector("[data-discount-kind]");
+  const discountValueEl = form?.querySelector("[data-discount-value]");
   if (form instanceof HTMLFormElement && root && template instanceof HTMLTemplateElement && total && form.dataset.ready !== "1") {
     form.dataset.ready = "1";
     const presets = {
@@ -155,6 +281,23 @@ const euroField = (cents: number) =>
       return Number(cleaned);
     };
     const money = (cents) => (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+    const discountOf = (subtotal) => {
+      const kind = discountKindEl instanceof HTMLSelectElement ? discountKindEl.value : "none";
+      const raw = discountValueEl instanceof HTMLInputElement ? discountValueEl.value : "";
+      if (!subtotal || kind === "none" || !String(raw || "").trim()) return 0;
+      if (kind === "percent") {
+        const cleaned = String(raw).trim().replace(/\s/g, "").replace("%", "").replace(",", ".");
+        if (!/^\d{1,2}(\.\d{1,2})?$/.test(cleaned)) return 0;
+        const percent = Number(cleaned);
+        if (!(percent > 0) || percent >= 100) return 0;
+        return Math.min(subtotal - 1, Math.round((subtotal * percent) / 100));
+      }
+      if (kind === "euro") {
+        const cents = centsOf(raw);
+        return cents > 0 ? Math.min(subtotal - 1, cents) : 0;
+      }
+      return 0;
+    };
     const refresh = () => {
       let sum = 0;
       root.querySelectorAll("[data-line]").forEach((row) => {
@@ -165,8 +308,15 @@ const euroField = (cents: number) =>
         const out = row.querySelector("[data-line-total]");
         if (out) out.textContent = qty > 0 && price > 0 ? money(line) : "–";
       });
-      total.textContent = money(sum);
+      const off = discountOf(sum);
+      const payable = Math.max(0, sum - off);
+      if (subtotalEl) subtotalEl.textContent = money(sum);
+      if (discountEl) discountEl.textContent = `−${money(off)}`;
+      if (discountRow) discountRow.classList.toggle("hidden", off <= 0);
+      total.textContent = money(payable);
     };
+    discountKindEl?.addEventListener("change", refresh);
+    discountValueEl?.addEventListener("input", refresh);
     const bind = (row) => {
       row.querySelector("[data-remove]")?.addEventListener("click", () => {
         if (root.querySelectorAll("[data-line]").length <= 1) return;
@@ -175,11 +325,15 @@ const euroField = (cents: number) =>
       });
       row.addEventListener("input", refresh);
     };
-    const addLine = (preset) => {
-      if (root.querySelectorAll("[data-line]").length >= 12) return;
-      const node = template.content.firstElementChild?.cloneNode(true);
-      if (!(node instanceof HTMLElement)) return;
-      const values = presets[preset] || ["", "pauschal", "", ""];
+    const catalogItems = (() => {
+      try {
+        const parsed = JSON.parse(form.dataset.catalog || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    })();
+    const fill = (node, values) => {
       const label = node.querySelector("[name='line_label']");
       const unit = node.querySelector("[data-unit]");
       const qty = node.querySelector("[data-qty]");
@@ -188,12 +342,35 @@ const euroField = (cents: number) =>
       if (unit instanceof HTMLSelectElement) unit.value = values[1];
       if (qty instanceof HTMLInputElement) qty.value = values[2];
       if (price instanceof HTMLInputElement) price.value = values[3];
+    };
+    const addLine = (preset) => {
+      if (root.querySelectorAll("[data-line]").length >= 12) return;
+      const node = template.content.firstElementChild?.cloneNode(true);
+      if (!(node instanceof HTMLElement)) return;
+      fill(node, presets[preset] || ["", "pauschal", "", ""]);
+      root.appendChild(node);
+      bind(node);
+      refresh();
+    };
+    const addCatalog = (index) => {
+      const item = catalogItems[index];
+      if (!item) return;
+      if (root.querySelectorAll("[data-line]").length >= 12) return;
+      const node = template.content.firstElementChild?.cloneNode(true);
+      if (!(node instanceof HTMLElement)) return;
+      fill(node, [item.label || "", item.unit || "pauschal", item.qty || "", item.price || ""]);
       root.appendChild(node);
       bind(node);
       refresh();
     };
     root.querySelectorAll("[data-line]").forEach(bind);
     document.getElementById("invoice-add")?.addEventListener("click", () => addLine(""));
+    document.getElementById("invoice-catalog-add")?.addEventListener("click", () => {
+      const select = document.getElementById("invoice-catalog");
+      if (!(select instanceof HTMLSelectElement) || select.value === "") return;
+      addCatalog(Number(select.value));
+      select.value = "";
+    });
     form.querySelectorAll("[data-preset]").forEach((button) => {
       button.addEventListener("click", () => addLine(button.getAttribute("data-preset") || ""));
     });

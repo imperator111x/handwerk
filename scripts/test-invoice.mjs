@@ -14,6 +14,7 @@ registerHooks({
 const invoice = await import("../src/lib/invoice.ts");
 const font = await import("../src/lib/invoice-font.ts");
 const { buildInvoicePdf } = await import("../src/lib/invoice-pdf.ts");
+const epc = await import("../src/lib/epc-qr.ts");
 
 const RETENTION =
   "Der Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren.";
@@ -53,7 +54,40 @@ const parsed = invoice.parseInvoiceForm(form, "2026-10-20");
 assert.ok(parsed);
 assert.equal(parsed.priceCents, 12750);
 assert.equal(parsed.dueDate, "2026-11-03");
+assert.equal(parsed.discount ?? null, null);
 assert.equal(invoice.parseInvoiceForm(form, "2026-10-19"), null);
+
+const withLines = (extra) => {
+  const next = new FormData();
+  next.set("title", "Rollladen einstellen");
+  next.set("intro", "für die ausgeführte Leistung.");
+  next.set("invoice_date", "2026-10-20");
+  next.set("service_date", "2026-10-18");
+  next.append("line_label", "Stundenlohn");
+  next.append("line_qty", "2,5");
+  next.append("line_unit", "stunde");
+  next.append("line_price", "45,00");
+  next.append("line_label", "Anfahrt");
+  next.append("line_qty", "1");
+  next.append("line_unit", "pauschal");
+  next.append("line_price", "15,00");
+  for (const [key, value] of Object.entries(extra)) next.set(key, value);
+  return next;
+};
+const withPercent = invoice.parseInvoiceForm(withLines({ discount_kind: "percent", discount_value: "10" }), "2026-10-20");
+assert.ok(withPercent);
+assert.deepEqual(withPercent.discount, { kind: "percent", percent: 10 });
+assert.equal(withPercent.priceCents, 11475);
+
+const withEuro = invoice.parseInvoiceForm(withLines({ discount_kind: "euro", discount_value: "27,50" }), "2026-10-20");
+assert.ok(withEuro);
+assert.deepEqual(withEuro.discount, { kind: "euro", cents: 2750 });
+assert.equal(withEuro.priceCents, 10000);
+
+assert.equal(
+  invoice.parseInvoiceForm(withLines({ discount_kind: "percent", discount_value: "100" }), "2026-10-20"),
+  null,
+);
 
 const future = new FormData();
 future.set("title", "Rollladen einstellen");
@@ -67,21 +101,75 @@ future.append("line_price", "45,00");
 assert.equal(invoice.parseInvoiceForm(future, "2026-10-20"), null);
 
 const plain = invoice.invoicePlainText({
-  number: "R-2026-0007",
-  title: "Rollladen einstellen",
-  intro: parsed.intro,
-  lines: parsed.lines,
-  invoiceDate: parsed.invoiceDate,
-  serviceDate: parsed.serviceDate,
+  priceCents: parsed.priceCents,
   dueDate: parsed.dueDate,
-  taxNumber: "12/345/67890",
+  number: "R-2026-0007",
 });
-assert.match(
-  plain,
-  /Hinweis zur Kleinunternehmerregelung: Gemäß § 19 UStG wird keine Umsatzsteuer berechnet\.\n\nZahlbar innerhalb von 14 Tagen ohne Abzug\.\n\nDer Rechnungsempfänger ist verpflichtet, die Rechnung zu steuerlichen Zwecken mindestens zwei Jahre aufzubewahren\./,
+assert.equal(invoice.INVOICE_MAIL_LEAD, "Hiermit übersende ich Ihnen die Rechnung in Höhe von:");
+assert.match(plain, /^Hiermit übersende ich Ihnen die Rechnung in Höhe von:\n127,50\s€\n\nFällig am 3\. November 2026\./);
+assert.match(plain, /Bei einer Überweisung bitte angeben:\nVerwendungszweck: R-2026-0007\nKontoinhaber: ZEUS-SERVICE\nIBAN: DE38 1001 4000 1598 1684 18\nSWIFT: SWNB DE BB/);
+assert.match(plain, /Die Positionen stehen in der angehängten Rechnung\.$/);
+assert.doesNotMatch(plain, /Stundenlohn|Anfahrt|Steuernummer|Kleinunternehmerregelung/);
+assert.equal(invoice.REMINDER_MAIL_LEAD, "Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:");
+const reminderMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0007",
+  reminder: true,
+});
+assert.match(reminderMail, /^Hiermit erinnere ich höflich an die offene Rechnung in Höhe von:\n127,50\s€\n\nDie Zahlung war fällig am 3\. November 2026\./);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "offen", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-03",
+  ),
+  true,
 );
-assert.match(plain, /Steuernummer: 12\/345\/67890/);
-assert.match(plain, /127,50/);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "offen", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-02",
+  ),
+  false,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "offen", sent_at: null, due_date: "2026-11-03" },
+    "2026-11-04",
+  ),
+  false,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "storno", payment_status: "offen", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-04",
+  ),
+  false,
+);
+assert.equal(
+  invoice.canSendPaymentReminder(
+    { document_kind: "rechnung", payment_status: "bezahlt", sent_at: 1, due_date: "2026-11-03" },
+    "2026-11-04",
+  ),
+  false,
+);
+const stornoMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0008",
+  storno: true,
+});
+assert.match(stornoMail, /^Hiermit übersende ich Ihnen die Stornorechnung in Höhe von:\n127,50\s€/);
+assert.match(stornoMail, /Es ist kein Betrag zu zahlen\./);
+assert.match(stornoMail, /angehängten Stornorechnung/);
+assert.doesNotMatch(stornoMail, /Stundenlohn|IBAN|Verwendungszweck/);
+const paidMail = invoice.invoicePlainText({
+  priceCents: parsed.priceCents,
+  dueDate: parsed.dueDate,
+  number: "R-2026-0007",
+  settled: true,
+});
+assert.doesNotMatch(paidMail, /IBAN|Verwendungszweck/);
 
 const xml = invoice.buildInvoiceXml({
   number: "R-2026-0007",
@@ -97,7 +185,8 @@ const xml = invoice.buildInvoiceXml({
   buyerPostalCode: "22850",
   buyerCity: "Norderstedt",
 });
-assert.match(xml, /urn:cen\.eu:en16931:2017#compliant#urn:factur-x\.eu:1p0:en16931/);
+assert.match(xml, /<ram:ID>urn:cen\.eu:en16931:2017<\/ram:ID>/);
+assert.doesNotMatch(xml, /factur-x\.eu:1p0:en16931/);
 assert.match(xml, /<ram:TypeCode>380<\/ram:TypeCode>/);
 assert.match(xml, /<ram:CategoryCode>E<\/ram:CategoryCode>/);
 assert.match(xml, /<ram:ID schemeID="FC">12\/345\/67890<\/ram:ID>/);
@@ -105,6 +194,26 @@ assert.match(xml, /<ram:IBANID>DE38100140001598168418<\/ram:IBANID>/);
 assert.match(xml, /<ram:TypeCode>58<\/ram:TypeCode>/);
 assert.match(xml, /<ram:DuePayableAmount>127\.50<\/ram:DuePayableAmount>/);
 assert.match(xml, /<ram:TaxTotalAmount currencyID="EUR">0\.00<\/ram:TaxTotalAmount>/);
+
+const discountXml = invoice.buildInvoiceXml({
+  number: "R-2026-0007",
+  title: "Rollladen einstellen",
+  lines: parsed.lines,
+  invoiceDate: parsed.invoiceDate,
+  serviceDate: parsed.serviceDate,
+  dueDate: parsed.dueDate,
+  taxNumber: "12/345/67890",
+  buyerName: "Erika Muster",
+  buyerEmail: "erika@example.com",
+  buyerStreet: "Musterweg 1",
+  buyerPostalCode: "22850",
+  buyerCity: "Norderstedt",
+  discount: { kind: "percent", percent: 10 },
+});
+assert.match(discountXml, /<ram:LineTotalAmount>127\.50<\/ram:LineTotalAmount>/);
+assert.match(discountXml, /<ram:AllowanceTotalAmount>12\.75<\/ram:AllowanceTotalAmount>/);
+assert.match(discountXml, /<ram:DuePayableAmount>114\.75<\/ram:DuePayableAmount>/);
+assert.match(discountXml, /Rabatt 10 %/);
 assert.ok(xml.includes(RETENTION));
 assert.ok(xml.includes("unitCode=\"HUR\">2.50"));
 assert.ok(xml.includes("unitCode=\"C62\">1.00"));
@@ -154,6 +263,59 @@ assert.match(text, /Der Rechnungsempfänger ist verpflichtet/);
 assert.match(text, /mindestens zwei Jahre aufzubewahren/);
 assert.match(text, /Rechnungsnummer: R-2026-0007/);
 assert.match(text, /Bei Zahlung bitte angeben/);
+assert.match(text, /Zahlen mit Code/);
+assert.match(text, /Mit der Banking-App scannen/);
+assert.match(raw, /\/Im2 /);
+assert.match(raw, /\/BitsPerComponent 1/);
+
+const discountPdf = buildInvoicePdf({
+  number: "R-2026-0007",
+  invoiceDateLabel: "20. Oktober 2026",
+  serviceDateLabel: "18. Oktober 2026",
+  dueDateLabel: "3. November 2026",
+  taxNumber: "12/345/67890",
+  buyerName: "Erika Muster",
+  buyerEmail: "erika@example.com",
+  buyerPhone: "+49 155 000",
+  buyerStreet: "Musterweg 1",
+  buyerPostalCode: "22850",
+  buyerCity: "Norderstedt",
+  title: "Rollladen einstellen",
+  greeting: "Guten Tag Frau Muster,",
+  intro: "für die ausgeführte Leistung.",
+  lines: parsed.lines,
+  invoiceDate: "2026-10-20",
+  serviceDate: "2026-10-18",
+  dueDate: "2026-11-03",
+  authorName: "Leon Lütcke",
+  discount: { kind: "euro", cents: 2750 },
+});
+const discountText = new TextDecoder("latin1")
+  .decode(discountPdf)
+  .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(Number.parseInt(oct, 8)));
+assert.match(discountText, /Zwischensumme 127,50 EUR/);
+assert.match(discountText, /Rabatt -27,50 EUR/);
+assert.match(discountText, /Rechnungsbetrag/);
+assert.match(discountText, /100,00 EUR/);
+
+const epcPayload = epc.buildEpcPaymentPayload({
+  name: "ZEUS-SERVICE",
+  iban: "DE38100140001598168418",
+  bic: "SWNBDEBB",
+  amountCents: 12750,
+  remittance: "R-2026-0007",
+});
+assert.equal(
+  epcPayload,
+  ["BCD", "002", "1", "SCT", "SWNBDEBB", "ZEUS-SERVICE", "DE38100140001598168418", "EUR127.50", "", "", "R-2026-0007"].join("\n"),
+);
+assert.ok(epc.buildInvoicePaymentQr({
+  name: "ZEUS-SERVICE",
+  iban: "DE38100140001598168418",
+  bic: "SWNBDEBB",
+  amountCents: 12750,
+  remittance: "R-2026-0007",
+}));
 
 const stornoXml = invoice.buildInvoiceXml({
   number: "R-2026-0008",

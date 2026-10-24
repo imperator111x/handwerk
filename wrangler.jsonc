@@ -16,6 +16,8 @@
  *   npx wrangler secret put VIRUSTOTAL_API_KEY
  *   npx wrangler secret put STRIPE_SECRET_KEY
  *   npx wrangler secret put STRIPE_WEBHOOK_SECRET
+ *   npx wrangler secret put GOOGLE_PLACES_API_KEY
+ *   npx wrangler secret put GOOGLE_PLACE_ID
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",

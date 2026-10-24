@@ -1,6 +1,13 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
-import { deleteCustomer, getCustomer, parseCustomerForm, createCustomer, updateCustomer } from "../../../lib/customers";
+import {
+  createCustomer,
+  deleteCustomer,
+  getCustomer,
+  mergeCustomers,
+  parseCustomerForm,
+  updateCustomer,
+} from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 
 export const prerender = false;
@@ -21,6 +28,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
     if (!existing) return ctx.redirect("/admin/kunden?kunde=missing", 303);
     await deleteCustomer(db, id);
     return ctx.redirect("/admin/kunden?kunde=deleted", 303);
+  }
+
+  if (action === "merge") {
+    const survivorId = Number.parseInt(String(form.get("survivor_id") ?? ""), 10);
+    const loserId = Number.parseInt(String(form.get("loser_id") ?? ""), 10);
+    const result = await mergeCustomers(db, survivorId, loserId);
+    if (!result.ok) {
+      const code =
+        result.code === "portal"
+          ? "merge-portal"
+          : result.code === "same"
+            ? "merge-same"
+            : "merge-missing";
+      const back = Number.isFinite(survivorId) && survivorId > 0 ? `/admin/kunden/${survivorId}?kunde=${code}` : `/admin/kunden?kunde=${code}`;
+      return ctx.redirect(back, 303);
+    }
+    return ctx.redirect(`/admin/kunden/${result.survivorId}?kunde=merged`, 303);
   }
 
   const input = parseCustomerForm(form);

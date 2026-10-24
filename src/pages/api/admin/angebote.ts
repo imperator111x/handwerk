@@ -2,18 +2,23 @@ import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
 import { cfEnv } from "../../../lib/cf";
 import { getDb, signatureNameForUser } from "../../../lib/db";
+import { JOB_STATUSES, type JobStatus } from "../../../lib/jobs";
 import {
   berlinTodayIso,
   cleanOffer,
   deleteQuote,
   getQuote,
+  invoiceIdForQuote,
   offerPdfForQuote,
   quoteParty,
+  quoteStatus,
   sendOfferEmail,
   updateQuote,
   updateQuoteDelivery,
+  updateQuoteJobStatus,
+  updateQuoteStatus,
 } from "../../../lib/offers";
-import { offerNumber } from "../../../lib/quote";
+import { hourlyOfferMissingWage, offerNumber } from "../../../lib/quote";
 import { greetingFromForm } from "../../../lib/salutation";
 
 export const prerender = false;
@@ -38,9 +43,44 @@ export async function POST(ctx: APIContext): Promise<Response> {
     return ctx.redirect("/admin/angebote?angebot=deleted", 303);
   }
 
+  if (action === "accept") {
+    if (quoteStatus(quote.status) === "abgerechnet") {
+      return ctx.redirect(`/admin/angebote/${id}?angebot=locked`, 303);
+    }
+    await updateQuoteStatus(db, id, "angenommen");
+    return ctx.redirect(`/admin/angebote/${id}?angebot=accepted`, 303);
+  }
+
+  if (action === "reopen") {
+    if (quoteStatus(quote.status) === "abgerechnet") {
+      const invoiceId = await invoiceIdForQuote(db, id);
+      if (invoiceId) return ctx.redirect(`/admin/angebote/${id}?angebot=locked`, 303);
+    }
+    await updateQuoteStatus(db, id, "offen");
+    return ctx.redirect(`/admin/angebote/${id}?angebot=reopened`, 303);
+  }
+
+  if (action === "job") {
+    const job = String(form.get("job_status") ?? "") as JobStatus;
+    if (!JOB_STATUSES.includes(job) || job === "abgerechnet") {
+      return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
+    }
+    if (quoteStatus(quote.status) === "offen") {
+      await updateQuoteStatus(db, id, "angenommen");
+    }
+    if (quoteStatus(quote.status) === "abgerechnet") {
+      return ctx.redirect(`/admin/angebote/${id}?angebot=locked`, 303);
+    }
+    await updateQuoteJobStatus(db, id, job);
+    const back = String(form.get("redirect") ?? "").trim();
+    if (back.startsWith("/admin/")) return ctx.redirect(back, 303);
+    return ctx.redirect(`/admin/auftraege?auftrag=saved`, 303);
+  }
+
   if (action !== "save" && action !== "resend") {
     return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
   }
+  if (hourlyOfferMissingWage(form)) return ctx.redirect(`/admin/angebote/${id}?angebot=hours`, 303);
   const offer = cleanOffer(form, berlinTodayIso(), { allowPast: true });
   if (!offer) return ctx.redirect(`/admin/angebote/${id}?angebot=bad`, 303);
 

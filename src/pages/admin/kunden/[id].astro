@@ -3,14 +3,18 @@ import CustomerForm from "../../../components/CustomerForm.astro";
 import OfferComposer from "../../../components/OfferComposer.astro";
 import AdminLayout from "../../../layouts/AdminLayout.astro";
 import { requireSession } from "../../../lib/auth";
-import { customerAddress, getCustomer } from "../../../lib/customers";
+import { catalogPickerPayload, listCatalogItems } from "../../../lib/catalog";
+import { loadCustomerDossier } from "../../../lib/customer-dossier";
+import { customerAddress, findCustomerDuplicates, getCustomer } from "../../../lib/customers";
 import { getDb } from "../../../lib/db";
 import { decodeHtmlEntities } from "../../../lib/html-entities";
 import { invoiceNumber } from "../../../lib/invoice";
-import { listInvoicesForCustomer } from "../../../lib/invoices";
+import { JOB_STATUS_LABELS, jobStatusForQuote } from "../../../lib/jobs";
+import { getPortalAccountByCustomer } from "../../../lib/portal";
 import { invoiceStatusLabel } from "../../../lib/stripe-pay";
-import { berlinTodayIso, listQuotesForCustomer, offerValidity } from "../../../lib/offers";
+import { berlinTodayIso, offerValidity, QUOTE_STATUS_LABELS, quoteStatus } from "../../../lib/offers";
 import { formatEuro, formatOfferDate, offerNumber } from "../../../lib/quote";
+import { isRecurringDue, recurringLineTotal } from "../../../lib/recurring";
 import { formatBerlin } from "../../../lib/time";
 
 export const prerender = false;
@@ -28,24 +32,48 @@ if (!customer) return Astro.redirect("/admin/kunden?kunde=missing");
 
 const name = decodeHtmlEntities(customer.name);
 const address = customerAddress(customer);
-const quotes = db ? await listQuotesForCustomer(db, customer.id) : [];
-const invoices = db ? await listInvoicesForCustomer(db, customer.id) : [];
+const dossier = db
+  ? await loadCustomerDossier(db, customer.id, customer.email)
+  : { quotes: [], auftraege: [], invoices: [], timesheets: [], requests: [], mails: [], recurring: [] };
+const { quotes, auftraege, invoices, timesheets, requests, mails, recurring } = dossier;
+const catalog = db ? catalogPickerPayload(await listCatalogItems(db, true)) : [];
+const portalAccount = db ? await getPortalAccountByCustomer(db, customer.id) : null;
 const today = berlinTodayIso();
 const offerUntil = new Date(Date.parse(`${today}T00:00:00Z`) + 14 * 86_400_000).toISOString().slice(0, 10);
 const kunde = Astro.url.searchParams.get("kunde");
 const angebot = Astro.url.searchParams.get("angebot");
+const portal = Astro.url.searchParams.get("portal");
 
-const kundeText =
-  kunde === "saved"
-    ? "Kunde gespeichert."
-    : kunde === "bad"
-      ? "Bitte Name und E-Mail prüfen."
-      : "";
+const duplicates = db ? await findCustomerDuplicates(db, customer) : [];
+const reasonLabel = (reasons: Array<"email" | "phone" | "address">) =>
+  reasons
+    .map((reason) => (reason === "email" ? "E-Mail" : reason === "phone" ? "Telefon" : "Adresse"))
+    .join(", ");
+const kundeNotices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  saved: { kind: "ok", text: "Kunde gespeichert." },
+  bad: { kind: "bad", text: "Bitte Name und E-Mail prüfen." },
+  merged: { kind: "ok", text: "Kunden zusammengeführt. Angebote, Rechnungen und Aufträge liegen jetzt hier." },
+  "merge-portal": {
+    kind: "bad",
+    text: "Zusammenführen nicht möglich: Beide Kunden haben einen Portal-Zugang. Bitte einen Zugang entfernen.",
+  },
+  "merge-missing": { kind: "bad", text: "Zusammenführen fehlgeschlagen: Kunde nicht gefunden." },
+  "merge-same": { kind: "bad", text: "Gleichen Kunden kann man nicht mit sich selbst zusammenführen." },
+};
+const kundeMessage = kunde ? kundeNotices[kunde] : undefined;
+const portalNotices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  sent: { kind: "ok", text: "Einladung zum Kundenportal ist verschickt." },
+  exists: { kind: "ok", text: "Dieser Kunde hat bereits einen Portal-Zugang." },
+  "mail-fail": { kind: "bad", text: "Einladung konnte nicht per E-Mail verschickt werden." },
+  bad: { kind: "bad", text: "Portal-Einladung fehlgeschlagen." },
+};
+const portalMessage = portal ? portalNotices[portal] : undefined;
 const angebotText: Record<string, { kind: "ok" | "warn" | "bad"; text: string }> = {
   sent: { kind: "ok", text: "Das Angebot ist als PDF verschickt." },
   saved: { kind: "warn", text: "Das Angebot ist gespeichert, aber nicht per E-Mail verschickt." },
   failed: { kind: "bad", text: "Das Angebot ist gespeichert, der Versand ist aber fehlgeschlagen." },
   bad: { kind: "bad", text: "Bitte Position, Menge, Einzelpreis und Gültigkeit prüfen." },
+  hours: { kind: "bad", text: "Beim Angebot nach Stunden braucht der Arbeitslohn Stunden und einen Stundensatz." },
   db: { kind: "bad", text: "Das Angebot konnte nicht gespeichert werden." },
 };
 const angebotMessage = angebot ? angebotText[angebot] : undefined;
@@ -73,17 +101,94 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
       <a href="/admin/kunden" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Alle Kunden</a>
     </div>
 
-    {kundeText && (
+    {kundeMessage && (
       <p
         class:list={[
           "mt-4 rounded-xl border px-4 py-3 text-sm",
-          kunde === "saved"
+          kundeMessage.kind === "ok"
             ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
             : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
         ]}
       >
-        {kundeText}
+        {kundeMessage.text}
       </p>
+    )}
+    {portalMessage && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          portalMessage.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {portalMessage.text}
+      </p>
+    )}
+
+    <div class="mt-5 rounded-2xl border border-ink-100 bg-ink-50 px-4 py-4 dark:border-white/10 dark:bg-white/5">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-ink-900 dark:text-ink-50">Kundenportal</h3>
+          <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+            {portalAccount
+              ? `Aktiv für ${portalAccount.email}. Der Kunde sieht Rechnungen, PDFs und kann online zahlen.`
+              : `Einladungslink an ${customer.email} – danach Registrierung, Rechnungen und Zahlung.`}
+          </p>
+        </div>
+        {portalAccount ? (
+          <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-100">
+            Portal aktiv
+          </span>
+        ) : (
+          <form method="POST" action="/api/admin/portal-invite">
+            <input type="hidden" name="customer_id" value={customer.id} />
+            <button type="submit" class="btn-primary">Portal-Link senden</button>
+          </form>
+        )}
+      </div>
+    </div>
+
+    {duplicates.length > 0 && (
+      <div class="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 dark:border-amber-400/30 dark:bg-amber-500/10">
+        <h3 class="text-sm font-semibold text-amber-950 dark:text-amber-50">Mögliche Dubletten</h3>
+        <p class="mt-1 text-sm text-amber-900 dark:text-amber-100">
+          Gleicher Treffer bei E-Mail, Telefon oder Adresse. Zusammenführen behält diesen Kunden und übernimmt die Daten des anderen.
+        </p>
+        <ul class="mt-3 space-y-3">
+          {duplicates.map((dup) => (
+            <li class="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-amber-200/80 bg-white/70 px-3 py-3 dark:border-amber-400/20 dark:bg-ink-950/40">
+              <div>
+                <a href={`/admin/kunden/${dup.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+                  {dup.name}
+                </a>
+                <p class="mt-0.5 text-sm text-ink-600 dark:text-ink-300">
+                  {dup.email}
+                  {dup.phone ? ` · ${dup.phone}` : ""}
+                </p>
+                <p class="mt-0.5 text-xs font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                  Treffer: {reasonLabel(dup.reasons)}
+                </p>
+              </div>
+              <form
+                method="POST"
+                action="/api/admin/kunden"
+                onsubmit={`return confirm(${JSON.stringify(`„${dup.name}“ in diesen Kunden zusammenführen? Angebote und Rechnungen wandern hierher.`)})`}
+              >
+                <input type="hidden" name="action" value="merge" />
+                <input type="hidden" name="survivor_id" value={String(customer.id)} />
+                <input type="hidden" name="loser_id" value={String(dup.id)} />
+                <button
+                  type="submit"
+                  class="rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-950 hover:bg-amber-100 dark:border-amber-400/40 dark:bg-amber-500/10 dark:text-amber-50"
+                >
+                  Hierher zusammenführen
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      </div>
     )}
 
     <div class="mt-5">
@@ -105,6 +210,59 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
         Kunde löschen
       </button>
     </form>
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Kundenakte</h3>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Anfragen {requests.length} · Angebote {quotes.length} · Aufträge {auftraege.length} · Stundenzettel {timesheets.length} · Rechnungen {invoices.length} · Post {mails.length}
+    </p>
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Anfragen</h3>
+    {requests.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Keine Anfragen mit dieser E-Mail.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {requests.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <a href={`/admin/anfragen/${row.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+              #{row.id} · {row.topic || "Ohne Thema"}
+            </a>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              {row.status} · {formatBerlin(row.created_at)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Aufträge</h3>
+      <a href="/admin/auftraege" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Alle Aufträge</a>
+    </div>
+    {auftraege.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch kein angenommener Auftrag.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {auftraege.map((quote) => {
+          const job = jobStatusForQuote(quote);
+          return (
+            <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+              <a href={`/admin/angebote/${quote.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+                {offerNumber(quote.id, quote.created_at)} · {quote.title}
+              </a>
+              <p class="mt-1 text-ink-600 dark:text-ink-300">
+                {JOB_STATUS_LABELS[job]} · {formatEuro(quote.price_cents)}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    )}
   </section>
 
   <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
@@ -130,7 +288,7 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
                 </span>
               </div>
               <p class="mt-1 text-ink-600 dark:text-ink-300">
-                {`${formatEuro(quote.price_cents)} · ${
+                {`${QUOTE_STATUS_LABELS[quoteStatus(quote.status)]} · ${formatEuro(quote.price_cents)} · ${
                   validity === "gueltig"
                     ? `Gültig bis ${formatOfferDate(quote.valid_until)}`
                     : `Abgelaufen am ${formatOfferDate(quote.valid_until)}`
@@ -170,6 +328,77 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
   </section>
 
   <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Stundenzettel</h3>
+      <a href="/admin/stundenzettel/neu" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Neuer Zettel</a>
+    </div>
+    {timesheets.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Noch kein Stundenzettel.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {timesheets.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <a href={`/admin/stundenzettel/${row.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+              {formatOfferDate(row.work_date)} · {row.employee_name}
+            </a>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              {Math.round(row.total_minutes / 60)} Std. {row.total_minutes % 60} Min.
+              {row.signed_at ? " · unterschrieben" : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Postfach</h3>
+      <a href="/admin/postfach" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Zum Postfach</a>
+    </div>
+    {mails.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Keine Threads mit {customer.email}.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {mails.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <a href={`/admin/postfach/${row.mailbox_id}?offen=${row.id}`} class="font-semibold text-ink-900 underline dark:text-ink-50">
+              {row.subject || "Ohne Betreff"}
+            </a>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              {row.local_part}@ · {formatBerlin(row.updated_at)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Wiederkehrend</h3>
+      <a href="/admin/wiederkehrend" class="text-sm font-semibold text-ink-600 underline dark:text-ink-300">Verwalten</a>
+    </div>
+    {recurring.length === 0 ? (
+      <p class="mt-4 text-sm text-ink-600 dark:text-ink-300">Keine wiederkehrenden Leistungen.</p>
+    ) : (
+      <ul class="mt-4 space-y-3">
+        {recurring.map((row) => (
+          <li class="rounded-2xl bg-ink-50 px-4 py-3 text-sm dark:bg-white/5">
+            <p class="font-semibold text-ink-900 dark:text-ink-50">
+              {row.label} · {formatEuro(recurringLineTotal(row))}
+              {isRecurringDue(row, today) ? " · fällig" : ""}
+            </p>
+            <p class="mt-1 text-ink-600 dark:text-ink-300">
+              nächste Fälligkeit {formatOfferDate(row.next_due)}
+            </p>
+          </li>
+        ))}
+      </ul>
+    )}
+  </section>
+
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
     <h3 class="font-display text-xl font-bold text-ink-900 dark:text-ink-50">Neues Angebot</h3>
     <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">Geht als PDF an {customer.email}.</p>
     {angebotMessage && (
@@ -190,6 +419,7 @@ const deliveryLabel = (status: string | null, sentAt: number | null) => {
       <OfferComposer
         customerName={name}
         validUntil={offerUntil}
+        catalog={catalog}
         hidden={[{ name: "customer_id", value: String(customer.id) }]}
       />
     </div>

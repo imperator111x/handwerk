@@ -1,0 +1,152 @@
+---
+import PortalLayout from "../../layouts/PortalLayout.astro";
+import { openAmountCents } from "../../lib/billing";
+import { cfEnv } from "../../lib/cf";
+import { getCustomer } from "../../lib/customers";
+import { getDb } from "../../lib/db";
+import { decodeHtmlEntities } from "../../lib/html-entities";
+import { invoiceNumber, SELLER } from "../../lib/invoice";
+import { listInvoicesForCustomer, sumCreditsForInvoice } from "../../lib/invoices";
+import { requirePortalSession } from "../../lib/portal-auth";
+import { formatEuro, formatOfferDate } from "../../lib/quote";
+import { invoiceStatusLabel, stripePaymentsReady } from "../../lib/stripe-pay";
+
+const ibanDisplay = SELLER.iban.replace(/(.{4})/g, "$1 ").trim();
+const bicDisplay = SELLER.bic.replace(/(.{4})/g, "$1 ").trim();
+
+export const prerender = false;
+
+const sessionOrRedirect = await requirePortalSession(Astro);
+if (sessionOrRedirect instanceof Response) return sessionOrRedirect;
+const session = sessionOrRedirect;
+
+const db = getDb(Astro);
+const env = cfEnv();
+const stripeReady = stripePaymentsReady(env ?? {});
+const customer = db ? await getCustomer(db, session.customerId) : null;
+const name = customer ? decodeHtmlEntities(customer.name) : session.email;
+const invoices = db ? await listInvoicesForCustomer(db, session.customerId) : [];
+
+const rows = await Promise.all(
+  invoices.map(async (row) => {
+    const credited = db ? await sumCreditsForInvoice(db, row.id) : 0;
+    const openCents = openAmountCents(row, credited);
+    return { row, openCents };
+  }),
+);
+
+const flag = Astro.url.searchParams.get("portal");
+const notices: Record<string, { kind: "ok" | "bad"; text: string }> = {
+  welcome: { kind: "ok", text: "Willkommen im Kundenportal. Ihr Zugang ist eingerichtet." },
+  "pay-fail": {
+    kind: "bad",
+    text: "Online-Zahlung ist gerade nicht verfügbar. Bitte später erneut versuchen oder per Überweisung zahlen.",
+  },
+  "pay-bad": { kind: "bad", text: "Diese Rechnung wurde nicht gefunden." },
+};
+const notice = flag ? notices[flag] : undefined;
+---
+
+<PortalLayout title="Meine Rechnungen" session={session}>
+  <section class="rounded-3xl border border-ink-200 bg-white p-6 shadow-[var(--shadow-soft)] dark:border-white/10 dark:bg-ink-900">
+    <h1 class="font-display text-2xl font-bold text-ink-900 dark:text-ink-50">Hallo {name}</h1>
+    <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+      Hier finden Sie Ihre Rechnungen von Zeus-Service.
+    </p>
+
+    {notice && (
+      <p
+        class:list={[
+          "mt-4 rounded-xl border px-4 py-3 text-sm",
+          notice.kind === "ok"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+            : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/30 dark:bg-rose-500/10 dark:text-rose-100",
+        ]}
+      >
+        {notice.text}
+      </p>
+    )}
+
+    {rows.length === 0 ? (
+      <p class="mt-6 text-sm text-ink-600 dark:text-ink-300">Noch keine Rechnungen vorhanden.</p>
+    ) : (
+      <ul class="mt-6 divide-y divide-ink-100 dark:divide-white/10">
+        {rows.map(({ row, openCents }) => {
+          const number = invoiceNumber(row.id, row.invoice_date);
+          const paid =
+            row.payment_status === "bezahlt" ||
+            row.payment_status === "erstattet" ||
+            row.document_kind === "storno" ||
+            row.document_kind === "gutschrift";
+          const canPayOnline = !paid && openCents >= 50 && stripeReady;
+          return (
+            <li class="py-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="font-semibold text-ink-900 dark:text-ink-50">
+                    {number} · {row.title}
+                  </p>
+                  <p class="mt-1 text-sm text-ink-600 dark:text-ink-300">
+                    {formatOfferDate(row.invoice_date)} · {formatEuro(row.price_cents)} ·{" "}
+                    {invoiceStatusLabel(row.payment_status, row.document_kind, row.billing_kind)}
+                    {openCents > 0 && openCents !== row.price_cents ? ` · offen ${formatEuro(openCents)}` : ""}
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <a
+                    href={`/api/portal/rechnung-pdf?id=${row.id}`}
+                    target="_blank"
+                    class="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-800 dark:border-white/10 dark:bg-white/5 dark:text-ink-100"
+                  >
+                    PDF
+                  </a>
+                  {canPayOnline && (
+                    <a
+                      href={`/api/portal/zahlen?id=${row.id}`}
+                      class="rounded-full bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white dark:bg-brand-500 dark:text-ink-950"
+                    >
+                      Online zahlen
+                    </a>
+                  )}
+                </div>
+              </div>
+              {!paid && openCents > 0 && (
+                <details open class="mt-3 rounded-2xl border border-ink-200 bg-ink-50 dark:border-white/10 dark:bg-white/5">
+                  <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-ink-800 dark:text-ink-100 [&::-webkit-details-marker]:hidden">
+                    Überweisungsdaten
+                  </summary>
+                  <dl class="grid gap-2 border-t border-ink-200 px-4 py-3 text-sm dark:border-white/10 sm:grid-cols-2">
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">Empfänger</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{SELLER.accountName}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">Betrag</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatEuro(openCents)}</dd>
+                    </div>
+                    <div class="sm:col-span-2">
+                      <dt class="text-ink-500 dark:text-ink-400">IBAN</dt>
+                      <dd class="font-mono font-semibold tracking-wide text-ink-900 dark:text-ink-50">{ibanDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">BIC</dt>
+                      <dd class="font-mono font-semibold tracking-wide text-ink-900 dark:text-ink-50">{bicDisplay}</dd>
+                    </div>
+                    <div>
+                      <dt class="text-ink-500 dark:text-ink-400">Fällig am</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{formatOfferDate(row.due_date)}</dd>
+                    </div>
+                    <div class="sm:col-span-2">
+                      <dt class="text-ink-500 dark:text-ink-400">Verwendungszweck</dt>
+                      <dd class="font-semibold text-ink-900 dark:text-ink-50">{number}</dd>
+                    </div>
+                  </dl>
+                </details>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    )}
+  </section>
+</PortalLayout>
