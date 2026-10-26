@@ -170,4 +170,33 @@ assert.equal(
   true,
 );
 
+// Sprach-/Themen-Gate: englischer Text ohne Handwerk, kein DACH-Absender
+assert.equal(
+  spam.contactSpamReason({
+    name: "John",
+    email: "john@example.com",
+    message:
+      "Hello, I would like to discuss an investment opportunity for your company and schedule a call next week.",
+  }),
+  "topic-language-gate",
+);
+// Deutsche Kurzmail ohne Handwerks-Keyword bleibt durch
+assert.equal(
+  spam.isContactSpam({
+    name: "Lisa",
+    email: "lisa@beispiel.de",
+    message: "Hallo, können Sie mich bitte zurückrufen? Es ist dringend.",
+  }),
+  false,
+);
+// Englisch mit Handwerks-Bezug bleibt durch
+assert.equal(
+  spam.isContactSpam({
+    name: "Tom",
+    email: "tom@example.com",
+    message: "Hello, the heating is broken in my apartment, can you repair it?",
+  }),
+  false,
+);
+
 console.log("contact-spam checks ok");

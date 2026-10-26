@@ -257,6 +257,53 @@ export async function deleteContactRequest(
     .run();
 }
 
+export async function deleteContactRequests(
+  db: D1Database,
+  ids: number[],
+): Promise<number> {
+  const clean = [...new Set(ids.filter((id) => Number.isInteger(id) && id > 0))];
+  if (clean.length === 0) return 0;
+  let deleted = 0;
+  for (const id of clean) {
+    await deleteContactRequest(db, id);
+    deleted += 1;
+  }
+  return deleted;
+}
+
+/** Löscht Spam-Quarantäne älter als `maxAgeDays` (Default 14) und alte Dedup-Einträge. */
+export async function purgeExpiredSpamQuarantine(
+  db: D1Database,
+  maxAgeDays = 14,
+): Promise<{ spamDeleted: number; dedupDeleted: number }> {
+  const cutoff = Math.floor(Date.now() / 1000) - Math.max(1, maxAgeDays) * 86_400;
+  const spam = await db
+    .prepare(`DELETE FROM contact_requests WHERE status = 'spam' AND created_at < ?`)
+    .bind(cutoff)
+    .run();
+  let dedupDeleted = 0;
+  try {
+    const dedup = await db
+      .prepare(`DELETE FROM inbound_dedup WHERE created_at < ?`)
+      .bind(cutoff)
+      .run();
+    dedupDeleted = Number(dedup.meta.changes ?? 0);
+  } catch {
+    /* Tabelle fehlt lokal ggf. noch */
+  }
+  return {
+    spamDeleted: Number(spam.meta.changes ?? 0),
+    dedupDeleted,
+  };
+}
+
+export async function listSpamRequestIds(db: D1Database): Promise<number[]> {
+  const { results } = await db
+    .prepare(`SELECT id FROM contact_requests WHERE status = 'spam' ORDER BY id DESC LIMIT 500`)
+    .all<{ id: number }>();
+  return (results ?? []).map((row) => row.id);
+}
+
 /** Löscht die gespeicherten Antworten einer Anfrage. Die Anfrage selbst bleibt. */
 export async function deleteRequestMailHistory(
   db: D1Database,

@@ -129,6 +129,68 @@ const isSpamView = statusFilter === "spam";
           })}
         </section>
 
+        {isSpamView && entries.length > 0 && (
+          <section class="flex flex-wrap items-center gap-3 rounded-2xl border border-rose-200/80 bg-rose-50/60 px-4 py-3 dark:border-rose-400/20 dark:bg-rose-500/10">
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-ink-800 dark:text-ink-100">
+              <input
+                type="checkbox"
+                id="spam-select-all"
+                class="h-4 w-4 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+              />
+              Alle auswählen
+            </label>
+            <form
+              id="spam-bulk"
+              method="POST"
+              action="/api/admin/anfragen"
+              class="inline-flex flex-wrap items-center gap-2"
+            >
+              <input
+                type="hidden"
+                name="redirect"
+                value={Astro.url.pathname + Astro.url.search}
+              />
+              <button
+                type="submit"
+                name="action"
+                value="bulk_delete_spam"
+                onclick="const n=document.querySelectorAll('.spam-row-check:checked').length; if(!n){alert('Bitte zuerst Einträge auswählen.');return false;} return confirm(n+' Spam-Einträge löschen?')"
+                class="rounded-full border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50 dark:border-rose-400/30 dark:bg-rose-500/5 dark:text-rose-200 dark:hover:bg-rose-500/15"
+              >
+                Auswahl löschen
+              </button>
+              <button
+                type="submit"
+                name="action"
+                value="bulk_learn_spam"
+                onclick="const n=document.querySelectorAll('.spam-row-check:checked').length; if(!n){alert('Bitte zuerst Einträge auswählen.');return false;} return confirm(n+' Einträge lernen (Absender sperren) und löschen?')"
+                class="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-800 hover:bg-amber-50 dark:border-amber-400/30 dark:bg-amber-500/5 dark:text-amber-100 dark:hover:bg-amber-500/15"
+              >
+                Auswahl lernen &amp; löschen
+              </button>
+            </form>
+            <form
+              method="POST"
+              action="/api/admin/anfragen"
+              onsubmit={`return confirm('Wirklich alle ${counts.spam} Spam-Einträge löschen?')`}
+              class="ml-auto"
+            >
+              <input type="hidden" name="action" value="delete_all_spam" />
+              <input
+                type="hidden"
+                name="redirect"
+                value={Astro.url.pathname + Astro.url.search}
+              />
+              <button
+                type="submit"
+                class="rounded-full bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+              >
+                Alle löschen ({counts.spam})
+              </button>
+            </form>
+          </section>
+        )}
+
         {entries.length === 0 ? (
           <section class="rounded-3xl border border-dashed border-ink-300 bg-white p-10 text-center dark:border-white/15 dark:bg-ink-900">
             <p class="text-sm text-ink-600 dark:text-ink-300">
@@ -140,7 +202,17 @@ const isSpamView = statusFilter === "spam";
             {entries.map((entry) => (
               <article class="rounded-2xl border border-ink-200 bg-white p-6 dark:border-white/10 dark:bg-ink-900">
                 <header class="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  <div class="flex items-start gap-3">
+                    {isSpamView && (
+                      <input
+                        type="checkbox"
+                        name="ids"
+                        value={entry.id}
+                        form="spam-bulk"
+                        class="spam-row-check mt-1.5 h-4 w-4 shrink-0 rounded border-ink-300 text-brand-600 focus:ring-brand-500"
+                      />
+                    )}
+                    <div>
                     <div class="flex flex-wrap items-center gap-2">
                       <h3 class="font-display text-lg font-semibold text-ink-900 dark:text-ink-50">
                         <a
@@ -170,6 +242,7 @@ const isSpamView = statusFilter === "spam";
                         ? ` · ${entry.country}`
                         : ""}
                     </p>
+                    </div>
                   </div>
                   <div class="flex flex-wrap items-center gap-2 text-sm">
                     <a
@@ -330,3 +403,23 @@ const isSpamView = statusFilter === "spam";
     )
   }
 </AdminLayout>
+
+{isSpamView && (
+  <script>
+    const selectAll = document.getElementById("spam-select-all");
+    const rows = () =>
+      Array.from(document.querySelectorAll(".spam-row-check")) as HTMLInputElement[];
+    selectAll?.addEventListener("change", () => {
+      const on = (selectAll as HTMLInputElement).checked;
+      for (const box of rows()) box.checked = on;
+    });
+    for (const box of rows()) {
+      box.addEventListener("change", () => {
+        if (!(selectAll instanceof HTMLInputElement)) return;
+        const all = rows();
+        selectAll.checked = all.length > 0 && all.every((b) => b.checked);
+        selectAll.indeterminate = all.some((b) => b.checked) && !selectAll.checked;
+      });
+    }
+  </script>
+)}

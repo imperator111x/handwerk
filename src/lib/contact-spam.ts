@@ -70,9 +70,14 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
 
 /** Kurze Mails ohne Handwerks-Bezug = oft Probe-/Junk-Spam. */
 const SERVICE_HINT =
-  /\b(?:hausmeister|reparatur|heizung|rolladen|rollladen|angebot|wohnung|objekt|reinigung|wartung|garten|keller|dach|wasser|strom|termin|schl[uü]ssel|t[uü]r|fenster|umzug|entr[uü]mpel|balkon|fassade|r[aä]umung)\b/i;
+  /\b(?:hausmeister|reparatur|heizung|rolladen|rollladen|angebot|wohnung|objekt|reinigung|wartung|garten|keller|dach|wasser|strom|termin|schl[uü]ssel|t[uü]r|fenster|umzug|entr[uü]mpel|balkon|fassade|r[aä]umung|handwerk|gewerbe|eigent[uü]mer|mieter|hausverwaltung|heating|repair|apartment|cleaning|maintenance|garden|plumber|electrician|handyman|landlord|tenant)\b/i;
+/** Typische DE/AT/CH-Signale (Sprache), damit echte Kurzmails nicht geblockt werden. */
+const GERMAN_HINT =
+  /[äöüß]|\b(?:bitte|danke|hallo|guten\s+tag|sehr\s+geehrte|anfrage|anrufen|r[uü]ckruf|termin|heute|morgen|dringend|kaputt|defekt|und|ich|wir|mein|unsere?|f[uü]r|nicht|kann|m[oö]chten?|h[aä]tten?)\b/i;
+const DACH_EMAIL = /\.(?:de|at|ch)(?:$|>)/i;
 const FREE_WEBMAIL = /@(?:gmail|googlemail|gmx|web|outlook|hotmail|yahoo|icloud|mail|proton|aol)\./i;
 const SHORT_JUNK_MAX = 60;
+const LANGUAGE_GATE_MIN = 50;
 
 /**
  * Weiche Signale – erst ab Schwellwert Spam.
@@ -247,6 +252,16 @@ export function contactSpamReason(
     FREE_WEBMAIL.test(email)
   ) {
     return "short-webmail-junk";
+  }
+
+  // Sprach-/Themen-Gate: längerer Text ohne Handwerk UND ohne DE-Signale.
+  if (
+    messageOnly.length >= LANGUAGE_GATE_MIN &&
+    !SERVICE_HINT.test(messageOnly) &&
+    !GERMAN_HINT.test(messageOnly) &&
+    !DACH_EMAIL.test(email)
+  ) {
+    return "topic-language-gate";
   }
 
   let softScore = 0;
