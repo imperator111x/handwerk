@@ -1,7 +1,7 @@
 import { blockedKinds } from "../../lib/blocks";
 import { cfEnv } from "../../lib/cf";
 import type { APIContext } from "astro";
-import { contactSpamReason, isContactSpam } from "../../lib/contact-spam";
+import { contactSpamReasonAsync, isContactSpamAsync } from "../../lib/contact-spam";
 import { verifyTurnstile } from "../../lib/turnstile";
 import { parseContact } from "../../lib/validation";
 import { ensureCustomer } from "../../lib/customers";
@@ -61,23 +61,14 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const country = ctx.request.headers.get("cf-ipcountry") ?? "unknown";
   const userAgent = ctx.request.headers.get("user-agent") ?? "unknown";
 
-  if (
-    isContactSpam({
-      name: payload.name,
-      email: payload.email,
-      topic: payload.topic,
-      message: payload.message,
-    })
-  ) {
-    console.log(
-      "contact_spam",
-      contactSpamReason({
-        name: payload.name,
-        email: payload.email,
-        topic: payload.topic,
-        message: payload.message,
-      }),
-    );
+  const spamInput = {
+    name: payload.name,
+    email: payload.email,
+    topic: payload.topic,
+    message: payload.message,
+  };
+  if (await isContactSpamAsync(spamInput)) {
+    console.log("contact_spam", await contactSpamReasonAsync(spamInput));
     return json({
       ok: true,
       id: null,

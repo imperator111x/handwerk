@@ -133,4 +133,30 @@ assert.equal(
   false,
 );
 
+// Disposable-Blacklist (Community-Liste + Extra-Block)
+assert.equal(
+  await spam.isContactSpamAsync({
+    name: "Temp",
+    email: "x@0-mail.com",
+    message: "Hallo, ich brauche einen Hausmeistertermin bitte.",
+  }),
+  true,
+);
+assert.equal(
+  await spam.contactSpamReasonAsync({
+    name: "Temp",
+    email: "x@0-mail.com",
+    message: "Hallo, ich brauche einen Hausmeistertermin bitte.",
+  }),
+  "disposable-domain",
+);
+assert.equal(
+  await spam.isContactSpamAsync({
+    name: "Scam",
+    email: "a@labliss.me",
+    message: "Hallo Termin bitte Hausmeister",
+  }),
+  true,
+);
+
 console.log("contact-spam checks ok");

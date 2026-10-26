@@ -1,8 +1,10 @@
 /**
  * Leichtgewichtiger Spam-Filter für Kontaktformular und neue Mail-Anfragen.
- * Kein externes API: ein Normierungslauf + vorkompilierte Muster, O(n) im Text.
+ * Heuristik (Muster) + Disposable-Domain-Blacklist (Community-Liste, gecacht).
  * Treffer werden still verworfen (wie gesperrte Absender).
  */
+
+import { isDisposableEmail } from "./disposable-domains";
 
 export type ContactSpamInput = {
   name?: string | null;
@@ -183,7 +185,7 @@ function toInput(
   };
 }
 
-/** Liefert die Treffer-ID oder null. */
+/** Synchron: nur Heuristik (ohne externe Blacklist). */
 export function contactSpamReason(
   first?: ContactSpamInput | string | null,
   ...rest: Array<string | null | undefined>
@@ -240,10 +242,30 @@ export function contactSpamReason(
   return null;
 }
 
-/** True, wenn Name/E-Mail/Betreff/Nachricht typischen Spam enthält. */
+/** Heuristik + Disposable-Domain-Blacklist. */
+export async function contactSpamReasonAsync(
+  first?: ContactSpamInput | string | null,
+  ...rest: Array<string | null | undefined>
+): Promise<string | null> {
+  const sync = contactSpamReason(first, ...rest);
+  if (sync) return sync;
+  const input = toInput(first, rest);
+  if (await isDisposableEmail(input.email)) return "disposable-domain";
+  return null;
+}
+
+/** True, wenn Name/E-Mail/Betreff/Nachricht typischen Spam enthält (nur Heuristik). */
 export function isContactSpam(
   first?: ContactSpamInput | string | null,
   ...rest: Array<string | null | undefined>
 ): boolean {
   return contactSpamReason(first, ...rest) !== null;
+}
+
+/** Heuristik + Disposable-Blacklist. */
+export async function isContactSpamAsync(
+  first?: ContactSpamInput | string | null,
+  ...rest: Array<string | null | undefined>
+): Promise<boolean> {
+  return (await contactSpamReasonAsync(first, ...rest)) !== null;
 }
