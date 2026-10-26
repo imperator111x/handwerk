@@ -12,12 +12,79 @@ registerHooks({
 
 const spam = await import("../src/lib/contact-spam.ts");
 
-assert.equal(spam.isContactSpam("Erika", "reparatur", "Rollladen klemmt seit gestern."), false);
+// Legitim
+assert.equal(
+  spam.isContactSpam({
+    name: "Erika",
+    email: "erika@example.com",
+    topic: "reparatur",
+    message: "Rollladen klemmt seit gestern.",
+  }),
+  false,
+);
+assert.equal(
+  spam.isContactSpam({
+    name: "Anna",
+    email: "anna@hof.de",
+    topic: "wartung",
+    message: "Können Sie die Heizung prüfen und ein Angebot schicken?",
+  }),
+  false,
+);
+
+// Alt bekannte Muster
 assert.equal(spam.isContactSpam("Max", "sonstiges", "Sie haben 500 € gewonnen!"), true);
-assert.equal(spam.isContactSpam("Max", "sonstiges", "Bitte um eine Spende für unser Projekt."), true);
-assert.equal(spam.isContactSpam("Max", "sonstiges", "Viele Spenden helfen uns."), true);
+assert.equal(
+  spam.isContactSpam("Max", "sonstiges", "Bitte um eine Spende für unser Projekt."),
+  true,
+);
 assert.equal(spam.isContactSpam("Gewinnspiel Bot", "sonstiges", "Hallo"), true);
-assert.equal(spam.contactSpamReason("", "", "Herzlichen Glückwunsch, Sie haben gewonnen"), "gewonnen");
-assert.equal(spam.isContactSpam("Anna", "wartung", "Können Sie die Heizung prüfen?"), false);
+assert.equal(
+  spam.contactSpamReason("", "", "Herzlichen Glückwunsch, Sie haben gewonnen"),
+  "gewonnen",
+);
+
+// Live-Spam: Prime-Phishing
+assert.equal(
+  spam.isContactSpam({
+    name: "PrimeVideo.com",
+    email: "lance-osier.39@guselux.de",
+    subject: "Ihre Prime-Vorteile",
+    message:
+      "Ihre Prime-Vorteile bleiben voll aktiv. Testphase beendet. Tarif 112,50 € alle 6 Monate. Zahlungsmethoden verwalten.",
+  }),
+  true,
+);
+
+// Live-Spam: Kredit
+assert.equal(
+  spam.isContactSpam({
+    name: "Fajar Fadilah",
+    email: "apple.dsi@digitalsiber.id",
+    message:
+      "Sind Sie auf der Suche nach einem seriösen Kredit? Wir bieten Kredite zu einem Zinssatz von 2 % an.",
+  }),
+  true,
+);
+
+// Live-Spam: Amazon SES Bulk
+assert.equal(
+  spam.isContactSpam({
+    name: "David Blum",
+    email: "010001a16eaeeecc-6adddfb9-d919-4b35-a2df-9db72cf7351f-000000@amazonses.com",
+    message: "Sehr geehrte Damen und Herren, im Anhang unsere verfügbaren Positionen. Abmelden",
+  }),
+  true,
+);
+
+// Marken-Imitation
+assert.equal(
+  spam.isContactSpam({
+    name: "PayPal Sicherheit",
+    email: "security@evil-host.xyz",
+    message: "Bitte Konto verifizieren.",
+  }),
+  true,
+);
 
 console.log("contact-spam checks ok");

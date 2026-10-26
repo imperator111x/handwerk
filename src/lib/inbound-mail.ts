@@ -87,8 +87,23 @@ export async function ingestInboundEmail(
     const createdName = cleanName(email.fromName) || from.split("@")[0] || "Kunde";
     const bodyText =
       clip(extractCustomerText(email.text ?? "", email.html ?? "")) || "(Keine Textnachricht)";
-    if (isContactSpam(createdName, email.subject, bodyText)) {
-      console.log("inbound_spam", contactSpamReason(createdName, email.subject, bodyText));
+    if (
+      isContactSpam({
+        name: createdName,
+        email: from,
+        subject: email.subject,
+        message: bodyText,
+      })
+    ) {
+      console.log(
+        "inbound_spam",
+        contactSpamReason({
+          name: createdName,
+          email: from,
+          subject: email.subject,
+          message: bodyText,
+        }),
+      );
       return { action: "ignore", reason: "Spam-Inhalt" };
     }
     let customerId: number | null = null;

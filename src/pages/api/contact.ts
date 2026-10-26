@@ -61,8 +61,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
   const country = ctx.request.headers.get("cf-ipcountry") ?? "unknown";
   const userAgent = ctx.request.headers.get("user-agent") ?? "unknown";
 
-  if (isContactSpam(payload.name, payload.topic, payload.message)) {
-    console.log("contact_spam", contactSpamReason(payload.name, payload.topic, payload.message));
+  if (
+    isContactSpam({
+      name: payload.name,
+      email: payload.email,
+      topic: payload.topic,
+      message: payload.message,
+    })
+  ) {
+    console.log(
+      "contact_spam",
+      contactSpamReason({
+        name: payload.name,
+        email: payload.email,
+        topic: payload.topic,
+        message: payload.message,
+      }),
+    );
     return json({
       ok: true,
       id: null,
