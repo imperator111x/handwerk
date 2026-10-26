@@ -159,4 +159,15 @@ assert.equal(
   true,
 );
 
+// Live-Spam: DRV Renteninformation-Phishing
+assert.equal(
+  spam.isContactSpam({
+    name: "Deutsche Rentenversicherung (Versand)",
+    email: "mirage-ocelot.61@hanfangsz.com",
+    message:
+      "Renteninformation 2026. Verifizierung Ihrer Postadresse. Versandpauschale 0,90 €. Versicherungsnummer und Zahlungsmittel bereit.",
+  }),
+  true,
+);
+
 console.log("contact-spam checks ok");

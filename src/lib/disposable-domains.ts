@@ -17,6 +17,7 @@ const EXTRA_BLOCKED = new Set([
   "dortmandin.com",
   "guselux.de",
   "digitalsiber.id",
+  "hanfangsz.com",
 ]);
 
 function emailDomain(email: string): string {

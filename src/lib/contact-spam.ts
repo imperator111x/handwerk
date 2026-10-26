@@ -46,6 +46,14 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
     id: "banking-login-cta",
     re: /\b(?:loggen\s+sie\s+sich|jetzt\s+reaktivieren|konto\s+freischalten)\b[\s\S]{0,80}\b(?:online[\s-]?banking|bank|konto)\b|\banti[\s-]?phishing[\s-]?programm\b/i,
   },
+  {
+    id: "renten-phishing",
+    re: /\brenteninformation\b|\bdeutsche\s+rentenversicherung\b|\brentenanwartschaft(?:en)?\b|\bversichertenportal\b|\bversicherungsnummer\b[\s\S]{0,80}\bzahlungsmittel\b|\bversandpauschale\b/i,
+  },
+  {
+    id: "behoerden-gebuehr",
+    re: /\b(?:einschreiben|postweg|zustellung)\b[\s\S]{0,80}\b(?:versandpauschale|bearbeitungsgeb[uü]hr|\d+[.,]\d{2}\s*€)/i,
+  },
   { id: "crypto-wallet", re: /\b(?:bitcoin|btc|crypto|wallet|seed[\s-]?phrase|metamask)\b/i },
   { id: "seo-outreach", re: /\b(?:guest\s*post|backlink|linkbuilding|seo[\s-]?optim)/i },
   { id: "bulk-positionen", re: /\bverfügbare[n]?\s+positionen\b/i },
@@ -146,6 +154,16 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     id: "brand-postbank",
     nameRe: /\bpostbank\b/i,
     allowedDomains: /(?:^|\.)postbank\./i,
+  },
+  {
+    id: "brand-drv",
+    nameRe: /\bdeutsche\s+rentenversicherung\b|\brentenversicherung\b/i,
+    allowedDomains: /(?:^|\.)deutsche-rentenversicherung\./i,
+  },
+  {
+    id: "brand-elster",
+    nameRe: /\belster\b|\bfinanzamt\b|\bbundesfinanz/i,
+    allowedDomains: /(?:^|\.)(?:elster|bundesfinanzministerium|finanzamt)\./i,
   },
 ];
 
