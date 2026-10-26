@@ -106,4 +106,31 @@ assert.equal(
   "brand-volksbank",
 );
 
+// Live-Spam: SOS donation scam + short junk
+assert.equal(
+  spam.isContactSpam({
+    name: "SOS-Children's Village",
+    email: "administrator@labliss.me",
+    message:
+      "Greetings and congratulation. you have been awarded a donation sum of ( 3 Million Euro ) as a Humanitarian Community Donation. SOS Children's Village.",
+  }),
+  true,
+);
+assert.equal(
+  spam.isContactSpam({
+    name: "Ellena",
+    email: "athu7431@gmail.com",
+    message: "Schreiben Sie das bitte für mich auf",
+  }),
+  true,
+);
+assert.equal(
+  spam.isContactSpam({
+    name: "Kunde",
+    email: "kunde@gmail.com",
+    message: "Heizung defekt, bitte Termin.",
+  }),
+  false,
+);
+
 console.log("contact-spam checks ok");

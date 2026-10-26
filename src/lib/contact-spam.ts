@@ -18,6 +18,14 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "gewinnspiel", re: /\bgewinnspiel\b/i },
   { id: "glueckwunsch-gewinn", re: /\bherzlichen\s+gl[uü]ckwunsch\b.{0,40}\bgewinn/i },
   { id: "spende", re: /\bspenden?(?:aufruf|aktion|kampagne)?\b/i },
+  {
+    id: "donation-scam",
+    re: /\b(?:donation\s+sum|community\s+donation|humanitarian\s+(?:community\s+)?donation|awarded\s+a\s+donation|congratulation[s]?[\s\S]{0,80}(?:donation|awarded|million))\b/i,
+  },
+  {
+    id: "sos-village-scam",
+    re: /\bsos\s*children'?s?\s*village|\bsoschildrensvillage\b/i,
+  },
   { id: "kredit-zins", re: /\bkredit(?:e|angebote?)?\b[\s\S]{0,120}\bzins(?:satz|en)?\b|\bzins(?:satz)?\b[\s\S]{0,120}\bkredit/i },
   { id: "serioeser-kredit", re: /\bseri[oö]sen?\s+kredit/i },
   {
@@ -39,9 +47,22 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "crypto-wallet", re: /\b(?:bitcoin|btc|crypto|wallet|seed[\s-]?phrase|metamask)\b/i },
   { id: "seo-outreach", re: /\b(?:guest\s*post|backlink|linkbuilding|seo[\s-]?optim)/i },
   { id: "bulk-positionen", re: /\bverfügbare[n]?\s+positionen\b/i },
-  { id: "nigerian-transfer", re: /\b(?:million(?:en)?\s*(?:usd|eur|\$|€)|erbberechtigt|fondsfreigabe|western\s*union)\b/i },
+  {
+    id: "nigerian-transfer",
+    re: /\b(?:\d[\d.,]*\s*)?million(?:en)?\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\berbberechtigt\b|\bfondsfreigabe\b|\bwestern\s*union\b/i,
+  },
   { id: "viagra", re: /\b(?:viagra|cialis|phentermine|casino)\b/i },
+  {
+    id: "schreib-das-fuer-mich",
+    re: /\bschreib(?:en)?\s+(?:sie\s+)?das\s+bitte\s+f[uü]r\s+mich\b|\bwrite\s+this\s+(?:down\s+)?for\s+me\b/i,
+  },
 ];
+
+/** Kurze Mails ohne Handwerks-Bezug = oft Probe-/Junk-Spam. */
+const SERVICE_HINT =
+  /\b(?:hausmeister|reparatur|heizung|rolladen|rollladen|angebot|wohnung|objekt|reinigung|wartung|garten|keller|dach|wasser|strom|termin|schl[uü]ssel|t[uü]r|fenster|umzug|entr[uü]mpel|balkon|fassade|r[aä]umung)\b/i;
+const FREE_WEBMAIL = /@(?:gmail|googlemail|gmx|web|outlook|hotmail|yahoo|icloud|mail|proton|aol)\./i;
+const SHORT_JUNK_MAX = 60;
 
 /**
  * Weiche Signale – erst ab Schwellwert Spam.
@@ -196,6 +217,16 @@ export function contactSpamReason(
         return brand.id;
       }
     }
+  }
+
+  const messageOnly = normalize(input.message ?? "");
+  if (
+    messageOnly &&
+    messageOnly.length <= SHORT_JUNK_MAX &&
+    !SERVICE_HINT.test(messageOnly) &&
+    FREE_WEBMAIL.test(email)
+  ) {
+    return "short-webmail-junk";
   }
 
   let softScore = 0;
