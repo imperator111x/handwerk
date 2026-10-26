@@ -1,14 +1,17 @@
 import type { APIContext } from "astro";
 import { requireSession } from "../../../lib/auth";
+import { blockTargets } from "../../../lib/blocks";
 import { cfEnv } from "../../../lib/cf";
 import {
   deleteContactRequest,
   deleteRequestMailHistory,
+  getContactRequest,
   getDb,
   updateContactStatus,
   type ContactStatus,
 } from "../../../lib/db";
 import { removeStoredFiles } from "../../../lib/mail-files";
+import { learnFromSpamRequest } from "../../../lib/spam-learn";
 
 export const prerender = false;
 
@@ -17,6 +20,7 @@ const validStatuses: ContactStatus[] = [
   "in_progress",
   "done",
   "archived",
+  "spam",
 ];
 
 function safeRedirect(target: string | null, fallback: string): string {
@@ -63,6 +67,23 @@ export async function POST(ctx: APIContext): Promise<Response> {
         );
       }
       await updateContactStatus(db, id, status);
+    } else if (action === "release_spam") {
+      await updateContactStatus(db, id, "new");
+    } else if (action === "mark_spam") {
+      const request = await getContactRequest(db, id);
+      if (request) {
+        await updateContactStatus(db, id, "spam");
+        await learnFromSpamRequest(db, {
+          email: request.email,
+          message: request.message,
+          reason: request.spam_reason,
+          note: `Anfrage #${id}`,
+        });
+        await blockTargets(db, {
+          email: request.email,
+          note: `Spam Anfrage #${id}`,
+        });
+      }
     } else if (action === "delete") {
       await deleteContactRequest(db, id);
     } else if (action === "delete_history") {

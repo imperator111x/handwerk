@@ -21,7 +21,7 @@ export interface UserRow {
   last_login_at: number | null;
 }
 
-export type ContactStatus = "new" | "in_progress" | "done" | "archived";
+export type ContactStatus = "new" | "in_progress" | "done" | "archived" | "spam";
 
 export interface ContactRequestRow {
   id: number;
@@ -39,6 +39,7 @@ export interface ContactRequestRow {
   user_agent: string | null;
   source: string;
   customer_id: number | null;
+  spam_reason: string | null;
 }
 
 export interface ContactInsert {
@@ -52,6 +53,8 @@ export interface ContactInsert {
   user_agent?: string | null;
   source?: "web" | "portal" | "mail";
   customerId?: number | null;
+  status?: ContactStatus;
+  spamReason?: string | null;
 }
 
 export function getDb(_ctx: APIContext | { locals: App.Locals }): D1Database | null {
@@ -87,11 +90,12 @@ export async function insertContactRequest(
 ): Promise<number> {
   const customerId =
     Number.isInteger(data.customerId) && (data.customerId as number) > 0 ? data.customerId : null;
+  const status = data.status ?? "new";
   const result = await db
     .prepare(
       `INSERT INTO contact_requests
-         (name, email, phone, topic, message, ip, country, user_agent, source, customer_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (name, email, phone, topic, message, ip, country, user_agent, source, customer_id, status, spam_reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .bind(
       data.name,
@@ -104,6 +108,8 @@ export async function insertContactRequest(
       data.user_agent ?? null,
       data.source ?? "web",
       customerId,
+      status,
+      data.spamReason ?? null,
     )
     .run();
   return Number(result.meta.last_row_id ?? 0);
@@ -166,10 +172,11 @@ export async function listContactRequests(
   options: { status?: ContactStatus | "all"; limit?: number } = {},
 ): Promise<ContactRequestListItem[]> {
   const limit = Math.min(options.limit ?? 100, 500);
+  // „Alle“ ohne Spam-Quarantäne – Spam hat eigenen Tab.
   const query =
     options.status && options.status !== "all"
       ? `${CONTACT_LIST_SELECT} WHERE c.status = ? ORDER BY c.created_at DESC LIMIT ?`
-      : `${CONTACT_LIST_SELECT} ORDER BY c.created_at DESC LIMIT ?`;
+      : `${CONTACT_LIST_SELECT} WHERE c.status != 'spam' ORDER BY c.created_at DESC LIMIT ?`;
   const statement = db.prepare(query);
   const bound =
     options.status && options.status !== "all"
@@ -212,6 +219,7 @@ export async function countContactRequestsByStatus(
     in_progress: 0,
     done: 0,
     archived: 0,
+    spam: 0,
   };
   const { results } = await db
     .prepare(
@@ -219,7 +227,7 @@ export async function countContactRequestsByStatus(
     )
     .all<{ status: ContactStatus; cnt: number }>();
   for (const row of results ?? []) {
-    empty[row.status] = row.cnt;
+    if (row.status in empty) empty[row.status] = row.cnt;
   }
   return empty;
 }
