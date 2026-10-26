@@ -28,6 +28,14 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "paypal-phishing", re: /\bpaypal\b[\s\S]{0,80}\b(?:verifiz|bestätig|gesperrt|konto|zahlung|sicherheit)/i },
   { id: "apple-id-phishing", re: /\bapple[\s-]?id\b[\s\S]{0,80}\b(?:gesperrt|verifiz|sicherheit|konto)/i },
   { id: "dhl-paket-phishing", re: /\b(?:dhl|hermes|dpd|ups)\b[\s\S]{0,60}\b(?:zoll|nachgebühr|paket.*nicht|zustell)/i },
+  {
+    id: "banking-phishing",
+    re: /\bonline[\s-]?banking\b[\s\S]{0,120}\b(?:aktualis|reaktiv|verifiz|freischalt|sicherheits(?:update|prüfung)|anti[\s-]?phishing)/i,
+  },
+  {
+    id: "banking-login-cta",
+    re: /\b(?:loggen\s+sie\s+sich|jetzt\s+reaktivieren|konto\s+freischalten)\b[\s\S]{0,80}\b(?:online[\s-]?banking|bank|konto)\b|\banti[\s-]?phishing[\s-]?programm\b/i,
+  },
   { id: "crypto-wallet", re: /\b(?:bitcoin|btc|crypto|wallet|seed[\s-]?phrase|metamask)\b/i },
   { id: "seo-outreach", re: /\b(?:guest\s*post|backlink|linkbuilding|seo[\s-]?optim)/i },
   { id: "bulk-positionen", re: /\bverfügbare[n]?\s+positionen\b/i },
@@ -90,6 +98,31 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     id: "brand-dhl",
     nameRe: /\bdhl\b/i,
     allowedDomains: /(?:^|\.)dhl\./i,
+  },
+  {
+    id: "brand-volksbank",
+    nameRe: /\bvolksbank\b|\braiffeisenbank\b|\bvr[\s-]?bank\b/i,
+    allowedDomains: /(?:^|\.)(?:volksbank|raiffeisen|vr)\./i,
+  },
+  {
+    id: "brand-sparkasse",
+    nameRe: /\bsparkasse\b/i,
+    allowedDomains: /(?:^|\.)sparkasse\./i,
+  },
+  {
+    id: "brand-commerzbank",
+    nameRe: /\bcommerzbank\b/i,
+    allowedDomains: /(?:^|\.)commerzbank\./i,
+  },
+  {
+    id: "brand-deutsche-bank",
+    nameRe: /\bdeutsche\s+bank\b/i,
+    allowedDomains: /(?:^|\.)(?:db|deutsche-bank)\./i,
+  },
+  {
+    id: "brand-postbank",
+    nameRe: /\bpostbank\b/i,
+    allowedDomains: /(?:^|\.)postbank\./i,
   },
 ];
 

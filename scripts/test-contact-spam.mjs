@@ -87,4 +87,23 @@ assert.equal(
   true,
 );
 
+// Live-Spam: Volksbank-Phishing
+assert.equal(
+  spam.isContactSpam({
+    name: "Volksbank und Raiffeisenbank",
+    email: "harbor@dortmandin.com",
+    message:
+      "Bitte loggen Sie sich in Ihr Online-Banking ein, um die erforderlichen Updates vorzunehmen. Anti-Phishing-Programm. Jetzt reaktivieren.",
+  }),
+  true,
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Volksbank und Raiffeisenbank",
+    email: "harbor@dortmandin.com",
+    message: "Hallo",
+  }),
+  "brand-volksbank",
+);
+
 console.log("contact-spam checks ok");
