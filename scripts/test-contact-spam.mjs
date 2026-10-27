@@ -170,6 +170,25 @@ assert.equal(
   true,
 );
 
+// Live-Spam: UN Compensation / Botschafter-Entschädigung (.com.br)
+assert.equal(
+  spam.contactSpamReason({
+    name: "United Nations Compensation",
+    email: "naiara@aliancanet.com.br",
+    message:
+      "Sehr geehrte(r) Begünstigte(r), ich bin Ricklef Beutin, deutscher Botschafter bei den Vereinten Nationen. Falls Sie Ihre UNCCO-Entschädigung in Höhe von 3.500.000 Euro noch nicht erhalten haben, kontaktieren Sie uncc.payout@adminpostfrontdesks.com.",
+  }),
+  "un-compensation",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "United Nations Office",
+    email: "naiara@aliancanet.com.br",
+    message: "Hallo Termin bitte",
+  }),
+  "brand-un",
+);
+
 // Sprach-/Themen-Gate: englischer Text ohne Handwerk, kein DACH-Absender
 assert.equal(
   spam.contactSpamReason({

@@ -58,8 +58,17 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "seo-outreach", re: /\b(?:guest\s*post|backlink|linkbuilding|seo[\s-]?optim)/i },
   { id: "bulk-positionen", re: /\bverfügbare[n]?\s+positionen\b/i },
   {
+    id: "un-compensation",
+    re: /\bunited\s+nations\s+compensation\b|\buncco?\b|\buncc\b|\bentsch[aä]digungs(?:zahlung(?:en)?|programm|kommission)\b|\bvereinten?\s+nationen\b[\s\S]{0,120}\bentsch[aä]dig|\bbeg[uü]nstigte\(r\)\b|\banspruchsberechtigt(?:er|e|en)?\s+empf[aä]nger\b/i,
+  },
+  {
+    id: "botschafter-scam",
+    re: /\b(?:deutscher?\s+)?botschafter\b[\s\S]{0,80}\b(?:vereinten?\s+nationen|united\s+nations|entsch[aä]dig|auszahlung)\b/i,
+  },
+  {
     id: "nigerian-transfer",
-    re: /\b(?:\d[\d.,]*\s*)?million(?:en)?\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\berbberechtigt\b|\bfondsfreigabe\b|\bwestern\s*union\b/i,
+    // „3 Million Euro“ und „3.500.000 Euro“ / „3,500,000 USD“
+    re: /\b(?:\d[\d.,]*\s*)?million(?:en)?\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\b\d{1,3}(?:[.,]\d{3}){2,}\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\berbberechtigt\b|\bfondsfreigabe\b|\bwestern\s*union\b/i,
   },
   { id: "viagra", re: /\b(?:viagra|cialis|phentermine|casino)\b/i },
   {
@@ -169,6 +178,11 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     id: "brand-elster",
     nameRe: /\belster\b|\bfinanzamt\b|\bbundesfinanz/i,
     allowedDomains: /(?:^|\.)(?:elster|bundesfinanzministerium|finanzamt)\./i,
+  },
+  {
+    id: "brand-un",
+    nameRe: /\bunited\s+nations\b|\bvereinten?\s+nationen\b|\buncco?\b|\buncc\b/i,
+    allowedDomains: /(?:^|\.)(?:un\.org|unitednations)\./i,
   },
 ];
 
