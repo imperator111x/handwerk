@@ -36,6 +36,19 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   },
   { id: "netflix-phishing", re: /\bnetflix\b[\s\S]{0,80}\b(?:abo|mitglied|kündig|zahlung|konto|verifiz)/i },
   { id: "paypal-phishing", re: /\bpaypal\b[\s\S]{0,80}\b(?:verifiz|bestätig|gesperrt|konto|zahlung|sicherheit)/i },
+  {
+    id: "sumup-phishing",
+    re: /\bsumup\b[\s\S]{0,120}\b(?:verifiz|bestätig|angaben|konto|auszahlung|guthaben|dashboard|eingeschr[aä]nkt)\b/i,
+  },
+  {
+    id: "payment-verify-phishing",
+    re: /\b(?:bitte\s+best[aä]tigen\s+sie\s+ihre\s+angaben|please\s+verify\s+your\s+account)\b[\s\S]{0,200}\b(?:konto|auszahlung|zahlungsinstitut|sumup|klarna|stripe|paypal)\b/i,
+  },
+  {
+    id: "html-mail-dump",
+    // Weitergeleitete HTML-Phishing-Mails inkl. CSS-Reste
+    re: /\bbody\s*\{\s*margin\s*:\s*0|\.container\s*\{\s*max-width\s*:\s*\d+px|\bfwd:\s*fwd:\s*please\s+verify\b/i,
+  },
   { id: "apple-id-phishing", re: /\bapple[\s-]?id\b[\s\S]{0,80}\b(?:gesperrt|verifiz|sicherheit|konto)/i },
   { id: "dhl-paket-phishing", re: /\b(?:dhl|hermes|dpd|ups)\b[\s\S]{0,60}\b(?:zoll|nachgebühr|paket.*nicht|zustell)/i },
   {
@@ -111,6 +124,9 @@ const SUSPICIOUS_EMAIL_DOMAINS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "mailgun", re: /@(?:mailgun\.(?:org|com)|mg\.)/i },
   { id: "sendgrid", re: /@sendgrid\.(?:net|com)$/i },
   { id: "noreply-bulk", re: /^(?:no-?reply|noreply|mailer-daemon|bounce)@/i },
+  // typische Phishing-Absender wie verify18939@…
+  { id: "verify-mailbox", re: /^verify\d{3,}@/i },
+  { id: "security-mailbox", re: /^(?:security|secure|account|support)[-_]?\d{3,}@/i },
 ];
 
 /** Markenname im Absender-/Anzeigenamen, aber Domain passt nicht zur Marke. */
@@ -183,6 +199,26 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     id: "brand-un",
     nameRe: /\bunited\s+nations\b|\bvereinten?\s+nationen\b|\buncco?\b|\buncc\b/i,
     allowedDomains: /(?:^|\.)(?:un\.org|unitednations)\./i,
+  },
+  {
+    id: "brand-sumup",
+    nameRe: /\bsumup\b/i,
+    allowedDomains: /(?:^|\.)sumup\./i,
+  },
+  {
+    id: "brand-klarna",
+    nameRe: /\bklarna\b/i,
+    allowedDomains: /(?:^|\.)klarna\./i,
+  },
+  {
+    id: "brand-stripe",
+    nameRe: /\bstripe\b/i,
+    allowedDomains: /(?:^|\.)stripe\./i,
+  },
+  {
+    id: "brand-starlink",
+    nameRe: /\bstarlink\b/i,
+    allowedDomains: /(?:^|\.)(?:starlink|spacex)\./i,
   },
 ];
 

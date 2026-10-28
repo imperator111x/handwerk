@@ -170,6 +170,33 @@ assert.equal(
   true,
 );
 
+// Live-Spam: SumUp-Verifizierungs-Phishing (HTML-Dump)
+assert.equal(
+  spam.contactSpamReason({
+    name: "SumUp",
+    email: "verify18939@vdartacademy.com",
+    message:
+      "Frist: 5. November 2026 Bitte bestätigen Sie Ihre Angaben. Lieber Kunde, Als lizenziertes Zahlungsinstitut ist SumUp dazu verpflichtet. Ohne Bestätigung wird Ihr Konto eingeschränkt. Jetzt bestätigen. body { margin:0; padding:0; } .container { max-width:600px; }",
+  }),
+  "sumup-phishing",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Kunde",
+    email: "verify18939@vdartacademy.com",
+    message: "Hallo, Termin für Heizung bitte.",
+  }),
+  "verify-mailbox",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "SumUp",
+    email: "info@fremde-domain.xyz",
+    message: "Hallo Termin bitte",
+  }),
+  "brand-sumup",
+);
+
 // Live-Spam: UN Compensation / Botschafter-Entschädigung (.com.br)
 assert.equal(
   spam.contactSpamReason({
