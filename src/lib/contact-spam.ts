@@ -36,6 +36,19 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   },
   { id: "netflix-phishing", re: /\bnetflix\b[\s\S]{0,80}\b(?:abo|mitglied|kündig|zahlung|konto|verifiz)/i },
   { id: "paypal-phishing", re: /\bpaypal\b[\s\S]{0,80}\b(?:verifiz|bestätig|gesperrt|konto|zahlung|sicherheit)/i },
+  {
+    id: "sumup-phishing",
+    re: /\bsumup\b[\s\S]{0,120}\b(?:verifiz|bestätig|angaben|konto|auszahlung|guthaben|dashboard|eingeschr[aä]nkt)\b/i,
+  },
+  {
+    id: "payment-verify-phishing",
+    re: /\b(?:bitte\s+best[aä]tigen\s+sie\s+ihre\s+angaben|please\s+verify\s+your\s+account)\b[\s\S]{0,200}\b(?:konto|auszahlung|zahlungsinstitut|sumup|klarna|stripe|paypal)\b/i,
+  },
+  {
+    id: "html-mail-dump",
+    // Weitergeleitete HTML-Phishing-Mails inkl. CSS-Reste
+    re: /\bbody\s*\{\s*margin\s*:\s*0|\.container\s*\{\s*max-width\s*:\s*\d+px|\bfwd:\s*fwd:\s*please\s+verify\b/i,
+  },
   { id: "apple-id-phishing", re: /\bapple[\s-]?id\b[\s\S]{0,80}\b(?:gesperrt|verifiz|sicherheit|konto)/i },
   { id: "dhl-paket-phishing", re: /\b(?:dhl|hermes|dpd|ups)\b[\s\S]{0,60}\b(?:zoll|nachgebühr|paket.*nicht|zustell)/i },
   {
@@ -58,8 +71,17 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "seo-outreach", re: /\b(?:guest\s*post|backlink|linkbuilding|seo[\s-]?optim)/i },
   { id: "bulk-positionen", re: /\bverfügbare[n]?\s+positionen\b/i },
   {
+    id: "un-compensation",
+    re: /\bunited\s+nations\s+compensation\b|\buncco?\b|\buncc\b|\bentsch[aä]digungs(?:zahlung(?:en)?|programm|kommission)\b|\bvereinten?\s+nationen\b[\s\S]{0,120}\bentsch[aä]dig|\bbeg[uü]nstigte\(r\)\b|\banspruchsberechtigt(?:er|e|en)?\s+empf[aä]nger\b/i,
+  },
+  {
+    id: "botschafter-scam",
+    re: /\b(?:deutscher?\s+)?botschafter\b[\s\S]{0,80}\b(?:vereinten?\s+nationen|united\s+nations|entsch[aä]dig|auszahlung)\b/i,
+  },
+  {
     id: "nigerian-transfer",
-    re: /\b(?:\d[\d.,]*\s*)?million(?:en)?\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\berbberechtigt\b|\bfondsfreigabe\b|\bwestern\s*union\b/i,
+    // „3 Million Euro“ und „3.500.000 Euro“ / „3,500,000 USD“
+    re: /\b(?:\d[\d.,]*\s*)?million(?:en)?\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\b\d{1,3}(?:[.,]\d{3}){2,}\s*(?:usd|us\$|eur(?:o)?s?|\$|€)\b|\berbberechtigt\b|\bfondsfreigabe\b|\bwestern\s*union\b/i,
   },
   { id: "viagra", re: /\b(?:viagra|cialis|phentermine|casino)\b/i },
   {
@@ -70,9 +92,14 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
 
 /** Kurze Mails ohne Handwerks-Bezug = oft Probe-/Junk-Spam. */
 const SERVICE_HINT =
-  /\b(?:hausmeister|reparatur|heizung|rolladen|rollladen|angebot|wohnung|objekt|reinigung|wartung|garten|keller|dach|wasser|strom|termin|schl[uü]ssel|t[uü]r|fenster|umzug|entr[uü]mpel|balkon|fassade|r[aä]umung)\b/i;
+  /\b(?:hausmeister|reparatur|heizung|rolladen|rollladen|angebot|wohnung|objekt|reinigung|wartung|garten|keller|dach|wasser|strom|termin|schl[uü]ssel|t[uü]r|fenster|umzug|entr[uü]mpel|balkon|fassade|r[aä]umung|handwerk|gewerbe|eigent[uü]mer|mieter|hausverwaltung|heating|repair|apartment|cleaning|maintenance|garden|plumber|electrician|handyman|landlord|tenant)\b/i;
+/** Typische DE/AT/CH-Signale (Sprache), damit echte Kurzmails nicht geblockt werden. */
+const GERMAN_HINT =
+  /[äöüß]|\b(?:bitte|danke|hallo|guten\s+tag|sehr\s+geehrte|anfrage|anrufen|r[uü]ckruf|termin|heute|morgen|dringend|kaputt|defekt|und|ich|wir|mein|unsere?|f[uü]r|nicht|kann|m[oö]chten?|h[aä]tten?)\b/i;
+const DACH_EMAIL = /\.(?:de|at|ch)(?:$|>)/i;
 const FREE_WEBMAIL = /@(?:gmail|googlemail|gmx|web|outlook|hotmail|yahoo|icloud|mail|proton|aol)\./i;
 const SHORT_JUNK_MAX = 60;
+const LANGUAGE_GATE_MIN = 50;
 
 /**
  * Weiche Signale – erst ab Schwellwert Spam.
@@ -97,6 +124,9 @@ const SUSPICIOUS_EMAIL_DOMAINS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "mailgun", re: /@(?:mailgun\.(?:org|com)|mg\.)/i },
   { id: "sendgrid", re: /@sendgrid\.(?:net|com)$/i },
   { id: "noreply-bulk", re: /^(?:no-?reply|noreply|mailer-daemon|bounce)@/i },
+  // typische Phishing-Absender wie verify18939@…
+  { id: "verify-mailbox", re: /^verify\d{3,}@/i },
+  { id: "security-mailbox", re: /^(?:security|secure|account|support)[-_]?\d{3,}@/i },
 ];
 
 /** Markenname im Absender-/Anzeigenamen, aber Domain passt nicht zur Marke. */
@@ -164,6 +194,31 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     id: "brand-elster",
     nameRe: /\belster\b|\bfinanzamt\b|\bbundesfinanz/i,
     allowedDomains: /(?:^|\.)(?:elster|bundesfinanzministerium|finanzamt)\./i,
+  },
+  {
+    id: "brand-un",
+    nameRe: /\bunited\s+nations\b|\bvereinten?\s+nationen\b|\buncco?\b|\buncc\b/i,
+    allowedDomains: /(?:^|\.)(?:un\.org|unitednations)\./i,
+  },
+  {
+    id: "brand-sumup",
+    nameRe: /\bsumup\b/i,
+    allowedDomains: /(?:^|\.)sumup\./i,
+  },
+  {
+    id: "brand-klarna",
+    nameRe: /\bklarna\b/i,
+    allowedDomains: /(?:^|\.)klarna\./i,
+  },
+  {
+    id: "brand-stripe",
+    nameRe: /\bstripe\b/i,
+    allowedDomains: /(?:^|\.)stripe\./i,
+  },
+  {
+    id: "brand-starlink",
+    nameRe: /\bstarlink\b/i,
+    allowedDomains: /(?:^|\.)(?:starlink|spacex)\./i,
   },
 ];
 
@@ -247,6 +302,16 @@ export function contactSpamReason(
     FREE_WEBMAIL.test(email)
   ) {
     return "short-webmail-junk";
+  }
+
+  // Sprach-/Themen-Gate: längerer Text ohne Handwerk UND ohne DE-Signale.
+  if (
+    messageOnly.length >= LANGUAGE_GATE_MIN &&
+    !SERVICE_HINT.test(messageOnly) &&
+    !GERMAN_HINT.test(messageOnly) &&
+    !DACH_EMAIL.test(email)
+  ) {
+    return "topic-language-gate";
   }
 
   let softScore = 0;
