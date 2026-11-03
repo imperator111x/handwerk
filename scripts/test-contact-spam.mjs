@@ -170,4 +170,123 @@ assert.equal(
   true,
 );
 
+// Live-Spam: DKB Fahrzeugkatalog über Regional-SES + Bounce-Immo-Newsletter
+assert.equal(
+  spam.contactSpamReason({
+    name: "DKB AG",
+    email:
+      "010201a193fae15d-ee7be99c-1e53-4822-beb4-a4d7fe9590ca-000000@eu-west-1.amazonses.com",
+    message: "Aktueller Fahrzeugbestand. Unfallfreie Finanzierungsrückläufer.",
+  }),
+  "fahrzeug-katalog-spam",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "X",
+    email:
+      "010201a193fae15d-ee7be99c-1e53-4822-beb4-a4d7fe9590ca-000000@eu-west-1.amazonses.com",
+    message: "Hallo Termin Heizung bitte",
+  }),
+  "amazonses",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Vogelsang Immobilien",
+    email: "bounce-78788645@bounce.meinemaklermarke.de",
+    message: "Besichtigungen erfolgreich gestalten. View online.",
+  }),
+  "noreply-bulk",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Makler Newsletter",
+    email: "news@bounce.meinemaklermarke.de",
+    message: "Besichtigungen erfolgreich gestalten. View online.",
+  }),
+  "bounce-subdomain",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Interactive Brokers",
+    email: "interactivebrokers@mail.hfbtdw.com",
+    message: "Dear IBKR Client, Please Sign an Updated W-8BEN Form. Action Requested.",
+  }),
+  "ibkr-w8ben",
+);
+
+// Live-Spam: SumUp-Verifizierungs-Phishing (HTML-Dump)
+assert.equal(
+  spam.contactSpamReason({
+    name: "SumUp",
+    email: "verify18939@vdartacademy.com",
+    message:
+      "Frist: 5. November 2026 Bitte bestätigen Sie Ihre Angaben. Lieber Kunde, Als lizenziertes Zahlungsinstitut ist SumUp dazu verpflichtet. Ohne Bestätigung wird Ihr Konto eingeschränkt. Jetzt bestätigen. body { margin:0; padding:0; } .container { max-width:600px; }",
+  }),
+  "sumup-phishing",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Kunde",
+    email: "verify18939@vdartacademy.com",
+    message: "Hallo, Termin für Heizung bitte.",
+  }),
+  "verify-mailbox",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "SumUp",
+    email: "info@fremde-domain.xyz",
+    message: "Hallo Termin bitte",
+  }),
+  "brand-sumup",
+);
+
+// Live-Spam: UN Compensation / Botschafter-Entschädigung (.com.br)
+assert.equal(
+  spam.contactSpamReason({
+    name: "United Nations Compensation",
+    email: "naiara@aliancanet.com.br",
+    message:
+      "Sehr geehrte(r) Begünstigte(r), ich bin Ricklef Beutin, deutscher Botschafter bei den Vereinten Nationen. Falls Sie Ihre UNCCO-Entschädigung in Höhe von 3.500.000 Euro noch nicht erhalten haben, kontaktieren Sie uncc.payout@adminpostfrontdesks.com.",
+  }),
+  "un-compensation",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "United Nations Office",
+    email: "naiara@aliancanet.com.br",
+    message: "Hallo Termin bitte",
+  }),
+  "brand-un",
+);
+
+// Sprach-/Themen-Gate: englischer Text ohne Handwerk, kein DACH-Absender
+assert.equal(
+  spam.contactSpamReason({
+    name: "John",
+    email: "john@example.com",
+    message:
+      "Hello, I would like to discuss an investment opportunity for your company and schedule a call next week.",
+  }),
+  "topic-language-gate",
+);
+// Deutsche Kurzmail ohne Handwerks-Keyword bleibt durch
+assert.equal(
+  spam.isContactSpam({
+    name: "Lisa",
+    email: "lisa@beispiel.de",
+    message: "Hallo, können Sie mich bitte zurückrufen? Es ist dringend.",
+  }),
+  false,
+);
+// Englisch mit Handwerks-Bezug bleibt durch
+assert.equal(
+  spam.isContactSpam({
+    name: "Tom",
+    email: "tom@example.com",
+    message: "Hello, the heating is broken in my apartment, can you repair it?",
+  }),
+  false,
+);
+
 console.log("contact-spam checks ok");

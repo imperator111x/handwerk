@@ -2,6 +2,7 @@ import { handle } from "@astrojs/cloudflare/handler";
 import { deleteExpiredFreeSlots } from "./lib/appointments";
 import PostalMime from "postal-mime";
 import { blockedKinds, normalizeBlockEmail } from "./lib/blocks";
+import { purgeExpiredSpamQuarantine } from "./lib/db";
 import { ingestInboundEmail, type IngestResult } from "./lib/inbound-mail";
 import { scanStoredFiles, storeInboundFiles, type RawAttachment } from "./lib/mail-files";
 import { isExternalMailboxAddress } from "./lib/mailbox";
@@ -62,6 +63,17 @@ export default {
         deleteExpiredFreeSlots(env.DB).catch((err) => {
           console.error("expired_slots_delete_failed", err);
         }),
+      );
+      ctx.waitUntil(
+        purgeExpiredSpamQuarantine(env.DB, 14)
+          .then((result) => {
+            if (result.spamDeleted > 0 || result.dedupDeleted > 0) {
+              console.log("spam_quarantine_purged", result);
+            }
+          })
+          .catch((err) => {
+            console.error("spam_quarantine_purge_failed", err);
+          }),
       );
     }
     if (env.GOOGLE_PLACES_API_KEY && env.GOOGLE_PLACE_ID) {

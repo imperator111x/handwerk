@@ -9,6 +9,7 @@ import { insertContactRequest } from "../../lib/db";
 import { sendEmail } from "../../lib/email";
 import { requestNotice } from "../../lib/notice-copy";
 import { notifyStaff } from "../../lib/notify";
+import { matchLearnedSpam } from "../../lib/spam-learn";
 
 export const prerender = false;
 
@@ -67,14 +68,6 @@ export async function POST(ctx: APIContext): Promise<Response> {
     topic: payload.topic,
     message: payload.message,
   };
-  if (await isContactSpamAsync(spamInput)) {
-    console.log("contact_spam", await contactSpamReasonAsync(spamInput));
-    return json({
-      ok: true,
-      id: null,
-      message: "Vielen Dank für Ihre Anfrage – wir melden uns in Kürze bei Ihnen.",
-    });
-  }
 
   if (env?.DB) {
     try {
@@ -90,6 +83,33 @@ export async function POST(ctx: APIContext): Promise<Response> {
     } catch (err) {
       console.error("contact_block_check_failed", err);
     }
+  }
+
+  const spamReason =
+    (await contactSpamReasonAsync(spamInput)) ??
+    (env?.DB ? await matchLearnedSpam(env.DB, spamInput) : null) ??
+    ((await isContactSpamAsync(spamInput)) ? "heuristik" : null);
+  if (spamReason) {
+    console.log("contact_spam", spamReason);
+    if (env?.DB) {
+      try {
+        await insertContactRequest(env.DB, {
+          ...payload,
+          ip,
+          country,
+          user_agent: userAgent,
+          status: "spam",
+          spamReason,
+        });
+      } catch (err) {
+        console.error("contact_spam_persist_failed", err);
+      }
+    }
+    return json({
+      ok: true,
+      id: null,
+      message: "Vielen Dank für Ihre Anfrage – wir melden uns in Kürze bei Ihnen.",
+    });
   }
 
   const log = {

@@ -7,7 +7,7 @@
  * Postfach nach dem Wechsel von Lima-City nicht ins Leere läuft.
  */
 
-import { isContactSpamAsync, contactSpamReasonAsync } from "./contact-spam";
+import { contactSpamReasonAsync } from "./contact-spam";
 import { ensureCustomer } from "./customers";
 import {
   findLatestRequestIdBySender,
@@ -25,6 +25,11 @@ import {
   updateContactStatus,
   upsertMailThread,
 } from "./db";
+import {
+  findInboundDedup,
+  inboundDedupKeys,
+  rememberInboundDedup,
+} from "./inbound-dedup";
 import { MAIL_DOMAIN, isExternalLocalPart, matchMailboxLocalPart } from "./mailbox";
 import { decodeHtmlEntities } from "./html-entities";
 import {
@@ -34,6 +39,7 @@ import {
   parseReplyToken,
   verifyReplyToken,
 } from "./reply-address";
+import { matchLearnedSpam } from "./spam-learn";
 
 export interface ParsedInbound {
   envelopeFrom: string;
@@ -51,6 +57,7 @@ export interface ParsedInbound {
 export type IngestResult =
   | { action: "stored"; requestId: number; replyId: number }
   | { action: "created"; requestId: number }
+  | { action: "spam"; requestId: number }
   | { action: "duplicate"; requestId: number }
   | { action: "mailbox"; threadId: number; messageRowId: number }
   | { action: "mailbox_duplicate"; threadId: number }
@@ -87,15 +94,41 @@ export async function ingestInboundEmail(
     const createdName = cleanName(email.fromName) || from.split("@")[0] || "Kunde";
     const bodyText =
       clip(extractCustomerText(email.text ?? "", email.html ?? "")) || "(Keine Textnachricht)";
+    const dedupKeys = await inboundDedupKeys({
+      messageId: email.messageId,
+      from,
+      subject: email.subject,
+      body: bodyText,
+    });
+    const existingDedup = await findInboundDedup(db, dedupKeys);
+    if (existingDedup) {
+      await rememberInboundDedup(db, dedupKeys, existingDedup);
+      return { action: "duplicate", requestId: existingDedup };
+    }
+
     const spamInput = {
       name: createdName,
       email: from,
       subject: email.subject,
       message: bodyText,
     };
-    if (await isContactSpamAsync(spamInput)) {
-      console.log("inbound_spam", await contactSpamReasonAsync(spamInput));
-      return { action: "ignore", reason: "Spam-Inhalt" };
+    const spamReason =
+      (await contactSpamReasonAsync(spamInput)) ??
+      (await matchLearnedSpam(db, spamInput));
+    if (spamReason) {
+      const reason = spamReason;
+      console.log("inbound_spam", reason);
+      const spamId = await insertContactRequest(db, {
+        name: createdName,
+        email: from,
+        topic: "sonstiges",
+        message: bodyText,
+        source: "mail",
+        status: "spam",
+        spamReason: reason,
+      });
+      await rememberInboundDedup(db, dedupKeys, spamId);
+      return { action: "spam", requestId: spamId };
     }
     let customerId: number | null = null;
     try {
@@ -111,6 +144,7 @@ export async function ingestInboundEmail(
       source: "mail",
       customerId,
     });
+    await rememberInboundDedup(db, dedupKeys, createdId);
     return { action: "created", requestId: createdId };
   }
 
