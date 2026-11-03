@@ -71,6 +71,23 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "seo-outreach", re: /\b(?:guest\s*post|backlink|linkbuilding|seo[\s-]?optim)/i },
   { id: "bulk-positionen", re: /\bverfügbare[n]?\s+positionen\b/i },
   {
+    id: "fahrzeug-katalog-spam",
+    re: /\bfahrzeug(?:bestand|katalog)\b[\s\S]{0,120}\bfinanzierungsr[uü]ckl[aä]ufer\b|\bfinanzierungsr[uü]ckl[aä]ufer\b[\s\S]{0,120}\bfahrzeug/i,
+  },
+  {
+    id: "ibkr-w8ben",
+    re: /\b(?:w-?8ben|ibkr\s+client|interactive\s*brokers)\b[\s\S]{0,120}\b(?:sign|signature|expired|withholding|action\s+requested|dokument|formular)\b/i,
+  },
+  {
+    id: "atm-kreditkarte-scam",
+    re: /\b(?:swift\s+)?atm[\s-]?kreditkarte\b|\bschnellkreditsystem\b|\bgeldautomatensystem\b/i,
+  },
+  {
+    id: "zero-width-padding",
+    // HTML-/Unicode-Padding in Phishing-Mails (&zwnj; / U+200C)
+    re: /(?:&zwnj;){3,}|(?:\u200c[\s\u00a0]*){6,}/i,
+  },
+  {
     id: "un-compensation",
     re: /\bunited\s+nations\s+compensation\b|\buncco?\b|\buncc\b|\bentsch[aä]digungs(?:zahlung(?:en)?|programm|kommission)\b|\bvereinten?\s+nationen\b[\s\S]{0,120}\bentsch[aä]dig|\bbeg[uü]nstigte\(r\)\b|\banspruchsberechtigt(?:er|e|en)?\s+empf[aä]nger\b/i,
   },
@@ -120,10 +137,12 @@ const SOFT_THRESHOLD = 3;
 
 /** Absenderdomains, die als „Kunde“ praktisch nie legitim sind. */
 const SUSPICIOUS_EMAIL_DOMAINS: ReadonlyArray<{ id: string; re: RegExp }> = [
-  { id: "amazonses", re: /@amazonses\.com$/i },
+  // inkl. Regional-Endpunkte wie eu-west-1.amazonses.com
+  { id: "amazonses", re: /@(?:[a-z0-9-]+\.)?amazonses\.com$/i },
   { id: "mailgun", re: /@(?:mailgun\.(?:org|com)|mg\.)/i },
   { id: "sendgrid", re: /@sendgrid\.(?:net|com)$/i },
-  { id: "noreply-bulk", re: /^(?:no-?reply|noreply|mailer-daemon|bounce)@/i },
+  { id: "noreply-bulk", re: /^(?:no-?reply|noreply|mailer-daemon|bounce)(?:[-+][^@]*)?@/i },
+  { id: "bounce-subdomain", re: /@bounce\./i },
   // typische Phishing-Absender wie verify18939@…
   { id: "verify-mailbox", re: /^verify\d{3,}@/i },
   { id: "security-mailbox", re: /^(?:security|secure|account|support)[-_]?\d{3,}@/i },
@@ -219,6 +238,16 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     id: "brand-starlink",
     nameRe: /\bstarlink\b/i,
     allowedDomains: /(?:^|\.)(?:starlink|spacex)\./i,
+  },
+  {
+    id: "brand-dkb",
+    nameRe: /\bdkb\b|\bdeutsche\s+kreditbank\b/i,
+    allowedDomains: /(?:^|\.)dkb\./i,
+  },
+  {
+    id: "brand-ibkr",
+    nameRe: /\binteractive\s*brokers\b|\bibkr\b/i,
+    allowedDomains: /(?:^|\.)interactivebrokers\./i,
   },
 ];
 

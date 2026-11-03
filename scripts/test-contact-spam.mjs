@@ -170,6 +170,50 @@ assert.equal(
   true,
 );
 
+// Live-Spam: DKB Fahrzeugkatalog über Regional-SES + Bounce-Immo-Newsletter
+assert.equal(
+  spam.contactSpamReason({
+    name: "DKB AG",
+    email:
+      "010201a193fae15d-ee7be99c-1e53-4822-beb4-a4d7fe9590ca-000000@eu-west-1.amazonses.com",
+    message: "Aktueller Fahrzeugbestand. Unfallfreie Finanzierungsrückläufer.",
+  }),
+  "fahrzeug-katalog-spam",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "X",
+    email:
+      "010201a193fae15d-ee7be99c-1e53-4822-beb4-a4d7fe9590ca-000000@eu-west-1.amazonses.com",
+    message: "Hallo Termin Heizung bitte",
+  }),
+  "amazonses",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Vogelsang Immobilien",
+    email: "bounce-78788645@bounce.meinemaklermarke.de",
+    message: "Besichtigungen erfolgreich gestalten. View online.",
+  }),
+  "noreply-bulk",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Makler Newsletter",
+    email: "news@bounce.meinemaklermarke.de",
+    message: "Besichtigungen erfolgreich gestalten. View online.",
+  }),
+  "bounce-subdomain",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "Interactive Brokers",
+    email: "interactivebrokers@mail.hfbtdw.com",
+    message: "Dear IBKR Client, Please Sign an Updated W-8BEN Form. Action Requested.",
+  }),
+  "ibkr-w8ben",
+);
+
 // Live-Spam: SumUp-Verifizierungs-Phishing (HTML-Dump)
 assert.equal(
   spam.contactSpamReason({
