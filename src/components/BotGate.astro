@@ -1,48 +1,355 @@
 ---
 import { cfEnv } from "../lib/cf";
+import { siteConfig } from "../config/site";
+import Logo from "./Logo.astro";
 
 const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
+const hostLabel = (() => {
+  try {
+    return new URL(siteConfig.url).host;
+  } catch {
+    return "zeus-service.de";
+  }
+})();
+
+const steps = [
+  { id: 1, label: "Verifizieren" },
+  { id: 2, label: "Prüfen" },
+  { id: 3, label: "Fertig" },
+];
 ---
 
-<section class="grid min-h-screen place-items-center bg-white px-6 py-16 dark:bg-ink-950">
-  <div class="max-w-md text-center">
-    <p id="bot-gate-wait" class="text-sm font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
-      Sicherheitsprüfung
+<section
+  id="bot-gate"
+  class="relative grid min-h-screen place-items-center overflow-hidden bg-ink-50 px-4 py-12 transition-opacity duration-500 ease-out dark:bg-ink-950"
+  aria-live="polite"
+>
+  <div
+    class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--color-brand-100),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top,_rgb(37_99_235_/_0.18),_transparent_55%)]"
+    aria-hidden="true"
+  ></div>
+
+  <div id="bot-gate-panel" class="relative w-full max-w-md transition-all duration-500 ease-out">
+    <div class="card shadow-soft">
+      <div class="flex flex-col items-center text-center">
+        <Logo height={56} class="mx-auto" />
+        <p
+          class="mt-5 text-sm font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300"
+        >
+          Sicherheitsprüfung
+        </p>
+        <h1
+          id="bot-gate-title"
+          class="mt-3 font-display text-3xl font-bold text-ink-900 dark:text-ink-50"
+        >
+          Verifizieren Sie, dass Sie ein Mensch sind
+        </h1>
+        <p
+          id="bot-gate-text"
+          class="mt-3 text-sm leading-relaxed text-ink-600 dark:text-ink-300"
+        >
+          Kurz prüfen wir den Zugriff auf {hostLabel}, danach geht es weiter zur
+          Website.
+        </p>
+      </div>
+
+      <ol
+        id="bot-gate-steps"
+        class="mt-8 flex items-center justify-between gap-2"
+        aria-label="Prüfschritte"
+      >
+        {
+          steps.map((step, index) => (
+            <>
+              <li
+                class="bot-gate-step flex min-w-0 flex-1 flex-col items-center gap-2"
+                data-step={step.id}
+                data-state={step.id === 1 ? "active" : "todo"}
+              >
+                <span
+                  class="bot-gate-step-dot inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition"
+                >
+                  <span class="bot-gate-step-num">{step.id}</span>
+                  <svg
+                    class="bot-gate-step-check hidden h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </span>
+                <span class="bot-gate-step-label truncate text-[11px] font-semibold uppercase tracking-wide">
+                  {step.label}
+                </span>
+              </li>
+              {index < steps.length - 1 && (
+                <span
+                  class="bot-gate-step-line mb-5 h-0.5 w-6 flex-none rounded-full bg-ink-200 dark:bg-white/15 sm:w-10"
+                  aria-hidden="true"
+                  data-after={step.id}
+                />
+              )}
+            </>
+          ))
+        }
+      </ol>
+
+      <div class="mt-8 flex min-h-[72px] flex-col items-center justify-center gap-4">
+        <div
+          id="bot-gate-spinner"
+          class="hidden items-center gap-3 text-sm font-medium text-brand-700 dark:text-brand-300"
+          role="status"
+        >
+          <span
+            class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600 dark:border-brand-900 dark:border-t-brand-300"
+            aria-hidden="true"
+          ></span>
+          <span>Überprüfung läuft…</span>
+        </div>
+        <div
+          id="bot-gate-success"
+          class="hidden flex-col items-center gap-3 text-emerald-600 dark:text-emerald-300"
+          role="status"
+        >
+          <span
+            class="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20"
+            aria-hidden="true"
+          >
+            <svg
+              class="h-7 w-7"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="text-sm font-semibold">Prüfung bestanden</span>
+        </div>
+        {
+          sitekey ? (
+            <div id="page-turnstile" data-sitekey={sitekey} class="cf-turnstile-host"></div>
+          ) : (
+            <p class="text-sm text-ink-500">Sicherheitsprüfung nicht verfügbar.</p>
+          )
+        }
+      </div>
+
+      <button id="bot-gate-retry" type="button" class="btn-primary mt-6 hidden w-full">
+        Erneut versuchen
+      </button>
+    </div>
+
+    <p
+      id="bot-gate-check-id"
+      class="mt-5 text-center font-mono text-[11px] tracking-wide text-ink-500 dark:text-ink-400"
+    >
+      Prüf-ID: <span id="bot-gate-check-id-value">—</span>
     </p>
-    <h1 id="bot-gate-title" class="mt-3 font-display text-3xl font-bold text-ink-900 dark:text-ink-50">
-      Einen Moment
-    </h1>
-    <p id="bot-gate-text" class="mt-3 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
-      Die Website wird gerade geprüft.
+
+    <p class="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-ink-500 dark:text-ink-300">
+      <span>Geschützt durch</span>
+      <a
+        href="https://www.cloudflare.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-1.5 font-semibold text-ink-700 hover:text-brand-700 dark:text-ink-100 dark:hover:text-brand-200"
+      >
+        <svg width="18" height="12" viewBox="0 0 65 24" aria-hidden="true">
+          <path
+            fill="#F6821F"
+            d="M45.1 17.8H19.3c-.4 0-.7-.2-.9-.5-.5-1-1.2-1.7-2.1-2.2-.9-.5-1.9-.7-2.9-.6-.5.1-1 .2-1.4.4-.1 0-.3 0-.3-.2-.2-1.5.2-3 1.2-4.1 1-1.1 2.4-1.7 3.9-1.7 1.1 0 2.1.3 3 .9.2.1.4.1.5-.1.9-1.9 2.5-3.3 4.5-3.8 2-.6 4.1-.2 5.7 1 1.1.8 1.9 2 2.3 3.3.1.2.2.3.4.3 1.5-.1 2.9.4 3.9 1.4.9.9 1.4 2.1 1.4 3.4 0 .1 0 .2-.1.3-.1.2-.2.2-.4.2z"
+          ></path>
+          <path
+            fill="#FBAD41"
+            d="M45.1 17.8c0-.1 0-.2.1-.3.5-1.5.3-3.1-.6-4.4-.9-1.3-2.3-2.1-3.9-2.2-.1 0-.2-.2-.2-.3-.3-1.5-1.1-2.8-2.3-3.7 3.7.4 6.5 3.5 6.5 7.3 0 1.2-.3 2.4-.8 3.4-.1.1-.2.2-.3.2h1.5z"
+          ></path>
+        </svg>
+        Cloudflare
+      </a>
+      <span aria-hidden="true">·</span>
+      <a
+        href="https://www.cloudflare.com/privacypolicy/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="hover:text-brand-700 hover:underline dark:hover:text-brand-200"
+      >
+        Datenschutz
+      </a>
     </p>
-    <button id="bot-gate-retry" type="button" class="btn-primary mt-6 hidden">
-      Erneut versuchen
-    </button>
-    {sitekey && <div id="page-turnstile" data-sitekey={sitekey} class="sr-only" aria-hidden="true"></div>}
   </div>
 </section>
 
+<style>
+  .cf-turnstile-host {
+    min-height: 65px;
+  }
+
+  .bot-gate-step[data-state="todo"] .bot-gate-step-dot {
+    border-color: rgb(226 232 240);
+    background: transparent;
+    color: rgb(100 116 139);
+  }
+  :global(.dark) .bot-gate-step[data-state="todo"] .bot-gate-step-dot {
+    border-color: rgb(255 255 255 / 0.15);
+    color: rgb(148 163 184);
+  }
+  .bot-gate-step[data-state="todo"] .bot-gate-step-label {
+    color: rgb(100 116 139);
+  }
+  :global(.dark) .bot-gate-step[data-state="todo"] .bot-gate-step-label {
+    color: rgb(148 163 184);
+  }
+
+  .bot-gate-step[data-state="active"] .bot-gate-step-dot {
+    border-color: rgb(37 99 235);
+    background: rgb(37 99 235);
+    color: white;
+    box-shadow: 0 0 0 4px rgb(37 99 235 / 0.15);
+  }
+  .bot-gate-step[data-state="active"] .bot-gate-step-label {
+    color: rgb(29 78 216);
+  }
+  :global(.dark) .bot-gate-step[data-state="active"] .bot-gate-step-label {
+    color: rgb(147 197 253);
+  }
+
+  .bot-gate-step[data-state="done"] .bot-gate-step-dot,
+  .bot-gate-step[data-state="success"] .bot-gate-step-dot {
+    border-color: rgb(16 185 129);
+    background: rgb(16 185 129);
+    color: white;
+    box-shadow: none;
+  }
+  .bot-gate-step[data-state="done"] .bot-gate-step-label,
+  .bot-gate-step[data-state="success"] .bot-gate-step-label {
+    color: rgb(5 150 105);
+  }
+  :global(.dark) .bot-gate-step[data-state="done"] .bot-gate-step-label,
+  :global(.dark) .bot-gate-step[data-state="success"] .bot-gate-step-label {
+    color: rgb(110 231 183);
+  }
+
+  .bot-gate-step[data-state="done"] .bot-gate-step-num,
+  .bot-gate-step[data-state="success"] .bot-gate-step-num {
+    display: none;
+  }
+  .bot-gate-step[data-state="done"] .bot-gate-step-check,
+  .bot-gate-step[data-state="success"] .bot-gate-step-check {
+    display: block;
+  }
+
+  .bot-gate-step-line[data-done="true"] {
+    background: rgb(16 185 129);
+  }
+
+  #bot-gate.is-leaving {
+    opacity: 0;
+  }
+  #bot-gate.is-leaving #bot-gate-panel {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+</style>
+
 <script is:inline>
   (() => {
+    const root = document.getElementById("bot-gate");
     const box = document.getElementById("page-turnstile");
     const title = document.getElementById("bot-gate-title");
     const text = document.getElementById("bot-gate-text");
     const retry = document.getElementById("bot-gate-retry");
-    if (!box || !title || !text) return;
-    const sitekey = box.getAttribute("data-sitekey");
+    const spinner = document.getElementById("bot-gate-spinner");
+    const success = document.getElementById("bot-gate-success");
+    const checkIdValue = document.getElementById("bot-gate-check-id-value");
+    if (!title || !text) return;
+    const sitekey = box?.getAttribute("data-sitekey");
+    const host = location.host || "zeus-service.de";
+    const STEP1_MS = 2800;
+    const STEP2_MS = 2800;
+    const STEP3_MS = 2200;
+    const FADE_MS = 450;
+    const FAIL_MS = 25000;
     let widgetId;
     let failures = 0;
     let settled = false;
+    let pendingToken = null;
+    let step2Started = false;
+    let startedAt = Date.now();
+
+    const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+    const makeCheckId = () => {
+      const bytes = new Uint8Array(8);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    };
+    let checkId = makeCheckId();
+    if (checkIdValue) checkIdValue.textContent = checkId;
+
+    const setCopy = (heading, body) => {
+      title.textContent = heading;
+      text.textContent = body;
+    };
+
+    const setStep = (active) => {
+      document.querySelectorAll(".bot-gate-step").forEach((node) => {
+        const id = Number(node.getAttribute("data-step"));
+        let state = "todo";
+        if (active >= 3) state = "success";
+        else if (id < active) state = "done";
+        else if (id === active) state = "active";
+        node.setAttribute("data-state", state);
+      });
+      document.querySelectorAll(".bot-gate-step-line").forEach((line) => {
+        const after = Number(line.getAttribute("data-after"));
+        line.setAttribute("data-done", after < active || active >= 3 ? "true" : "false");
+      });
+      if (spinner) {
+        const show = active === 2;
+        spinner.classList.toggle("hidden", !show);
+        spinner.classList.toggle("flex", show);
+      }
+      if (success) {
+        const show = active >= 3;
+        success.classList.toggle("hidden", !show);
+        success.classList.toggle("flex", show);
+      }
+      if (box) box.classList.toggle("hidden", active !== 1);
+    };
 
     const deny = () => {
       if (settled) return;
       settled = true;
-      title.textContent = "Sie können diese Website nicht besuchen.";
-      text.textContent = "Die Sicherheitsprüfung wurde nicht bestanden.";
+      setStep(1);
+      setCopy(
+        "Überprüfung fehlgeschlagen",
+        "Die Sicherheitsprüfung wurde nicht bestanden. Bitte versuchen Sie es erneut.",
+      );
       retry?.classList.remove("hidden");
+      if (box) box.classList.remove("hidden");
     };
 
-    const send = async (token) => {
+    const leaveAndReload = async () => {
+      root?.classList.add("is-leaving");
+      await wait(FADE_MS);
+      location.reload();
+    };
+
+    const runCheck = async (token) => {
+      if (step2Started || settled) return;
+      step2Started = true;
+      setStep(2);
+      setCopy("Wird überprüft…", "Einen Moment, die Verbindung wird gesichert.");
+      const step2At = Date.now();
       const record = (() => {
         try {
           return localStorage.getItem("zs-cookie-notice") === "stats";
@@ -63,9 +370,14 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
             record,
           }),
         });
+        const remain2 = STEP2_MS - (Date.now() - step2At);
+        if (remain2 > 0) await wait(remain2);
         if (response.ok) {
           settled = true;
-          location.reload();
+          setStep(3);
+          setCopy("Erfolgreich!", "Sie werden weitergeleitet…");
+          await wait(STEP3_MS);
+          await leaveAndReload();
           return;
         }
       } catch {
@@ -74,12 +386,28 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
       deny();
     };
 
+    const onToken = (token) => {
+      pendingToken = token;
+      const remain1 = STEP1_MS - (Date.now() - startedAt);
+      if (remain1 > 0) {
+        window.setTimeout(() => {
+          if (pendingToken) runCheck(pendingToken);
+        }, remain1);
+        return;
+      }
+      runCheck(token);
+    };
+
     const render = () => {
-      if (!window.turnstile || !sitekey || widgetId !== undefined) return;
+      if (!window.turnstile || !sitekey || !box || widgetId !== undefined) return;
+      const dark = document.documentElement.classList.contains("dark");
       widgetId = window.turnstile.render(box, {
         sitekey,
         action: "page_load",
-        callback: send,
+        theme: dark ? "dark" : "light",
+        appearance: "always",
+        size: "normal",
+        callback: onToken,
         "error-callback": () => {
           failures += 1;
           if (failures < 2) return true;
@@ -92,17 +420,29 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
     retry?.addEventListener("click", () => {
       settled = false;
       failures = 0;
-      title.textContent = "Einen Moment";
-      text.textContent = "Die Website wird gerade geprüft.";
+      pendingToken = null;
+      step2Started = false;
+      startedAt = Date.now();
+      checkId = makeCheckId();
+      if (checkIdValue) checkIdValue.textContent = checkId;
+      root?.classList.remove("is-leaving");
+      setStep(1);
+      setCopy(
+        "Verifizieren Sie, dass Sie ein Mensch sind",
+        "Kurz prüfen wir den Zugriff auf " + host + ", danach geht es weiter zur Website.",
+      );
       retry.classList.add("hidden");
       if (widgetId !== undefined && window.turnstile) window.turnstile.reset(widgetId);
+      else render();
     });
 
     window.setTimeout(() => {
       if (!settled) deny();
-    }, 15000);
+    }, FAIL_MS);
 
-    if (!sitekey) {
+    setStep(1);
+
+    if (!sitekey || !box) {
       deny();
       return;
     }
