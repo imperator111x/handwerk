@@ -1,26 +1,129 @@
 ---
 import { cfEnv } from "../lib/cf";
+import { siteConfig } from "../config/site";
 
 const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
+const hostLabel = (() => {
+  try {
+    return new URL(siteConfig.url).host;
+  } catch {
+    return "zeus-service.de";
+  }
+})();
 ---
 
-<section class="grid min-h-screen place-items-center bg-white px-6 py-16 dark:bg-ink-950">
-  <div class="max-w-md text-center">
-    <p id="bot-gate-wait" class="text-sm font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
-      Sicherheitsprüfung
-    </p>
-    <h1 id="bot-gate-title" class="mt-3 font-display text-3xl font-bold text-ink-900 dark:text-ink-50">
-      Einen Moment
-    </h1>
-    <p id="bot-gate-text" class="mt-3 text-sm leading-relaxed text-ink-600 dark:text-ink-300">
-      Die Website wird gerade geprüft.
-    </p>
-    <button id="bot-gate-retry" type="button" class="btn-primary mt-6 hidden">
-      Erneut versuchen
-    </button>
-    {sitekey && <div id="page-turnstile" data-sitekey={sitekey} class="sr-only" aria-hidden="true"></div>}
+<section
+  class="bot-gate grid min-h-screen place-items-center bg-[#f5f5f5] px-4 py-10 text-[#1d1d1d]"
+  aria-live="polite"
+>
+  <div class="w-full max-w-[480px]">
+    <div class="rounded-lg border border-[#e0e0e0] bg-white px-6 py-8 shadow-[0_1px_3px_rgba(0,0,0,0.06)] sm:px-8">
+      <div class="flex items-center gap-3">
+        <img
+          src="/favicon.ico?v=2"
+          width="32"
+          height="32"
+          alt=""
+          class="h-8 w-8 rounded"
+          decoding="async"
+        />
+        <p class="truncate text-[15px] font-semibold text-[#1d1d1d]">{hostLabel}</p>
+      </div>
+
+      <h1
+        id="bot-gate-title"
+        class="mt-6 text-[22px] font-semibold leading-snug tracking-tight text-[#1d1d1d]"
+      >
+        Verifizieren Sie, dass Sie ein Mensch sind
+      </h1>
+      <p id="bot-gate-text" class="mt-2 text-sm leading-relaxed text-[#696969]">
+        Diese Sicherheitsprüfung schützt {hostLabel} vor automatisiertem Traffic.
+        Das dauert nur einen Moment.
+      </p>
+
+      <div class="mt-6 flex min-h-[65px] items-center justify-center">
+        {
+          sitekey ? (
+            <div id="page-turnstile" data-sitekey={sitekey} class="cf-turnstile-host"></div>
+          ) : (
+            <p class="text-sm text-[#696969]">Sicherheitsprüfung nicht verfügbar.</p>
+          )
+        }
+      </div>
+
+      <button
+        id="bot-gate-retry"
+        type="button"
+        class="mt-5 hidden w-full rounded-md bg-[#f6821f] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e06b00] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f6821f]/focus-visible:ring-offset-2"
+      >
+        Erneut versuchen
+      </button>
+    </div>
+
+    <div class="mt-6 flex flex-col items-center gap-3 text-center">
+      <a
+        href="https://www.cloudflare.com/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 text-[#696969] no-underline hover:text-[#1d1d1d]"
+        aria-label="Cloudflare"
+      >
+        <!-- Cloudflare-Markenzeichen (orange Wolke), wie auf Challenge-Seiten -->
+        <svg width="36" height="16" viewBox="0 0 65 24" aria-hidden="true">
+          <path
+            fill="#F6821F"
+            d="M45.1 17.8H19.3c-.4 0-.7-.2-.9-.5-.5-1-1.2-1.7-2.1-2.2-.9-.5-1.9-.7-2.9-.6-.5.1-1 .2-1.4.4-.1 0-.3 0-.3-.2-.2-1.5.2-3 1.2-4.1 1-1.1 2.4-1.7 3.9-1.7 1.1 0 2.1.3 3 .9.2.1.4.1.5-.1.9-1.9 2.5-3.3 4.5-3.8 2-.6 4.1-.2 5.7 1 1.1.8 1.9 2 2.3 3.3.1.2.2.3.4.3 1.5-.1 2.9.4 3.9 1.4.9.9 1.4 2.1 1.4 3.4 0 .1 0 .2-.1.3-.1.2-.2.2-.4.2z"
+          ></path>
+          <path
+            fill="#FBAD41"
+            d="M45.1 17.8c0-.1 0-.2.1-.3.5-1.5.3-3.1-.6-4.4-.9-1.3-2.3-2.1-3.9-2.2-.1 0-.2-.2-.2-.3-.3-1.5-1.1-2.8-2.3-3.7 3.7.4 6.5 3.5 6.5 7.3 0 1.2-.3 2.4-.8 3.4-.1.1-.2.2-.3.2h1.5z"
+          ></path>
+          <path
+            fill="#FFFFFF"
+            fill-opacity=".5"
+            d="M38.9 13.5c-.1-.5-.3-.9-.6-1.3-.1-.1-.1-.2 0-.3.1-.1.2-.1.3 0 .4.4.7 1 .8 1.6 0 .1-.1.2-.2.2h-.1c-.1 0-.2-.1-.2-.2z"
+          ></path>
+        </svg>
+        <span class="text-xs font-semibold tracking-wide">Cloudflare</span>
+      </a>
+      <p class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-[#696969]">
+        <a
+          href="https://www.cloudflare.com/privacypolicy/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-[#1d1d1d] hover:underline"
+        >
+          Datenschutz
+        </a>
+        <span aria-hidden="true">·</span>
+        <a
+          href="https://www.cloudflare.com/website-terms/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-[#1d1d1d] hover:underline"
+        >
+          Nutzungsbedingungen
+        </a>
+      </p>
+    </div>
   </div>
 </section>
+
+<style>
+  .bot-gate {
+    font-family:
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif;
+  }
+  .cf-turnstile-host {
+    min-height: 65px;
+  }
+</style>
 
 <script is:inline>
   (() => {
@@ -28,21 +131,30 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
     const title = document.getElementById("bot-gate-title");
     const text = document.getElementById("bot-gate-text");
     const retry = document.getElementById("bot-gate-retry");
-    if (!box || !title || !text) return;
-    const sitekey = box.getAttribute("data-sitekey");
+    if (!title || !text) return;
+    const sitekey = box?.getAttribute("data-sitekey");
+    const host = location.host || "zeus-service.de";
     let widgetId;
     let failures = 0;
     let settled = false;
 
+    const setCopy = (heading, body) => {
+      title.textContent = heading;
+      text.textContent = body;
+    };
+
     const deny = () => {
       if (settled) return;
       settled = true;
-      title.textContent = "Sie können diese Website nicht besuchen.";
-      text.textContent = "Die Sicherheitsprüfung wurde nicht bestanden.";
+      setCopy(
+        "Überprüfung fehlgeschlagen",
+        "Die Sicherheitsprüfung wurde nicht bestanden. Bitte versuchen Sie es erneut.",
+      );
       retry?.classList.remove("hidden");
     };
 
     const send = async (token) => {
+      setCopy("Wird überprüft…", "Einen Moment, die Verbindung wird gesichert.");
       const record = (() => {
         try {
           return localStorage.getItem("zs-cookie-notice") === "stats";
@@ -65,6 +177,7 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
         });
         if (response.ok) {
           settled = true;
+          setCopy("Erfolgreich!", "Sie werden weitergeleitet…");
           location.reload();
           return;
         }
@@ -75,10 +188,12 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
     };
 
     const render = () => {
-      if (!window.turnstile || !sitekey || widgetId !== undefined) return;
+      if (!window.turnstile || !sitekey || !box || widgetId !== undefined) return;
       widgetId = window.turnstile.render(box, {
         sitekey,
         action: "page_load",
+        theme: "light",
+        appearance: "always",
         callback: send,
         "error-callback": () => {
           failures += 1;
@@ -92,17 +207,20 @@ const sitekey = cfEnv()?.TURNSTILE_PAGE_SITEKEY ?? "";
     retry?.addEventListener("click", () => {
       settled = false;
       failures = 0;
-      title.textContent = "Einen Moment";
-      text.textContent = "Die Website wird gerade geprüft.";
+      setCopy(
+        "Verifizieren Sie, dass Sie ein Mensch sind",
+        "Diese Sicherheitsprüfung schützt " + host + " vor automatisiertem Traffic. Das dauert nur einen Moment.",
+      );
       retry.classList.add("hidden");
       if (widgetId !== undefined && window.turnstile) window.turnstile.reset(widgetId);
+      else render();
     });
 
     window.setTimeout(() => {
       if (!settled) deny();
     }, 15000);
 
-    if (!sitekey) {
+    if (!sitekey || !box) {
       deny();
       return;
     }
