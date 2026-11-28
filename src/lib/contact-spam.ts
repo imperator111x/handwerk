@@ -46,6 +46,14 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "ikea-phishing", re: /\bl\s*kea\b|\bikea\b[\s\S]{0,60}\b(?:ndl|kundenr[uü]ck|öffne(?:n)?\s+sie\s+diesen\s+link)/i },
   { id: "adac-phishing", re: /\badac\b[\s\S]{0,40}\b(?:auto[\s-]?notfall|service\s*set|exklusiv)/i },
   {
+    id: "newsletter-gastro",
+    re: /\bfreunde\s+des\s+guten\s+geschmacks\b|\bchristmas\s+day\b[\s\S]{0,80}\b(?:steht\s+vor\s+der\s+t[uü]r|men[uü]|buffet)\b/i,
+  },
+  {
+    id: "mass-mail-mitteilen",
+    re: /\bwir\s+freuen\s+uns,?\s+ihnen\s+mitteilen\s+zu\s+k[oö]nnen\b/i,
+  },
+  {
     id: "banking-phishing",
     re: /\bonline[\s-]?banking\b[\s\S]{0,120}\b(?:aktualis|reaktiv|verifiz|freischalt|sicherheits(?:update|prüfung)|anti[\s-]?phishing)/i,
   },

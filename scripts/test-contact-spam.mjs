@@ -214,4 +214,22 @@ assert.equal(
   "hermes-sendung",
 );
 
+// Newsletter / Massenmail die als Anfrage landeten
+assert.equal(
+  spam.contactSpamReason({
+    name: "andre",
+    email: "andre@bike-farm.de",
+    message: "So, Freunde des guten Geschmacks, es ist wieder soweit: Unser Christmas Day steht vor der Tür.",
+  }),
+  "newsletter-gastro",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "danijela",
+    email: "danijela@katavic-baudekoration.de",
+    message: "Sehr geehrte Empfängerin, sehr geehrter Empfänger, wir freuen uns, Ihnen mitteilen zu können, dass Ihr Gewinn bereitsteht.",
+  }),
+  "mass-mail-mitteilen",
+);
+
 console.log("contact-spam checks ok");
