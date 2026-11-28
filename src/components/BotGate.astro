@@ -69,7 +69,19 @@ const steps = [
                 <span
                   class="bot-gate-step-dot inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition"
                 >
-                  {step.id}
+                  <span class="bot-gate-step-num">{step.id}</span>
+                  <svg
+                    class="bot-gate-step-check hidden h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
                 </span>
                 <span class="bot-gate-step-label truncate text-[11px] font-semibold uppercase tracking-wide">
                   {step.label}
@@ -99,6 +111,29 @@ const steps = [
           ></span>
           <span>Überprüfung läuft…</span>
         </div>
+        <div
+          id="bot-gate-success"
+          class="hidden flex-col items-center gap-3 text-emerald-600 dark:text-emerald-300"
+          role="status"
+        >
+          <span
+            class="inline-flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20"
+            aria-hidden="true"
+          >
+            <svg
+              class="h-7 w-7"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="text-sm font-semibold">Prüfung bestanden</span>
+        </div>
         {
           sitekey ? (
             <div id="page-turnstile" data-sitekey={sitekey} class="cf-turnstile-host"></div>
@@ -113,7 +148,14 @@ const steps = [
       </button>
     </div>
 
-    <p class="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-ink-500 dark:text-ink-300">
+    <p
+      id="bot-gate-check-id"
+      class="mt-5 text-center font-mono text-[11px] tracking-wide text-ink-500 dark:text-ink-400"
+    >
+      Prüf-ID: <span id="bot-gate-check-id-value">—</span>
+    </p>
+
+    <p class="mt-3 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-ink-500 dark:text-ink-300">
       <span>Geschützt durch</span>
       <a
         href="https://www.cloudflare.com/"
@@ -180,16 +222,29 @@ const steps = [
     color: rgb(147 197 253);
   }
 
-  .bot-gate-step[data-state="done"] .bot-gate-step-dot {
+  .bot-gate-step[data-state="done"] .bot-gate-step-dot,
+  .bot-gate-step[data-state="success"] .bot-gate-step-dot {
     border-color: rgb(16 185 129);
     background: rgb(16 185 129);
     color: white;
+    box-shadow: none;
   }
-  .bot-gate-step[data-state="done"] .bot-gate-step-label {
+  .bot-gate-step[data-state="done"] .bot-gate-step-label,
+  .bot-gate-step[data-state="success"] .bot-gate-step-label {
     color: rgb(5 150 105);
   }
-  :global(.dark) .bot-gate-step[data-state="done"] .bot-gate-step-label {
+  :global(.dark) .bot-gate-step[data-state="done"] .bot-gate-step-label,
+  :global(.dark) .bot-gate-step[data-state="success"] .bot-gate-step-label {
     color: rgb(110 231 183);
+  }
+
+  .bot-gate-step[data-state="done"] .bot-gate-step-num,
+  .bot-gate-step[data-state="success"] .bot-gate-step-num {
+    display: none;
+  }
+  .bot-gate-step[data-state="done"] .bot-gate-step-check,
+  .bot-gate-step[data-state="success"] .bot-gate-step-check {
+    display: block;
   }
 
   .bot-gate-step-line[data-done="true"] {
@@ -213,6 +268,8 @@ const steps = [
     const text = document.getElementById("bot-gate-text");
     const retry = document.getElementById("bot-gate-retry");
     const spinner = document.getElementById("bot-gate-spinner");
+    const success = document.getElementById("bot-gate-success");
+    const checkIdValue = document.getElementById("bot-gate-check-id-value");
     if (!title || !text) return;
     const sitekey = box?.getAttribute("data-sitekey");
     const host = location.host || "zeus-service.de";
@@ -230,6 +287,14 @@ const steps = [
 
     const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+    const makeCheckId = () => {
+      const bytes = new Uint8Array(8);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+    };
+    let checkId = makeCheckId();
+    if (checkIdValue) checkIdValue.textContent = checkId;
+
     const setCopy = (heading, body) => {
       title.textContent = heading;
       text.textContent = body;
@@ -238,16 +303,25 @@ const steps = [
     const setStep = (active) => {
       document.querySelectorAll(".bot-gate-step").forEach((node) => {
         const id = Number(node.getAttribute("data-step"));
-        node.setAttribute("data-state", id < active ? "done" : id === active ? "active" : "todo");
+        let state = "todo";
+        if (active >= 3) state = "success";
+        else if (id < active) state = "done";
+        else if (id === active) state = "active";
+        node.setAttribute("data-state", state);
       });
       document.querySelectorAll(".bot-gate-step-line").forEach((line) => {
         const after = Number(line.getAttribute("data-after"));
-        line.setAttribute("data-done", after < active ? "true" : "false");
+        line.setAttribute("data-done", after < active || active >= 3 ? "true" : "false");
       });
       if (spinner) {
         const show = active === 2;
         spinner.classList.toggle("hidden", !show);
         spinner.classList.toggle("flex", show);
+      }
+      if (success) {
+        const show = active >= 3;
+        success.classList.toggle("hidden", !show);
+        success.classList.toggle("flex", show);
       }
       if (box) box.classList.toggle("hidden", active !== 1);
     };
@@ -349,6 +423,8 @@ const steps = [
       pendingToken = null;
       step2Started = false;
       startedAt = Date.now();
+      checkId = makeCheckId();
+      if (checkIdValue) checkIdValue.textContent = checkId;
       root?.classList.remove("is-leaving");
       setStep(1);
       setCopy(
