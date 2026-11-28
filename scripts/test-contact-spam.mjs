@@ -67,7 +67,7 @@ assert.equal(
   true,
 );
 
-// Live-Spam: Amazon SES Bulk
+// Live-Spam: Amazon SES Bulk (Apex + Region)
 assert.equal(
   spam.isContactSpam({
     name: "David Blum",
@@ -75,6 +75,14 @@ assert.equal(
     message: "Sehr geehrte Damen und Herren, im Anhang unsere verfügbaren Positionen. Abmelden",
   }),
   true,
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "W. Rohe",
+    email: "010101a20b19a894-f72301be-1f21-4880-8869-2e401e0459b6-000000@us-west-2.amazonses.com",
+    message: "Entdecken Sie unsere attraktiven Angebote für Gebrauchtwagen",
+  }),
+  "amazonses",
 );
 
 // Marken-Imitation
@@ -168,6 +176,42 @@ assert.equal(
       "Renteninformation 2026. Verifizierung Ihrer Postadresse. Versandpauschale 0,90 €. Versicherungsnummer und Zahlungsmittel bereit.",
   }),
   true,
+);
+
+// Nur .de / .com erlauben
+assert.equal(
+  spam.contactSpamReason({
+    name: "Kunde",
+    email: "info@firma.net",
+    message: "Heizung defekt, bitte Termin und Angebot.",
+  }),
+  "tld-not-allowed",
+);
+assert.equal(
+  spam.contactSpamReason({
+    name: "INFO",
+    email: "yamazaki@rokko.or.jp",
+    message: "HermesSendungsinformation Guten Tag Zustellung",
+  }),
+  "tld-not-allowed",
+);
+assert.equal(
+  spam.isContactSpam({
+    name: "Erika",
+    email: "erika@kunde.de",
+    message: "Rollladen klemmt, bitte Termin.",
+  }),
+  false,
+);
+
+// Hermes / Fahrzeug
+assert.equal(
+  spam.contactSpamReason({
+    name: "INFO",
+    email: "shop@example.com",
+    message: "HermesSendungsinformation Guten Tag, bei der Zustellung gab es ein Problem.",
+  }),
+  "hermes-sendung",
 );
 
 console.log("contact-spam checks ok");

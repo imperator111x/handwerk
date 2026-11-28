@@ -38,6 +38,13 @@ const HARD_PATTERNS: ReadonlyArray<{ id: string; re: RegExp }> = [
   { id: "paypal-phishing", re: /\bpaypal\b[\s\S]{0,80}\b(?:verifiz|bestätig|gesperrt|konto|zahlung|sicherheit)/i },
   { id: "apple-id-phishing", re: /\bapple[\s-]?id\b[\s\S]{0,80}\b(?:gesperrt|verifiz|sicherheit|konto)/i },
   { id: "dhl-paket-phishing", re: /\b(?:dhl|hermes|dpd|ups)\b[\s\S]{0,60}\b(?:zoll|nachgebühr|paket.*nicht|zustell)/i },
+  { id: "hermes-sendung", re: /\bhermes\s*sendungsinformation\b|\bsendungsinformation\b[\s\S]{0,40}\bhermes\b/i },
+  {
+    id: "fahrzeug-spam",
+    re: /\baktueller\s+fahrzeugbestand\b|\battraktiven?\s+angebote?\s+f[uü]r\s+gebraucht|\baktueller\s+bestand\b[\s\S]{0,80}\bfahrzeug/i,
+  },
+  { id: "ikea-phishing", re: /\bl\s*kea\b|\bikea\b[\s\S]{0,60}\b(?:ndl|kundenr[uü]ck|öffne(?:n)?\s+sie\s+diesen\s+link)/i },
+  { id: "adac-phishing", re: /\badac\b[\s\S]{0,40}\b(?:auto[\s-]?notfall|service\s*set|exklusiv)/i },
   {
     id: "banking-phishing",
     re: /\bonline[\s-]?banking\b[\s\S]{0,120}\b(?:aktualis|reaktiv|verifiz|freischalt|sicherheits(?:update|prüfung)|anti[\s-]?phishing)/i,
@@ -93,11 +100,27 @@ const SOFT_THRESHOLD = 3;
 
 /** Absenderdomains, die als „Kunde“ praktisch nie legitim sind. */
 const SUSPICIOUS_EMAIL_DOMAINS: ReadonlyArray<{ id: string; re: RegExp }> = [
-  { id: "amazonses", re: /@amazonses\.com$/i },
+  // inkl. Regional-Hosts wie eu-west-1.amazonses.com / us-west-2.amazonses.com
+  { id: "amazonses", re: /@(?:[\w-]+\.)*amazonses\.com$/i },
   { id: "mailgun", re: /@(?:mailgun\.(?:org|com)|mg\.)/i },
   { id: "sendgrid", re: /@sendgrid\.(?:net|com)$/i },
-  { id: "noreply-bulk", re: /^(?:no-?reply|noreply|mailer-daemon|bounce)@/i },
+  { id: "google-bounces", re: /@[\w.-]*bounces\.google\.com$/i },
+  { id: "noreply-bulk", re: /^(?:no-?reply|noreply|mailer-daemon|bounce|bounces-)@/i },
 ];
+
+/** Nur diese TLDs dürfen durch (Hausmeister-Zielmarkt DE + gängige .com). */
+const ALLOWED_EMAIL_TLDS = new Set(["de", "com"]);
+
+function emailTld(domain: string): string {
+  const parts = domain.toLowerCase().split(".").filter(Boolean);
+  return parts.at(-1) ?? "";
+}
+
+function isAllowedEmailTld(email: string): boolean {
+  const domain = emailDomain(email);
+  if (!domain) return false;
+  return ALLOWED_EMAIL_TLDS.has(emailTld(domain));
+}
 
 /** Markenname im Absender-/Anzeigenamen, aber Domain passt nicht zur Marke. */
 const BRAND_IMPERSONATION: ReadonlyArray<{
@@ -165,6 +188,31 @@ const BRAND_IMPERSONATION: ReadonlyArray<{
     nameRe: /\belster\b|\bfinanzamt\b|\bbundesfinanz/i,
     allowedDomains: /(?:^|\.)(?:elster|bundesfinanzministerium|finanzamt)\./i,
   },
+  {
+    id: "brand-hermes",
+    nameRe: /\bhermes\b/i,
+    allowedDomains: /(?:^|\.)(?:myhermes|hermes)\./i,
+  },
+  {
+    id: "brand-ikea",
+    nameRe: /\bikea\b|\bl\s*kea\b/i,
+    allowedDomains: /(?:^|\.)ikea\./i,
+  },
+  {
+    id: "brand-adac",
+    nameRe: /\badac\b/i,
+    allowedDomains: /(?:^|\.)adac\./i,
+  },
+  {
+    id: "brand-ing",
+    nameRe: /\bing[\s-]?di(?:ba)?\b|\bing\b/i,
+    allowedDomains: /(?:^|\.)ing\./i,
+  },
+  {
+    id: "brand-edeka",
+    nameRe: /\bedeka\b/i,
+    allowedDomains: /(?:^|\.)edeka\./i,
+  },
 ];
 
 function normalize(text: string): string {
@@ -220,14 +268,18 @@ export function contactSpamReason(
   ]);
   if (!text && !email) return null;
 
-  for (const pattern of HARD_PATTERNS) {
-    if (pattern.re.test(text)) return pattern.id;
+  if (email && !isAllowedEmailTld(email)) {
+    return "tld-not-allowed";
   }
 
   if (email) {
     for (const pattern of SUSPICIOUS_EMAIL_DOMAINS) {
       if (pattern.re.test(email)) return pattern.id;
     }
+  }
+
+  for (const pattern of HARD_PATTERNS) {
+    if (pattern.re.test(text)) return pattern.id;
   }
 
   if (name && email) {
