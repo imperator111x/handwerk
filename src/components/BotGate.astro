@@ -11,10 +11,17 @@ const hostLabel = (() => {
     return "zeus-service.de";
   }
 })();
+
+const steps = [
+  { id: 1, label: "Verifizieren" },
+  { id: 2, label: "Prüfen" },
+  { id: 3, label: "Fertig" },
+];
 ---
 
 <section
-  class="relative grid min-h-screen place-items-center overflow-hidden bg-ink-50 px-4 py-12 dark:bg-ink-950"
+  id="bot-gate"
+  class="relative grid min-h-screen place-items-center overflow-hidden bg-ink-50 px-4 py-12 transition-opacity duration-500 ease-out dark:bg-ink-950"
   aria-live="polite"
 >
   <div
@@ -22,7 +29,7 @@ const hostLabel = (() => {
     aria-hidden="true"
   ></div>
 
-  <div class="relative w-full max-w-md">
+  <div id="bot-gate-panel" class="relative w-full max-w-md transition-all duration-500 ease-out">
     <div class="card shadow-soft">
       <div class="flex flex-col items-center text-center">
         <Logo height={56} class="mx-auto" />
@@ -46,7 +53,52 @@ const hostLabel = (() => {
         </p>
       </div>
 
-      <div class="mt-8 flex min-h-[65px] items-center justify-center">
+      <ol
+        id="bot-gate-steps"
+        class="mt-8 flex items-center justify-between gap-2"
+        aria-label="Prüfschritte"
+      >
+        {
+          steps.map((step, index) => (
+            <>
+              <li
+                class="bot-gate-step flex min-w-0 flex-1 flex-col items-center gap-2"
+                data-step={step.id}
+                data-state={step.id === 1 ? "active" : "todo"}
+              >
+                <span
+                  class="bot-gate-step-dot inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition"
+                >
+                  {step.id}
+                </span>
+                <span class="bot-gate-step-label truncate text-[11px] font-semibold uppercase tracking-wide">
+                  {step.label}
+                </span>
+              </li>
+              {index < steps.length - 1 && (
+                <span
+                  class="bot-gate-step-line mb-5 h-0.5 w-6 flex-none rounded-full bg-ink-200 dark:bg-white/15 sm:w-10"
+                  aria-hidden="true"
+                  data-after={step.id}
+                />
+              )}
+            </>
+          ))
+        }
+      </ol>
+
+      <div class="mt-8 flex min-h-[72px] flex-col items-center justify-center gap-4">
+        <div
+          id="bot-gate-spinner"
+          class="hidden items-center gap-3 text-sm font-medium text-brand-700 dark:text-brand-300"
+          role="status"
+        >
+          <span
+            class="inline-block h-5 w-5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600 dark:border-brand-900 dark:border-t-brand-300"
+            aria-hidden="true"
+          ></span>
+          <span>Überprüfung läuft…</span>
+        </div>
         {
           sitekey ? (
             <div id="page-turnstile" data-sitekey={sitekey} class="cf-turnstile-host"></div>
@@ -98,21 +150,76 @@ const hostLabel = (() => {
   .cf-turnstile-host {
     min-height: 65px;
   }
+
+  .bot-gate-step[data-state="todo"] .bot-gate-step-dot {
+    border-color: rgb(226 232 240);
+    background: transparent;
+    color: rgb(100 116 139);
+  }
+  :global(.dark) .bot-gate-step[data-state="todo"] .bot-gate-step-dot {
+    border-color: rgb(255 255 255 / 0.15);
+    color: rgb(148 163 184);
+  }
+  .bot-gate-step[data-state="todo"] .bot-gate-step-label {
+    color: rgb(100 116 139);
+  }
+  :global(.dark) .bot-gate-step[data-state="todo"] .bot-gate-step-label {
+    color: rgb(148 163 184);
+  }
+
+  .bot-gate-step[data-state="active"] .bot-gate-step-dot {
+    border-color: rgb(37 99 235);
+    background: rgb(37 99 235);
+    color: white;
+    box-shadow: 0 0 0 4px rgb(37 99 235 / 0.15);
+  }
+  .bot-gate-step[data-state="active"] .bot-gate-step-label {
+    color: rgb(29 78 216);
+  }
+  :global(.dark) .bot-gate-step[data-state="active"] .bot-gate-step-label {
+    color: rgb(147 197 253);
+  }
+
+  .bot-gate-step[data-state="done"] .bot-gate-step-dot {
+    border-color: rgb(16 185 129);
+    background: rgb(16 185 129);
+    color: white;
+  }
+  .bot-gate-step[data-state="done"] .bot-gate-step-label {
+    color: rgb(5 150 105);
+  }
+  :global(.dark) .bot-gate-step[data-state="done"] .bot-gate-step-label {
+    color: rgb(110 231 183);
+  }
+
+  .bot-gate-step-line[data-done="true"] {
+    background: rgb(16 185 129);
+  }
+
+  #bot-gate.is-leaving {
+    opacity: 0;
+  }
+  #bot-gate.is-leaving #bot-gate-panel {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
 </style>
 
 <script is:inline>
   (() => {
+    const root = document.getElementById("bot-gate");
     const box = document.getElementById("page-turnstile");
     const title = document.getElementById("bot-gate-title");
     const text = document.getElementById("bot-gate-text");
     const retry = document.getElementById("bot-gate-retry");
+    const spinner = document.getElementById("bot-gate-spinner");
     if (!title || !text) return;
     const sitekey = box?.getAttribute("data-sitekey");
     const host = location.host || "zeus-service.de";
-    // Mindestdauer je Status, damit 1 → 2 → 3 lesbar bleiben
     const STEP1_MS = 2800;
     const STEP2_MS = 2800;
     const STEP3_MS = 2200;
+    const FADE_MS = 450;
     const FAIL_MS = 25000;
     let widgetId;
     let failures = 0;
@@ -128,19 +235,45 @@ const hostLabel = (() => {
       text.textContent = body;
     };
 
+    const setStep = (active) => {
+      document.querySelectorAll(".bot-gate-step").forEach((node) => {
+        const id = Number(node.getAttribute("data-step"));
+        node.setAttribute("data-state", id < active ? "done" : id === active ? "active" : "todo");
+      });
+      document.querySelectorAll(".bot-gate-step-line").forEach((line) => {
+        const after = Number(line.getAttribute("data-after"));
+        line.setAttribute("data-done", after < active ? "true" : "false");
+      });
+      if (spinner) {
+        const show = active === 2;
+        spinner.classList.toggle("hidden", !show);
+        spinner.classList.toggle("flex", show);
+      }
+      if (box) box.classList.toggle("hidden", active !== 1);
+    };
+
     const deny = () => {
       if (settled) return;
       settled = true;
+      setStep(1);
       setCopy(
         "Überprüfung fehlgeschlagen",
         "Die Sicherheitsprüfung wurde nicht bestanden. Bitte versuchen Sie es erneut.",
       );
       retry?.classList.remove("hidden");
+      if (box) box.classList.remove("hidden");
+    };
+
+    const leaveAndReload = async () => {
+      root?.classList.add("is-leaving");
+      await wait(FADE_MS);
+      location.reload();
     };
 
     const runCheck = async (token) => {
       if (step2Started || settled) return;
       step2Started = true;
+      setStep(2);
       setCopy("Wird überprüft…", "Einen Moment, die Verbindung wird gesichert.");
       const step2At = Date.now();
       const record = (() => {
@@ -167,9 +300,10 @@ const hostLabel = (() => {
         if (remain2 > 0) await wait(remain2);
         if (response.ok) {
           settled = true;
+          setStep(3);
           setCopy("Erfolgreich!", "Sie werden weitergeleitet…");
           await wait(STEP3_MS);
-          location.reload();
+          await leaveAndReload();
           return;
         }
       } catch {
@@ -198,6 +332,7 @@ const hostLabel = (() => {
         action: "page_load",
         theme: dark ? "dark" : "light",
         appearance: "always",
+        size: "normal",
         callback: onToken,
         "error-callback": () => {
           failures += 1;
@@ -214,6 +349,8 @@ const hostLabel = (() => {
       pendingToken = null;
       step2Started = false;
       startedAt = Date.now();
+      root?.classList.remove("is-leaving");
+      setStep(1);
       setCopy(
         "Verifizieren Sie, dass Sie ein Mensch sind",
         "Kurz prüfen wir den Zugriff auf " + host + ", danach geht es weiter zur Website.",
@@ -226,6 +363,8 @@ const hostLabel = (() => {
     window.setTimeout(() => {
       if (!settled) deny();
     }, FAIL_MS);
+
+    setStep(1);
 
     if (!sitekey || !box) {
       deny();
